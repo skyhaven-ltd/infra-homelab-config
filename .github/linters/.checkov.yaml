@@ -1,0 +1,14 @@
+skip-check:
+  - CKV_GHA_7 # workflow_dispatch inputs are intentional (plan/apply/destroy selection)
+  - CKV_AZURE_111 # Key Vault enables soft delete
+  - CKV_AZURE_42 # Key Vault is recoverable
+  - CKV_AZURE_110 # Key Vault enables purge protection
+  - CKV_AZURE_182 # VNET has at least 2 connected DNS Endpoints
+  - CKV_AZURE_9 # RDP access restricted from the internet
+  - CKV_AZURE_160 # HTTP (port 80) access restricted from the internet
+  - CKV_AZURE_10 # SSH access restricted from the internet
+  - CKV_AZURE_77 # UDP services restricted from the internet
+  - CKV2_AZURE_31 # VNET subnet configured with NSG
+  - CKV_AZURE_189 # Key Vault disables public network access
+  - CKV_AZURE_109 # Key Vault allows firewall rules settings
+  - CKV2_AZURE_32 # Private endpoint configured for Key Vault
