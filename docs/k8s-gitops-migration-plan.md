@@ -1,0 +1,1209 @@
+# Homelab Kubernetes + GitOps Migration Plan
+
+**Status:** Ready for execution pending answers to §7 (Open Questions).
+**Audience:** An LLM coding agent with shell/file access to the current Docker host (`lnsvrlab01`), SSH reachability to the Proxmox host (`lnproxlab01`), and push access to the `skyhaven-ltd` GitHub org. Read this document top-to-bottom once, then execute phases in order. Every architectural decision has already been made; where a value must be *discovered* (not decided), Phase 0 tells you how to discover it.
+
+---
+
+## 0. Environment Inventory (verified 2026-07-03)
+
+These facts were gathered directly from the live environment. Re-verify anything marked *(discover)* in Phase 0 before relying on it.
+
+### Hosts
+
+| Host | Role | Details |
+|---|---|---|
+| `lnproxlab01` | Proxmox VE host | Tailscale IP `100.82.112.92`. LAN IP, node name, storage IDs, total RAM/CPU *(discover)* |
+| `lnsvrlab01` | Current Docker workload VM (KVM guest on the Proxmox host) | Ubuntu 24.04.3 LTS, 8 vCPU, 20 GiB RAM, LAN `192.168.1.3/24` on `ens18`, Tailscale `100.98.14.63`. Disks: `sda` 60 GB (LVM; root LV only 29 GB, **77 % full**), `sdb` 930 GB ext4 mounted `/mnt/media` |
+| `lnsvrk8s01` | **New** Kubernetes VM (created by this plan) | See VM sizing decision, §1.2 |
+
+- LAN: `192.168.1.0/24`, gateway assumed `192.168.1.1` *(discover in Phase 0)*.
+- Tailscale tailnet with MagicDNS active. `lnsvrlab01` advertises subnet route `192.168.1.0/24` (used for remote Plex without Plex Pass). **Known landmine:** MagicDNS (`100.100.100.100`) SERVFAILs public lookups when container runtimes forward to it — this previously broke containers on `lnsvrlab01` and is why the stockalert compose pins `dns: 1.1.1.1`. The new node avoids this by design (§1.13).
+- Pi-hole at `192.168.1.3` is the LAN DNS server (host-network container).
+
+### Current workloads (13 containers)
+
+**Stack A — media/infra stack.** Compose file: `/srv/containers/media/compose.yaml` (tracked in repo `infra-homelab-config` as `compose.yaml`). App data under `/srv/containers/media/appdata/<app>`:
+
+| App | Image | Network/Ports | State (size) | Notes |
+|---|---|---|---|---|
+| pihole | `pihole/pihole:latest` | host network, `NET_ADMIN` | 320 MB | LAN DNS — special cutover handling |
+| plex | `lscr.io/linuxserver/plex:latest` | host network | 829 MB config + `/mnt/media/library` (71 GB) | PUID/PGID 1000 |
+| sonarr | `lscr.io/linuxserver/sonarr:latest` | 8989 | 159 MB + `/mnt/media→/data` | |
+| radarr | `lscr.io/linuxserver/radarr:latest` | 7878 | 76 MB + `/mnt/media→/data` | |
+| prowlarr | `lscr.io/linuxserver/prowlarr:latest` | 9696 | 88 MB | |
+| qbittorrent | `lscr.io/linuxserver/qbittorrent:latest` | 8080 web, 6881 tcp/udp | 16 MB + `/mnt/media→/data` | |
+| audiobookshelf | `advplyr/audiobookshelf:latest` | 13378→80 | 1.1 MB + `/mnt/media→/data` | |
+| syncthing | `lscr.io/linuxserver/syncthing:latest` | 8384 web, 22000 tcp/udp, 21027 udp | 112 KB + `/mnt/media→/data` | |
+| homeassistant | `ghcr.io/home-assistant/home-assistant:stable` | host network, **privileged** | 26 MB | |
+
+**Stack B — StockAlert monitor.** Compose: `~/repos/app-stockalert-monitor/docker-compose.yml` (repo `skyhaven-ltd/app-stockalert-monitor`, image built locally):
+
+| App | Image | Ports | State | Notes |
+|---|---|---|---|---|
+| stock-checker | local build | none | `./data` (SQLite), `config.yaml` + `products.txt` ro binds, `.env` (2 secrets) | dns pinned 1.1.1.1/8.8.8.8 |
+| flaresolverr | `ghcr.io/flaresolverr/flaresolverr:latest` | internal only | none | solves bot challenges |
+| ntfy | `binwiederhier/ntfy:latest` | 8090→80 | `./ntfy/cache`, `./ntfy/etc` | **`NTFY_BASE_URL=http://192.168.1.3:8090`** — phones subscribe to this exact URL; IP must survive migration (§1.14) |
+
+**Stack C — Learning Review app.** Compose: `~/repos/app-learning-review/docker-compose.yml` (repo `skyhaven-ltd/app-learning-review`, image built locally):
+
+| App | Ports | State | Notes |
+|---|---|---|---|
+| app | 8081→8080 | named volume `app-learning-review_learning_data` at `/var/lib/docker/volumes/app-learning-review_learning_data/_data` | health endpoint `GET /health`. Compose declares an optional read-only Obsidian-vault bind, but the *running* container has no vault mount — migrate without it (see Open Question 8) |
+
+**`/mnt/media` layout:** `library/` 71 GB, `downloads/` 690 GB, `backups/` 12 GB (existing backup target — reuse it).
+
+**Existing repos (GitHub org `skyhaven-ltd`):** `infra-homelab-config` (becomes the monorepo), `app-learning-review`, `app-stockalert-monitor`, plus unrelated app repos.
+
+---
+
+## 1. Decision Record
+
+Each entry: **Decision**, then reasoning. Items marked *(judgment call)* are opinionated recommendations; everything else is close to forced by the constraints.
+
+### 1.1 Proxmox Terraform provider: `bpg/proxmox`
+
+**Decision:** `bpg/proxmox`, pinned to an exact version (resolve latest 0.x at execution time per the pin rule in §1.16, expected ≥ 0.66).
+
+Reasoning: `telmate/proxmox` is effectively unmaintained, has long-standing bugs around cloud-init and disk resizing, and lags Proxmox VE releases. `bpg/proxmox` is actively maintained, supports API-token auth, has a first-class `proxmox_virtual_environment_download_file` resource (so the Ubuntu cloud image itself is Terraform-managed — no manual template clicking), and models cloud-init natively. This is the community-consensus choice as of 2026.
+
+### 1.2 VM sizing *(judgment call)*
+
+**Decision:** `lnsvrk8s01` — 8 vCPU (`type=host`), **12 GiB RAM during co-existence, raised to 16 GiB after the old VM is decommissioned**, disk layout:
+
+| Disk | Size | Purpose |
+|---|---|---|
+| `scsi0` | 40 GB | OS + k3s binaries/images. The old VM's 29 GB root at 77 % proves 29 GB is too small; 40 GB with no LVM shrinkage gives headroom for container images |
+| `scsi1` | 150 GB | `/srv/appdata` — all Kubernetes PV data (local-path). Separate disk so the OS disk can be rebuilt without touching state, and so Proxmox backups can target it selectively |
+| `scsi2` | (moved, not created) | The existing 930 GB media disk, moved from `lnsvrlab01` in Phase 9, mounted `/mnt/media` |
+
+Reasoning: total current container RSS is ~2.5 GiB; k3s control plane + Argo CD + ingress adds ~1.5–2 GiB; Plex transcodes spike CPU not RAM. 12 GiB is comfortable. CPU overcommit on Proxmox is harmless for this workload, so both VMs can claim 8 vCPU simultaneously. RAM is the real co-existence constraint and the Proxmox host's total RAM is unknown — **Phase 0 discovers it; if host RAM < 34 GiB, shrink `lnsvrlab01` to 6 GiB first** (it uses 2.5 GiB; this is safe) via Proxmox UI or `qm set <vmid> --memory 6144` + reboot.
+
+### 1.3 Terraform → Ansible handoff: separate pipeline stages via Makefile
+
+**Decision:** Terraform and Ansible run as **separate, explicitly-ordered stages** (`make infra-apply` → `make configure`), glued by Terraform rendering the Ansible inventory file (`local_file` resource). **No `local-exec` provisioner.**
+
+Reasoning: provisioners are Terraform's own documented "last resort" — they run only on resource creation, so a playbook fix after VM creation forces a taint/recreate or manual run anyway; they hide Ansible failures inside Terraform state weirdness; and they make `terraform plan` output lie about what a run will do. Separate stages are idempotent (re-run Ansible freely), have clean failure boundaries, and match how real pipelines stage IaC. The Makefile encodes the ordering so nothing is memorized.
+
+### 1.4 Single-node vs multi-node: single node
+
+**Decision:** One k3s server node (control plane + workloads on the same VM). No workers, no HA.
+
+Reasoning: there is one physical machine. "Multi-node" here would mean multiple VMs on the same Proxmox host — that buys zero hardware fault tolerance while tripling RAM overhead and adding etcd quorum fragility, network storage requirements, and inter-VM traffic for no benefit. A single node with good backups (§1.15) is strictly better for one-host homelabs. The design keeps the door open: k3s supports adding agent nodes later with one command if a second physical machine appears.
+
+### 1.5 Monorepo: yes — evolve `infra-homelab-config`
+
+**Decision:** A single monorepo containing Proxmox Terraform + Ansible + all Kubernetes manifests. Use the **existing `skyhaven-ltd/infra-homelab-config` repo** (it already holds the compose stack and is the natural successor). Application *source code* stays in its per-app repos (`app-learning-review`, `app-stockalert-monitor`), which build and push images via CI; the monorepo holds only their *deployment manifests*.
+
+Reasoning (direct answer): yes, a monorepo is advisable at this scale. Multi-repo GitOps (one repo per app, or infra/app split) exists to serve independent team ownership and blast-radius isolation — concerns that don't exist for a single operator. A monorepo gives one place to search, one Argo CD credential, one PR history that interleaves infra and app changes chronologically, and atomic commits that touch an app and its ingress together. The one boundary that *does* matter is code-vs-config: app repos own `Dockerfile` + source and publish images; the monorepo owns everything that describes the *cluster*. This prevents an app code change from being able to alter cluster infrastructure and vice versa.
+
+### 1.6 Kubernetes distribution: k3s
+
+**Decision:** k3s, pinned version (resolve per §1.16 pin rule; expect a v1.32.x+k3s1 stable), installed by Ansible. Bundled Traefik **disabled**; bundled ServiceLB (klipper-lb), local-path-provisioner, CoreDNS, metrics-server **kept**.
+
+Reasoning:
+- **k3s vs full k8s (kubeadm):** kubeadm is a multi-component ops burden (etcd, certs, CNI selection, upgrade choreography) that teaches you Kubernetes *administration* at the cost of never getting to Kubernetes *usage*. k3s is a single binary + systemd unit, CNCF-certified conformant, with sane batteries included. Everything learned on k3s transfers.
+- **vs k0s:** technically similar, materially smaller community/docs pool — for someone at zero Kubernetes knowledge, k3s's massive homelab community is worth more than k0s's slightly purer architecture.
+- **vs microk8s:** snap-based (snap auto-refresh has broken clusters at 3 a.m.), Canonical-centric addon model that hides the standard manifest-driven way of doing things.
+- **Why disable Traefik:** the bundled Traefik is installed by k3s itself, outside Git — invisible to GitOps. Installing ingress-nginx via Argo CD keeps 100 % of in-cluster software Git-managed and uses the ingress controller with the largest documentation base. ServiceLB stays because something must answer LoadBalancer-type Services on bare metal (Pi-hole's port 53, ntfy's 8090) and klipper-lb is exactly the right size for one node — MetalLB would add BGP/ARP configuration for zero gain here.
+
+### 1.7 GitOps tool: Argo CD
+
+**Decision:** Argo CD (pinned release), app-of-apps pattern, auto-sync + self-heal + prune enabled for all Applications.
+
+Reasoning: Argo CD vs Flux is close at this scale; the decisive factor for a GitOps beginner is Argo's web UI, which visualizes the sync state, resource tree, and diffs of every application — an unmatched learning tool when Kubernetes is new. It's also the pattern most homelab references use (app-of-apps), and its `Application` CRD keeps "what's deployed" enumerable in one directory. Flux is excellent and slightly leaner, but its CLI/CRD-only feedback loop is a worse teacher. *(Judgment call — Flux would also work.)*
+
+### 1.8 Infra changes vs app changes: infra stays manually triggered, by design
+
+**Decision:** App/manifest changes deploy automatically via Argo CD on merge to `main` (that's the GitOps loop). Terraform/Ansible changes are applied **manually** via `make infra-plan && make infra-apply` (and `make configure`) from `lnsvrlab01` (later from any tailnet machine). No CI runner executes Terraform.
+
+Reasoning: there is no external CI that can reach the Proxmox API on the LAN without either exposing Proxmox (unacceptable) or joining CI to the tailnet (possible — GitHub Actions + `tailscale/github-action` — but then a compromised Actions workflow holds keys to the hypervisor). For a single operator, auto-applying hypervisor changes on merge adds risk and subtracts nothing: infra changes are rare, and the human running `make infra-apply` reviewing a plan *is* the approval gate. This is a deliberate architecture, not a gap. Future option (documented, not built): a self-hosted GitHub Actions runner on the Proxmox host running plan-on-PR only.
+
+### 1.9 Ingress, TLS, hostnames
+
+**Decision:**
+- **Ingress:** `ingress-nginx` (Helm chart via Argo CD), Service type LoadBalancer → klipper binds 80/443 on the node IP.
+- **Hostnames:** `<app>.lab.home.arpa` (RFC 8375 home-network domain), resolved by Pi-hole local DNS records pointing at the cluster IP (`192.168.1.3` after cutover).
+- **TLS:** cert-manager (Helm via Argo CD) with a **self-signed internal CA** (`ClusterIssuer` backed by a cert-manager-generated root CA). Every Ingress gets a real cert from that CA. The root CA cert is exported once and installed on the user's devices.
+
+Reasoning: no public domain is confirmed for this homelab (Open Question 3). An internal CA works with zero external dependencies, no port-forwarding, no DNS-01 API tokens, and teaches the full cert-manager machinery. If Open Question 3 lands a real domain + Cloudflare, swap the ClusterIssuer for a Let's Encrypt DNS-01 issuer later — a one-file change; every Ingress annotation stays identical. Trade-off: browsers on devices without the root CA installed show warnings.
+
+### 1.10 Secrets management: Sealed Secrets
+
+**Decision:** Bitnami Sealed Secrets (controller via Argo CD, `kubeseal` CLI on the workstation). Encrypted `SealedSecret` manifests live in Git next to their app. Exactly **one** manual, never-in-Git bootstrap secret: the Argo CD repo deploy key (Phase 5). The sealed-secrets controller's private key is backed up to `/mnt/media/backups/sealed-secrets/` and one off-box copy (Open Question 6).
+
+Reasoning vs SOPS: SOPS+age is a fine tool but integrates with Argo CD only via plugins/sidecars (KSOPS) — extra moving parts and a bootstrap age-key distribution problem. Sealed Secrets is a native controller + CRD: `kubeseal` encrypts with the cluster's public key, Git stores ciphertext, controller decrypts in-cluster, Argo needs zero special config. The known weakness — secrets are coupled to one cluster key — is neutralized by backing up the key (which you must do anyway for disaster recovery, §1.15).
+
+### 1.11 Persistent storage: local-path-provisioner + hostPath for media
+
+**Decision:**
+- **App state** (Pi-hole config, *arr databases, Plex metadata, SQLite files, HA config): k3s's bundled **local-path-provisioner** as default StorageClass, with its data root moved to `/srv/appdata/local-path` (the dedicated 150 GB `scsi1` disk).
+- **Bulk media** (`/mnt/media`): the existing 930 GB disk moved to the new VM and mounted as **hostPath volumes** in pod specs, exactly mirroring today's bind mounts (`/mnt/media` → `/data` in-container, preserving *arr/qbittorrent path mappings and hardlink behavior).
+- **Longhorn: rejected.**
+
+Reasoning: Longhorn's value is *replication across nodes* — on one node it delivers zero durability gain while adding an engine, a UI, iSCSI daemons, and a per-volume overhead tax; a failed single node loses Longhorn volumes just as dead as local-path ones. local-path is dumb in the best way: PVs are plain directories under `/srv/appdata/local-path/`, trivially rsync-able for the data-seeding migration (§4 recipe) and trivially backed up by restic (§1.15). hostPath for media (rather than a PV) is deliberate: it's a shared, pre-existing, multi-app read-write directory tree where per-app PVC semantics would be a fiction. The `/data` in-container path is preserved **byte-identical** to compose so sonarr/radarr/qbittorrent internal path references and hardlinks keep working with zero re-configuration.
+
+### 1.12 Pi-hole / DNS continuity
+
+**Decision:** Pi-hole **migrates into the cluster** (it's the Phase 6 pilot app). DNS on port 53 TCP+UDP is exposed via a LoadBalancer Service on the node IP. During the whole migration the *old* Pi-hole on `192.168.1.3` keeps serving the LAN untouched. Cutover (Phase 11) is an **IP swap**: old VM moves to `192.168.1.13`, new VM takes `192.168.1.3`. LAN clients, the router's DHCP-advertised DNS, and every hardcoded reference to `.3` (including phone ntfy subscriptions) continue working without touching any client device.
+
+Reasoning: the alternative — re-pointing router DHCP at a new IP — requires router access, waits on client lease renewal, and still breaks the hardcoded ntfy base URL. Swapping IPs at the infrastructure layer moves the *service identity* to the new machine in one atomic step with a trivially symmetric rollback. The cluster node must **never depend on cluster Pi-hole for its own resolution** (boot-order deadlock after power loss): the node's own DNS is statically `1.1.1.1`/`8.8.8.8` via cloud-init (§1.13).
+
+### 1.13 Node DNS + Tailscale (avoiding the MagicDNS SERVFAIL repeat)
+
+**Decision:** On `lnsvrk8s01`: static resolvers `1.1.1.1`, `8.8.8.8` in cloud-init netplan; Tailscale installed by Ansible with `--accept-dns=false`; subnet route `192.168.1.0/24` advertisement moves from old VM to new at cutover.
+
+Reasoning: the documented failure on `lnsvrlab01` (containers SERVFAIL public names because the runtime forwards to MagicDNS `100.100.100.100`) would recur in-cluster: CoreDNS forwards upstream to the *node's* `/etc/resolv.conf`. `--accept-dns=false` keeps MagicDNS off the node resolv chain entirely, so CoreDNS forwards to 1.1.1.1 and every pod resolves public names. Tailnet-name resolution from the node isn't needed (use IPs/LAN names); LAN clients get ad-blocking DNS from Pi-hole, not from the node's resolvers. Preserves the no-Plex-Pass remote-access path (subnet route + direct connections) after cutover.
+
+### 1.14 Custom app images: GHCR + GitHub Actions (new requirement)
+
+**Decision:** `app-learning-review` and `app-stockalert-monitor` currently `build: .` locally — Kubernetes needs a registry. Each app repo gets a GitHub Actions workflow building and pushing `ghcr.io/skyhaven-ltd/<app>:<git-sha>` (and `:latest`) on push to `main`. The cluster pulls via an `imagePullSecret` (a GHCR read-only PAT, sealed). Deploying a new app version = CI pushes image, then a one-line image-tag bump commit in the monorepo (keeps Git as literal source of truth for *what runs*).
+
+Reasoning: GHCR is free for these repos, already inside the org's auth perimeter, and GitHub Actions is the zero-infra CI available. Building on-node (k3s can't) or running a private registry in-cluster (chicken-and-egg on cluster rebuild) are both worse. sha-pinned tags in Git give exact rollback.
+
+### 1.15 Backup strategy
+
+**Decision (three layers):**
+1. **App state:** nightly `restic` snapshot of `/srv/appdata` → `/mnt/media/backups/restic-appdata/` via systemd timer on the node (Ansible-managed). 14 daily + 8 weekly retention.
+2. **VM level:** weekly Proxmox `vzdump` of `lnsvrk8s01` **scsi0 + scsi1 only** (media disk excluded via `backup=0` flag on scsi2) to Proxmox-local backup storage *(target storage: discover in Phase 0; PBS if present — Open Question 7)*.
+3. **Crown jewels, off-box** (Open Question 6 for destination): sealed-secrets private key, k3s token, Terraform state, root CA secret, restic password.
+
+Reasoning: single-node means the node *is* the blast radius; restic gives fast file-level restore of one app's state, vzdump gives whole-VM disaster recovery, and layer 3 makes a rebuilt-from-Git cluster able to decrypt its own secrets. `/mnt/media` bulk media is explicitly *not* backed up (existing posture, 761 GB of re-acquirable media; `backups/` dir itself is on that disk — acceptable, noted in §5 risks).
+
+### 1.16 Version-pinning rule (applies everywhere)
+
+GitOps requires pinned versions; this document cannot know July-2026 latest releases. **Rule (mechanical, no judgment):** at execution time, resolve the current latest *stable* release of each pinned artifact (Helm chart, image tag, k3s version, provider version) via its registry/GitHub releases, write that exact version into Git, and record it in `docs/versions.md`. Never deploy `:latest` as a running tag. For container images prefer the upstream's current stable semver tag; for `linuxserver.io` images use their `version-<x>` tags. Upgrades thereafter are Git commits bumping pins.
+
+---
+
+## 2. Target Repo Structure (`skyhaven-ltd/infra-homelab-config`)
+
+```
+infra-homelab-config/
+├── README.md
+├── Makefile                          # single entrypoint: infra-plan/apply, configure, bootstrap, seal
+├── .gitignore                        # *.tfstate*, .terraform/, ansible/inventory/hosts.yml, *.key, kubeconfig
+├── docs/
+│   ├── k8s-gitops-migration-plan.md  # this file
+│   └── versions.md                   # every resolved pin (per §1.16), maintained as pins change
+├── terraform/                        # Layer 1: Proxmox VM (infra creation)
+│   ├── versions.tf                   # terraform + bpg/proxmox pins
+│   ├── providers.tf                  # provider config (endpoint; token via env var)
+│   ├── variables.tf
+│   ├── terraform.tfvars              # non-secret values (node name, storage IDs, IPs)
+│   ├── image.tf                      # Ubuntu 24.04 cloud image download (TF-managed)
+│   ├── vm-k8s.tf                     # lnsvrk8s01 definition incl. cloud-init
+│   ├── inventory.tf                  # renders ansible/inventory/hosts.yml from VM facts
+│   └── outputs.tf
+├── ansible/                          # Layer 2: VM configuration (OS → k3s → Argo bootstrap)
+│   ├── ansible.cfg
+│   ├── site.yml                      # imports roles in order: base, tailscale, k3s, argocd_bootstrap
+│   ├── group_vars/
+│   │   └── k8s.yml                   # k3s version pin, disk device names, tailscale flags
+│   ├── inventory/
+│   │   └── hosts.yml                 # GENERATED by terraform — gitignored
+│   └── roles/
+│       ├── base/                     # packages, qemu-guest-agent, scsi1 fs+mount, sysctls, unattended-upgrades, restic timer
+│       ├── tailscale/                # install, up --accept-dns=false (route advert added at cutover)
+│       ├── k3s/                      # /etc/rancher/k3s/config.yaml + pinned installer
+│       └── argocd_bootstrap/         # kubectl apply -k kubernetes/bootstrap/argocd + root app
+├── kubernetes/
+│   ├── bootstrap/
+│   │   └── argocd/                   # kustomization pinning upstream Argo CD install manifest + ns
+│   │       ├── kustomization.yaml
+│   │       └── namespace.yaml
+│   ├── argocd-apps/                  # app-of-apps: one Application manifest per deployable unit
+│   │   ├── root-app.yaml             # applied once by ansible; watches this directory
+│   │   ├── infra-ingress-nginx.yaml
+│   │   ├── infra-cert-manager.yaml
+│   │   ├── infra-cert-issuers.yaml
+│   │   ├── infra-sealed-secrets.yaml
+│   │   ├── app-pihole.yaml
+│   │   ├── app-plex.yaml … (one per app)
+│   │   └── app-stockalert.yaml
+│   ├── infrastructure/               # platform components (Helm-chart Applications point here for values)
+│   │   ├── ingress-nginx/values.yaml
+│   │   ├── cert-manager/values.yaml
+│   │   ├── cert-issuers/             # plain manifests: selfsigned issuer → root CA cert → CA ClusterIssuer
+│   │   └── sealed-secrets/values.yaml
+│   └── apps/                         # one directory per app: plain YAML + kustomization.yaml
+│       ├── pihole/                   #   deployment, pvc(s), services, ingress, sealedsecret
+│       ├── plex/
+│       ├── sonarr/  radarr/  prowlarr/  qbittorrent/  audiobookshelf/  syncthing/
+│       ├── homeassistant/
+│       ├── learning-review/
+│       └── stockalert/               # stock-checker + flaresolverr + ntfy (one namespace, three deployments)
+├── compose/                          # LEGACY: current compose.yaml moves here; deleted in Phase 12
+└── scripts/                          # existing helper scripts (unchanged until decommission review)
+```
+
+Placement logic: **terraform/** creates things Proxmox knows about; **ansible/** configures the OS up to and including "Argo CD is running and pointed at this repo"; **kubernetes/** is Argo CD's exclusive territory — after bootstrap, *nothing* under `kubernetes/` is ever `kubectl apply`'d by hand (the two documented exceptions: the one-time repo-key secret and root-app in Phase 5). Terraform state stays local on the machine running it, gitignored, copied into the layer-3 backup set.
+
+---
+
+## 3. Phased Execution Plan
+
+General rules for every phase:
+- Work on branch `k8s-migration` in the monorepo; merge to `main` at each phase boundary (Argo CD watches `main`).
+- Never stop an old-stack container until its replacement is verified (each phase says when).
+- If a verification step fails, follow that phase's rollback, fix, re-run. Phases are idempotent unless noted.
+- Shell blocks are written for the stated host: `[old]` = lnsvrlab01, `[pve]` = Proxmox host root shell, `[new]` = lnsvrk8s01, `[any]` = wherever kubectl/kubeseal/git run (initially lnsvrlab01).
+
+---
+
+### Phase 0 — Preflight discovery & access
+
+**Prerequisites:** none.
+
+**Steps:**
+
+1. `[old]` Verify SSH to the Proxmox host over the tailnet (try `ssh root@100.82.112.92 pveversion`; if key auth fails this is a hard blocker → Open Question 1).
+2. `[pve]` Discover and record facts:
+
+```bash
+pvesh get /nodes --output-format json        # → node NAME (expected single node)
+pvesm status                                  # → storage IDs; note which are active
+                                              #   - VM disk storage (type lvmthin "local-lvm" or zfs)
+                                              #   - a storage with content "iso" (usually "local")
+                                              #   - a storage with content "backup"
+free -g; nproc                                # → host RAM/cores (drives §1.2 co-existence call)
+qm list                                       # → VMID of lnsvrlab01 (call it OLD_VMID)
+qm config <OLD_VMID>                          # → which scsiN is the 930G media disk (call it MEDIA_DISK_SLOT)
+cat /etc/pve/qemu-server/<OLD_VMID>.conf | grep net0   # → bridge name (expected vmbr0)
+```
+
+3. `[old]` Confirm gateway: `ip route | grep default` (expected `192.168.1.1`).
+4. `[old]` Confirm `gh` CLI is authenticated for org `skyhaven-ltd`: `gh auth status`.
+5. Record all discovered values in `docs/versions.md` under a "Environment facts" heading, commit.
+6. If host RAM < 34 GiB: `[pve]` `qm set <OLD_VMID> --memory 6144`, then reboot `lnsvrlab01` at a convenient moment (brief full outage of all current apps — do it now, not mid-migration). Verify after reboot: `free -g` on old shows ~6 GiB and all 13 containers running (`docker ps | wc -l` ≥ 13… wait for compose restart policies to bring them up).
+
+**Verification:** `docs/versions.md` contains node name, storage IDs, OLD_VMID, MEDIA_DISK_SLOT, bridge, gateway, host RAM; SSH to pve works non-interactively; `gh auth status` OK.
+
+**Rollback:** nothing to roll back (read-only except optional RAM shrink; revert with `qm set <OLD_VMID> --memory 20480`).
+
+---
+
+### Phase 1 — Backup current state
+
+**Prerequisites:** Phase 0.
+
+**Steps** `[old]`:
+
+```bash
+BK=/mnt/media/backups/pre-k8s-$(date +%F); mkdir -p "$BK"
+
+# 1. Compose definitions + env (env files contain secrets: keep perms tight)
+cp /srv/containers/media/compose.yaml "$BK/media-compose.yaml"
+cp -r ~/repos/app-stockalert-monitor/{docker-compose.yml,.env,config.yaml,products.txt} "$BK/stockalert/" 2>/dev/null || \
+  { mkdir -p "$BK/stockalert"; cp ~/repos/app-stockalert-monitor/docker-compose.yml ~/repos/app-stockalert-monitor/.env ~/repos/app-stockalert-monitor/config.yaml ~/repos/app-stockalert-monitor/products.txt "$BK/stockalert/"; }
+mkdir -p "$BK/learning-review"; cp ~/repos/app-learning-review/{docker-compose.yml,.env} "$BK/learning-review/"
+chmod -R go-rwx "$BK"
+
+# 2. App state (stop nothing; these apps tolerate hot copy for a safety snapshot —
+#    the REAL migration copies happen cold, per-app, in later phases)
+sudo tar -C /srv/containers/media -czf "$BK/appdata.tar.gz" appdata
+sudo tar -C /var/lib/docker/volumes/app-learning-review_learning_data -czf "$BK/learning-data.tar.gz" _data
+tar -C ~/repos/app-stockalert-monitor -czf "$BK/stockalert-data.tar.gz" data ntfy
+
+# 3. Network/DNS identity of the host (needed for the IP swap later)
+ip addr > "$BK/ip-addr.txt"; ip route > "$BK/ip-route.txt"
+sudo cp -r /etc/netplan "$BK/netplan"
+tailscale status > "$BK/tailscale-status.txt"
+
+# 4. Verify archives are readable
+for f in "$BK"/*.tar.gz; do tar -tzf "$f" >/dev/null && echo "OK $f"; done
+```
+
+`[pve]` Snapshot the old VM as a point-in-time fallback: `qm snapshot <OLD_VMID> pre-k8s-migration --description "before k8s migration $(date +%F)"` (works on lvmthin/zfs; if storage doesn't support snapshots, run `vzdump <OLD_VMID> --storage <backup-storage> --mode snapshot` instead).
+
+**Verification:** all `OK` lines printed; `qm listsnapshot <OLD_VMID>` (or vzdump log) shows the snapshot; `du -sh $BK` is plausibly sized (≥ 1.5 GB given appdata sizes).
+
+**Rollback:** n/a (backups only). **This phase is the master rollback for everything later.**
+
+---
+
+### Phase 2 — Monorepo scaffold
+
+**Prerequisites:** Phase 1.
+
+**Steps** `[old]` in `~/repos/infra-homelab-config`, branch `k8s-migration`:
+
+1. Create the §2 directory tree. Move `compose.yaml` → `compose/compose.yaml` (update the README pointer; if a systemd unit references the old path — check `systemd/` dir — update it in the same commit and re-link on the host so the running stack is unaffected).
+2. `.gitignore`:
+
+```gitignore
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl.backup
+ansible/inventory/hosts.yml
+*.key
+*-kubeconfig
+crash.log
+```
+
+3. `Makefile`:
+
+```makefile
+TF_DIR      := terraform
+ANSIBLE_DIR := ansible
+
+.PHONY: infra-init infra-plan infra-apply configure bootstrap seal
+
+infra-init:
+	cd $(TF_DIR) && terraform init
+
+infra-plan:
+	cd $(TF_DIR) && terraform plan
+
+infra-apply:
+	cd $(TF_DIR) && terraform apply
+
+configure:
+	cd $(ANSIBLE_DIR) && ansible-galaxy install -r requirements.yml && \
+	ansible-playbook -i inventory/hosts.yml site.yml
+
+bootstrap:
+	cd $(ANSIBLE_DIR) && ansible-playbook -i inventory/hosts.yml site.yml --tags argocd
+
+# usage: make seal FILE=secret.yaml OUT=kubernetes/apps/foo/sealedsecret.yaml
+seal:
+	kubeseal --controller-namespace sealed-secrets --format yaml < $(FILE) > $(OUT)
+```
+
+4. Install tooling on `[old]` (it's the ops workstation for now): `terraform` (HashiCorp apt repo, pin latest 1.x per §1.16), `ansible` (pipx or apt), `kubectl`, `kubeseal`, `helm` (for template debugging only — Argo does the real installs).
+5. Commit, push, merge `k8s-migration` → `main` (repeat at each phase boundary; not restated below).
+
+**Verification:** `make infra-init` fails only because `terraform/` has no config yet (expected); tree matches §2; running compose stack unaffected (`docker ps` count unchanged).
+
+**Rollback:** `git revert`; restore compose.yaml path if moved.
+
+---
+
+### Phase 3 — Proxmox API token + Terraform VM provision
+
+**Prerequisites:** Phases 0–2.
+
+**Step 1** `[pve]` — create a Terraform identity:
+
+```bash
+pveum user add terraform@pve --comment "Terraform IaC"
+pveum aclmod / -user terraform@pve -role Administrator
+pveum user token add terraform@pve tf -privsep 0
+# SAVE the printed token value NOW — it is shown once.
+```
+
+(Administrator on `/` is pragmatic for a single-operator homelab; a least-privilege custom role is a documented future hardening, not done now.)
+
+**Step 2** `[old]` — Terraform config. `terraform/versions.tf`:
+
+```hcl
+terraform {
+  required_version = ">= 1.9.0"
+  required_providers {
+    proxmox = {
+      source  = "bpg/proxmox"
+      version = "= <PIN per §1.16, e.g. 0.66.x latest>"
+    }
+  }
+}
+```
+
+`terraform/providers.tf`:
+
+```hcl
+provider "proxmox" {
+  endpoint  = "https://${var.proxmox_host}:8006/"
+  api_token = var.proxmox_api_token   # supplied via TF_VAR_proxmox_api_token env var — never in Git
+  insecure  = true                    # self-signed PVE cert on a LAN host; acceptable here
+  ssh {                               # bpg uses SSH for a few operations (e.g. file uploads)
+    agent    = true
+    username = "root"
+  }
+}
+```
+
+`terraform/variables.tf`:
+
+```hcl
+variable "proxmox_host"      { type = string }               # pve LAN IP or tailscale IP from Phase 0
+variable "proxmox_api_token" { type = string, sensitive = true } # "terraform@pve!tf=<uuid>"
+variable "proxmox_node"      { type = string }               # node name from Phase 0
+variable "vm_storage"        { type = string }               # VM disk storage ID from Phase 0
+variable "iso_storage"       { type = string, default = "local" }
+variable "k8s_vm_ip"         { type = string, default = "192.168.1.4/24" } # becomes .3 at cutover
+variable "lan_gateway"       { type = string, default = "192.168.1.1" }
+variable "bridge"            { type = string, default = "vmbr0" }
+variable "k8s_memory_mb"     { type = number, default = 12288 }  # → 16384 in Phase 12
+variable "ssh_public_key"    { type = string }               # content of ~/.ssh/id_ed25519.pub (generate if absent)
+```
+
+`terraform/terraform.tfvars`: fill every variable with Phase 0 facts (this file is non-secret and committed; the token is env-only).
+
+`terraform/image.tf`:
+
+```hcl
+resource "proxmox_virtual_environment_download_file" "ubuntu_noble" {
+  content_type = "iso"
+  datastore_id = var.iso_storage
+  node_name    = var.proxmox_node
+  url          = "https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img"
+  file_name    = "ubuntu-noble-cloudimg-amd64.img"
+}
+```
+
+`terraform/vm-k8s.tf`:
+
+```hcl
+resource "proxmox_virtual_environment_vm" "k8s" {
+  name        = "lnsvrk8s01"
+  description = "k3s single-node cluster (managed by Terraform)"
+  node_name   = var.proxmox_node
+  vm_id       = 200
+  on_boot     = true
+
+  cpu    { cores = 8, type = "host" }
+  memory { dedicated = var.k8s_memory_mb }
+  agent  { enabled = true }               # qemu-guest-agent installed by Ansible
+
+  disk {
+    datastore_id = var.vm_storage
+    interface    = "scsi0"
+    size         = 40
+    file_id      = proxmox_virtual_environment_download_file.ubuntu_noble.id
+    iothread     = true
+    discard      = "on"
+  }
+  disk {
+    datastore_id = var.vm_storage
+    interface    = "scsi1"
+    size         = 150
+    iothread     = true
+    discard      = "on"
+    file_format  = "raw"
+  }
+
+  network_device { bridge = var.bridge }
+  operating_system { type = "l26" }
+  serial_device {}                        # cloud images want a serial console
+
+  initialization {
+    datastore_id = var.vm_storage
+    ip_config {
+      ipv4 { address = var.k8s_vm_ip, gateway = var.lan_gateway }
+    }
+    dns { servers = ["1.1.1.1", "8.8.8.8"] }   # static; NEVER the cluster's own pi-hole (§1.12)
+    user_account {
+      username = "ops"
+      keys     = [var.ssh_public_key]
+    }
+  }
+
+  lifecycle {
+    ignore_changes = [disk[2]]  # media disk gets attached out-of-band in Phase 9 as scsi2
+  }
+}
+```
+
+`terraform/inventory.tf`:
+
+```hcl
+resource "local_file" "ansible_inventory" {
+  filename        = "${path.module}/../ansible/inventory/hosts.yml"
+  file_permission = "0640"
+  content = yamlencode({
+    k8s = {
+      hosts = {
+        lnsvrk8s01 = {
+          ansible_host = split("/", var.k8s_vm_ip)[0]
+          ansible_user = "ops"
+        }
+      }
+    }
+  })
+}
+```
+
+(add `hashicorp/local` to required_providers). `terraform/outputs.tf`: output the VM IP and VMID.
+
+**Step 3** `[old]`:
+
+```bash
+export TF_VAR_proxmox_api_token='terraform@pve!tf=<uuid-from-step-1>'
+make infra-init && make infra-plan   # review: 3 resources to add
+make infra-apply
+```
+
+**Verification:** `qm list` on pve shows VMID 200 running; `ssh ops@192.168.1.4 'lsb_release -d && lsblk'` succeeds and shows sda 40G / sdb 150G; `ansible/inventory/hosts.yml` exists. Old stack untouched.
+
+**Rollback:** `terraform destroy` (only touches VM 200 + downloaded image). Nothing on the old VM changed.
+
+---
+
+### Phase 4 — Ansible: base config, Tailscale, k3s
+
+**Prerequisites:** Phase 3.
+
+`ansible/ansible.cfg`:
+
+```ini
+[defaults]
+inventory = inventory/hosts.yml
+host_key_checking = False
+roles_path = roles
+interpreter_python = auto_silent
+```
+
+`ansible/group_vars/k8s.yml`:
+
+```yaml
+k3s_version: "<PIN per §1.16, e.g. v1.32.x+k3s1>"
+appdata_device: /dev/sdb          # the 150G scsi1 disk
+appdata_mount: /srv/appdata
+node_ip: 192.168.1.4              # updated to .3 at cutover (Phase 11)
+tailscale_authkey: "{{ lookup('env', 'TS_AUTHKEY') }}"   # one-time reusable key from admin console
+```
+
+`ansible/site.yml`:
+
+```yaml
+- hosts: k8s
+  become: true
+  roles:
+    - { role: base,             tags: [base] }
+    - { role: tailscale,        tags: [tailscale] }
+    - { role: k3s,              tags: [k3s] }
+    - { role: argocd_bootstrap, tags: [argocd] }
+```
+
+`roles/base/tasks/main.yml` (complete):
+
+```yaml
+- name: Install base packages
+  ansible.builtin.apt:
+    name: [qemu-guest-agent, curl, jq, restic, nfs-common, open-iscsi, htop, unattended-upgrades]
+    update_cache: true
+- name: Enable qemu-guest-agent
+  ansible.builtin.systemd: { name: qemu-guest-agent, state: started, enabled: true }
+- name: Filesystem on appdata disk
+  community.general.filesystem: { fstype: ext4, dev: "{{ appdata_device }}" }
+- name: Mount appdata disk
+  ansible.posix.mount:
+    path: "{{ appdata_mount }}"
+    src: "{{ appdata_device }}"
+    fstype: ext4
+    opts: defaults,noatime
+    state: mounted
+- name: Kernel params for k8s
+  ansible.posix.sysctl: { name: "{{ item.k }}", value: "{{ item.v }}", state: present }
+  loop:
+    - { k: fs.inotify.max_user_instances, v: "1024" }
+    - { k: fs.inotify.max_user_watches,   v: "1048576" }
+- name: Enable unattended security upgrades
+  ansible.builtin.copy:
+    dest: /etc/apt/apt.conf.d/20auto-upgrades
+    content: |
+      APT::Periodic::Update-Package-Lists "1";
+      APT::Periodic::Unattended-Upgrade "1";
+```
+
+(`requirements.yml`: `community.general`, `ansible.posix`.)
+
+`roles/tailscale/tasks/main.yml`:
+
+```yaml
+- name: Add tailscale repo key/source
+  ansible.builtin.shell: |
+    curl -fsSL https://pkgs.tailscale.com/stable/ubuntu/noble.noarmor.gpg -o /usr/share/keyrings/tailscale-archive-keyring.gpg
+    curl -fsSL https://pkgs.tailscale.com/stable/ubuntu/noble.tailscale-keyring.list -o /etc/apt/sources.list.d/tailscale.list
+  args: { creates: /etc/apt/sources.list.d/tailscale.list }
+- name: Install tailscale
+  ansible.builtin.apt: { name: tailscale, update_cache: true }
+- name: Bring up tailscale (MagicDNS OFF on this node — see decision 1.13)
+  ansible.builtin.command: tailscale up --authkey={{ tailscale_authkey }} --accept-dns=false --hostname=lnsvrk8s01
+  args: { creates: /var/lib/tailscale/tailscaled.state }
+```
+
+`roles/k3s/tasks/main.yml`:
+
+```yaml
+- name: k3s config directory
+  ansible.builtin.file: { path: /etc/rancher/k3s, state: directory, mode: "0755" }
+- name: k3s config
+  ansible.builtin.copy:
+    dest: /etc/rancher/k3s/config.yaml
+    content: |
+      disable:
+        - traefik
+      node-ip: {{ node_ip }}
+      tls-san:
+        - lnsvrk8s01
+        - 192.168.1.3        # future identity after IP swap
+        - {{ node_ip }}
+      default-local-storage-path: {{ appdata_mount }}/local-path
+      write-kubeconfig-mode: "0640"
+  notify: restart k3s
+- name: Install k3s (pinned)
+  ansible.builtin.shell: |
+    curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION={{ k3s_version }} sh -s - server
+  args: { creates: /usr/local/bin/k3s }
+- name: Fetch kubeconfig to controller
+  ansible.builtin.fetch:
+    src: /etc/rancher/k3s/k3s.yaml
+    dest: "{{ playbook_dir }}/../lnsvrk8s01-kubeconfig"
+    flat: true
+```
+
+(handler `restart k3s`: `systemd: name=k3s state=restarted`.) After fetch, `[old]`: `sed -i 's/127.0.0.1/192.168.1.4/' ansible/lnsvrk8s01-kubeconfig; export KUBECONFIG=$PWD/ansible/lnsvrk8s01-kubeconfig` (file is gitignored; add to layer-3 backups… actually it's regenerable, the *k3s token* `/var/lib/rancher/k3s/server/token` is what goes in backups).
+
+Run: `TS_AUTHKEY=<from tailscale admin> make configure` (skip `argocd` tag failures for now — that role lands in Phase 5; alternatively run with `--skip-tags argocd`).
+
+**Verification:**
+
+```bash
+kubectl get nodes -o wide        # lnsvrk8s01 Ready, correct version, INTERNAL-IP 192.168.1.4
+kubectl get pods -A              # coredns, local-path-provisioner, metrics-server Running; NO traefik
+kubectl run dns-test --rm -it --image=busybox:1.36 --restart=Never -- nslookup github.com
+                                 # MUST resolve — this proves the §1.13 SERVFAIL fix
+```
+
+**Rollback:** `/usr/local/bin/k3s-uninstall.sh` on the node, or `terraform destroy` the VM and re-run Phases 3–4. Old stack untouched.
+
+---
+
+### Phase 5 — Argo CD bootstrap + platform apps
+
+**Prerequisites:** Phase 4; kubeconfig working from `[old]`.
+
+**Step 1 — Argo CD install manifests in Git.** `kubernetes/bootstrap/argocd/namespace.yaml`: plain `Namespace` named `argocd`. `kustomization.yaml`:
+
+```yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: argocd
+resources:
+  - namespace.yaml
+  - https://raw.githubusercontent.com/argoproj/argo-cd/<PIN e.g. v2.14.x>/manifests/install.yaml
+```
+
+**Step 2 — repo deploy key (the ONE manual secret).** `[old]`:
+
+```bash
+ssh-keygen -t ed25519 -f /tmp/argocd-repo-key -N "" -C "argocd@lnsvrk8s01"
+gh repo deploy-key add /tmp/argocd-repo-key.pub -R skyhaven-ltd/infra-homelab-config --title argocd-readonly
+kubectl apply -k kubernetes/bootstrap/argocd
+kubectl -n argocd create secret generic repo-infra-homelab-config \
+  --from-literal=type=git \
+  --from-literal=url=git@github.com:skyhaven-ltd/infra-homelab-config.git \
+  --from-file=sshPrivateKey=/tmp/argocd-repo-key
+kubectl -n argocd label secret repo-infra-homelab-config argocd.argoproj.io/secret-type=repository
+shred -u /tmp/argocd-repo-key   # key now lives only in-cluster; regenerable at will
+```
+
+**Step 3 — root app (app-of-apps).** `kubernetes/argocd-apps/root-app.yaml`:
+
+```yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata: { name: root, namespace: argocd }
+spec:
+  project: default
+  source:
+    repoURL: git@github.com:skyhaven-ltd/infra-homelab-config.git
+    targetRevision: main
+    path: kubernetes/argocd-apps
+  destination: { server: https://kubernetes.default.svc, namespace: argocd }
+  syncPolicy:
+    automated: { prune: true, selfHeal: true }
+```
+
+Apply once by hand (`kubectl apply -f kubernetes/argocd-apps/root-app.yaml`) — from here on, adding a file to `kubernetes/argocd-apps/` deploys it. Wrap Steps 1–3 into `roles/argocd_bootstrap` (each task with a `creates`/`kubectl get`-guard so re-runs are no-ops) so a cluster rebuild is `make configure` end-to-end.
+
+**Step 4 — platform Applications.** Add to `kubernetes/argocd-apps/` (all follow this template — shown once, deltas noted):
+
+```yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ingress-nginx
+  namespace: argocd
+  annotations: { argocd.argoproj.io/sync-wave: "-2" }   # platform before apps
+spec:
+  project: default
+  sources:
+    - repoURL: https://kubernetes.github.io/ingress-nginx
+      chart: ingress-nginx
+      targetRevision: "<PIN chart ver>"
+      helm: { valueFiles: ["$values/kubernetes/infrastructure/ingress-nginx/values.yaml"] }
+    - repoURL: git@github.com:skyhaven-ltd/infra-homelab-config.git
+      targetRevision: main
+      ref: values
+  destination: { server: https://kubernetes.default.svc, namespace: ingress-nginx }
+  syncPolicy:
+    automated: { prune: true, selfHeal: true }
+    syncOptions: [CreateNamespace=true, ServerSideApply=true]
+```
+
+- **ingress-nginx** (wave -2): `values.yaml`: `controller.service.type: LoadBalancer` (klipper binds node 80/443). 
+- **cert-manager** (wave -2): chart `cert-manager` from `https://charts.jetstack.io`, values `crds.enabled: true`.
+- **sealed-secrets** (wave -2): chart from `https://bitnami-labs.github.io/sealed-secrets`, namespace `sealed-secrets`, values `fullnameOverride: sealed-secrets-controller`.
+- **cert-issuers** (wave -1, plain-manifest Application pointing at `kubernetes/infrastructure/cert-issuers/`): a `ClusterIssuer` `selfsigned`, a `Certificate` `homelab-root-ca` (isCA: true, 10-year duration, secret `homelab-root-ca` in `cert-manager` ns, issuerRef selfsigned), and `ClusterIssuer` `homelab-ca` (`ca.secretName: homelab-root-ca`). Every app Ingress uses `cert-manager.io/cluster-issuer: homelab-ca`.
+
+**Step 5 — key custody.** `[new]`:
+
+```bash
+kubectl -n sealed-secrets get secret -l sealedsecrets.bitnami.com/sealed-secrets-key -o yaml \
+  > /mnt/media/backups/…  # NO — /mnt/media not attached yet. Write to /srv/appdata/key-backups/ now;
+                          # Phase 9 adds a copy to /mnt/media/backups; Phase 13 sends off-box copy.
+sudo sh -c 'mkdir -p /srv/appdata/key-backups && chmod 700 /srv/appdata/key-backups'
+kubectl -n sealed-secrets get secret -l sealedsecrets.bitnami.com/sealed-secrets-key -o yaml \
+  | sudo tee /srv/appdata/key-backups/sealed-secrets-key.yaml >/dev/null
+sudo cp /var/lib/rancher/k3s/server/token /srv/appdata/key-backups/k3s-token
+kubectl -n cert-manager get secret homelab-root-ca -o yaml | sudo tee /srv/appdata/key-backups/root-ca.yaml >/dev/null
+sudo chmod 600 /srv/appdata/key-backups/*
+```
+
+Export the CA *public* cert for device install: `kubectl -n cert-manager get secret homelab-root-ca -o jsonpath='{.data.tls\.crt}' | base64 -d > homelab-ca.crt` — install on user's devices (macOS/iOS/Windows/Android per-platform; leave the file in `docs/` — it's public material).
+
+**Verification:** Argo UI reachable (`kubectl -n argocd port-forward svc/argocd-server 8443:443`, admin password from `kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d`); all platform apps **Synced/Healthy**; `curl -k https://192.168.1.4` returns ingress-nginx 404 (controller alive); `kubectl get clusterissuer homelab-ca` shows Ready. Test the GitOps loop end-to-end: commit a trivial values change, watch Argo auto-sync it.
+
+**Rollback:** delete Applications from `argocd-apps/` (Argo prunes), or nuke namespace `argocd` and re-run Step 1–3. Old stack untouched.
+
+---
+
+### Phase 6 — Pilot app: Pi-hole (template for everything after)
+
+**Prerequisites:** Phase 5 all-green.
+
+Pi-hole is the pilot because it exercises every mechanism (PVC seed, sealed secret, LoadBalancer, Ingress) while the old Pi-hole keeps serving the LAN — zero user impact if it flops.
+
+**Manifests** — `kubernetes/apps/pihole/` (all bound by a `kustomization.yaml` listing them; namespace `pihole`):
+
+`pvc.yaml`:
+
+```yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: { name: pihole-etc, namespace: pihole }
+spec:
+  accessModes: [ReadWriteOnce]
+  resources: { requests: { storage: 1Gi } }
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: { name: pihole-dnsmasq, namespace: pihole }
+spec:
+  accessModes: [ReadWriteOnce]
+  resources: { requests: { storage: 256Mi } }
+```
+
+`sealedsecret.yaml` — seal the web password (`[old]`):
+
+```bash
+kubectl create secret generic pihole-admin -n pihole \
+  --from-literal=WEBPASSWORD='<generate: openssl rand -base64 24; note it for the user>' \
+  --dry-run=client -o yaml > /tmp/s.yaml
+make seal FILE=/tmp/s.yaml OUT=kubernetes/apps/pihole/sealedsecret.yaml && rm /tmp/s.yaml
+```
+
+`deployment.yaml`:
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: pihole, namespace: pihole }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }          # RWO volume: never two pods at once
+  selector: { matchLabels: { app: pihole } }
+  template:
+    metadata: { labels: { app: pihole } }
+    spec:
+      containers:
+        - name: pihole
+          image: pihole/pihole:<PIN per §1.16>
+          env:
+            - { name: TZ, value: "Etc/UTC" }
+            - { name: FTLCONF_dns_listeningMode, value: "all" }
+            - name: WEBPASSWORD
+              valueFrom: { secretKeyRef: { name: pihole-admin, key: WEBPASSWORD } }
+          ports:
+            - { name: dns-tcp, containerPort: 53, protocol: TCP }
+            - { name: dns-udp, containerPort: 53, protocol: UDP }
+            - { name: http,    containerPort: 80 }
+          volumeMounts:
+            - { name: etc-pihole,  mountPath: /etc/pihole }
+            - { name: etc-dnsmasq, mountPath: /etc/dnsmasq.d }
+          resources:
+            requests: { cpu: 100m, memory: 128Mi }
+            limits:   { memory: 512Mi }
+          securityContext:
+            capabilities: { add: [NET_ADMIN] }   # mirrors compose cap_add
+          livenessProbe:
+            exec: { command: [dig, "@127.0.0.1", "pi.hole"] }
+            initialDelaySeconds: 30
+      volumes:
+        - name: etc-pihole
+          persistentVolumeClaim: { claimName: pihole-etc }
+        - name: etc-dnsmasq
+          persistentVolumeClaim: { claimName: pihole-dnsmasq }
+```
+
+`service.yaml` (two Services: LB for DNS on the node IP, ClusterIP for web):
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata: { name: pihole-dns, namespace: pihole }
+spec:
+  type: LoadBalancer
+  selector: { app: pihole }
+  ports:
+    - { name: dns-tcp, port: 53, targetPort: 53, protocol: TCP }
+    - { name: dns-udp, port: 53, targetPort: 53, protocol: UDP }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: pihole-web, namespace: pihole }
+spec:
+  selector: { app: pihole }
+  ports: [{ name: http, port: 80, targetPort: 80 }]
+```
+
+`ingress.yaml`:
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: pihole
+  namespace: pihole
+  annotations: { cert-manager.io/cluster-issuer: homelab-ca }
+spec:
+  ingressClassName: nginx
+  tls: [{ hosts: [pihole.lab.home.arpa], secretName: pihole-tls }]
+  rules:
+    - host: pihole.lab.home.arpa
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend: { service: { name: pihole-web, port: { number: 80 } } }
+```
+
+Plus `kubernetes/argocd-apps/app-pihole.yaml` (the §5 Application template: path `kubernetes/apps/pihole`, namespace `pihole`, `CreateNamespace=true`).
+
+**Data seed** (generic procedure — reused by every stateful app; see §4):
+
+```bash
+kubectl -n pihole scale deploy pihole --replicas=0
+PV1=$(kubectl -n pihole get pvc pihole-etc -o jsonpath='{.spec.volumeName}')
+DIR1=$(kubectl get pv "$PV1" -o jsonpath='{.spec.hostPath.path}')   # under /srv/appdata/local-path/
+# from [old]:
+sudo rsync -a --delete /srv/containers/media/appdata/pihole/etc-pihole/ ops@192.168.1.4:/tmp/seed-etc/
+# on [new]: sudo rsync -a /tmp/seed-etc/ "$DIR1"/ && sudo rm -rf /tmp/seed-etc
+# (repeat for etc-dnsmasq.d → pihole-dnsmasq claim)
+kubectl -n pihole scale deploy pihole --replicas=1
+```
+
+(Note: Argo's selfHeal will re-scale to 1 within its sync interval — for longer seeds, disable auto-sync on the app in the Argo UI first, re-enable after. Doing the copy in the gap is fine for small dirs; the *arr apps in Phase 9 use the disable-autosync route. PVC hostPath dirs are also directly writable at `/srv/appdata/local-path/<pvc-id>/` — resolve via the two commands above.)
+
+**Verification:**
+
+```bash
+dig @192.168.1.4 doubleclick.net        # answers 0.0.0.0 (blocklist seeded correctly)
+dig @192.168.1.4 github.com             # answers real IP (upstream resolution works)
+# add pihole.lab.home.arpa → 192.168.1.4 as a local DNS record in the OLD pi-hole UI (temporary; re-pointed at cutover)
+curl -kI https://pihole.lab.home.arpa   # 200/302 via ingress; cert issued by homelab-ca (kubectl -n pihole get certificate)
+```
+
+Point ONE test client (e.g. the user's phone via manual DNS) at `192.168.1.4` for a day of soak. **Do not** change router DHCP.
+
+**Rollback:** delete `app-pihole.yaml` from Git (Argo prunes everything). Old Pi-hole never stopped serving.
+
+---
+
+### Phase 7 — CI images for custom apps (GHCR)
+
+**Prerequisites:** Phase 5 (cluster can hold the pull secret); independent of Phase 6.
+
+**Step 1** — identical workflow in `app-learning-review` and `app-stockalert-monitor` repos at `.github/workflows/publish.yml`:
+
+```yaml
+name: publish
+on:
+  push: { branches: [main] }
+permissions: { contents: read, packages: write }
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with: { registry: ghcr.io, username: "${{ github.actor }}", password: "${{ secrets.GITHUB_TOKEN }}" }
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/skyhaven-ltd/${{ github.event.repository.name }}:${{ github.sha }}
+            ghcr.io/skyhaven-ltd/${{ github.event.repository.name }}:latest
+```
+
+**Step 2** — pull secret (packages default private; Open Question 4 to make public instead). User creates a classic PAT with `read:packages` only. Then:
+
+```bash
+kubectl create secret docker-registry ghcr-pull -n default \
+  --docker-server=ghcr.io --docker-username=<gh-user> --docker-password=<PAT> \
+  --dry-run=client -o yaml > /tmp/s.yaml
+# Seal one copy per consuming namespace (sealed-secrets is namespace-scoped):
+#   learning-review, stockalert — edit metadata.namespace before each seal.
+make seal FILE=/tmp/s.yaml OUT=kubernetes/apps/learning-review/ghcr-pull.yaml   # ns learning-review
+make seal FILE=/tmp/s.yaml OUT=kubernetes/apps/stockalert/ghcr-pull.yaml        # ns stockalert
+rm /tmp/s.yaml
+```
+
+**Verification:** push a trivial commit to each app repo's `main`; `gh run watch`; `ghcr.io/skyhaven-ltd/app-learning-review:<sha>` and `...app-stockalert-monitor:<sha>` exist (`gh api /orgs/skyhaven-ltd/packages?package_type=container`). Record the two shas — Phase 8 pins them.
+
+**Rollback:** delete workflow files. No runtime impact.
+
+---
+
+### Phase 8 — Migrate custom apps (learning-review, stockalert stack)
+
+**Prerequisites:** Phases 6–7. Apply the §4 recipe; specifics below.
+
+**8a. learning-review** — namespace `learning-review`:
+- Deployment: image `ghcr.io/skyhaven-ltd/app-learning-review:<sha>`, `imagePullSecrets: [{name: ghcr-pull}]`, port 8080, env from sealed copy of the repo `.env`, PVC `learning-data` (2Gi) at `/data`, liveness+readiness probes `httpGet /health :8080` (compose healthcheck translated), `strategy: Recreate`. **No vault mount** (running container has none — Open Question 8).
+- Service 8080 + Ingress `learning.lab.home.arpa` (add local DNS record in old Pi-hole AND in the new pihole's config as you go; from here on add each app's record in **both** so cutover is a no-op).
+- Data seed: `[old]` `sudo tar -C /var/lib/docker/volumes/app-learning-review_learning_data/_data -czf - . | ssh ops@192.168.1.4 'cat > /tmp/ld.tgz'`, then extract into the PVC dir (scale-0 → extract → scale-1 per §4).
+- Verify: `curl -k https://learning.lab.home.arpa/health` → 200; app UI loads with existing data visible; then `docker compose -f ~/repos/app-learning-review/docker-compose.yml down` `[old]`.
+
+**8b. stockalert** — namespace `stockalert`, three Deployments, one directory:
+- **ntfy**: image pinned `binwiederhier/ntfy:<PIN>`, args `[serve]`, env `NTFY_BASE_URL=http://192.168.1.3:8090` (the post-cutover identity — phones keep working after the IP swap; between now and cutover the *old* ntfy at `.3` keeps serving phones), `NTFY_UPSTREAM_BASE_URL=https://ntfy.sh`, `NTFY_LISTEN_HTTP=:80`; PVC `ntfy-cache` 1Gi at `/var/cache/ntfy`; ConfigMap or PVC for `/etc/ntfy` (seed from `~/repos/app-stockalert-monitor/ntfy/etc`); **Service type LoadBalancer, port 8090 → 80** (must be a raw LAN port, not Ingress — phones use plain HTTP on 8090).
+- **flaresolverr**: pinned image, env `LOG_LEVEL=info`, `TZ=Europe/London`, ClusterIP Service `flaresolverr:8191`, no storage. Memory limit 2Gi (headless Chrome).
+- **stock-checker**: image `ghcr.io/skyhaven-ltd/app-stockalert-monitor:<sha>`; ConfigMap `stockalert-config` from `config.yaml` + `products.txt` mounted read-only at `/app/config.yaml`, `/app/products.txt` (subPath mounts); SealedSecret from `.env` via `envFrom`; PVC `stockalert-data` 1Gi at `/app/data` (seed the SQLite dir); point it at in-cluster peers via env/config: ntfy → `http://ntfy.stockalert.svc.cluster.local:80`, flaresolverr → `http://flaresolverr.stockalert.svc.cluster.local:8191` (check `config.yaml`/`.env` for which key holds each URL and set accordingly in the ConfigMap/Secret copies — the values differ from compose where DNS names were `ntfy`/`flaresolverr`). **No `dns:` pin needed** — CoreDNS resolves public names correctly (proved in Phase 4 verification).
+  - **Workflow change (flag to user):** `products.txt` edits become Git commits to the monorepo ConfigMap, not live file edits.
+- Verify: stock-checker logs show a full successful check cycle including a walled retailer (FlareSolverr round-trip) and a test notification received on the phone **via the old ntfy** — wait, phones point at old `.3:8090`; to verify new ntfy end-to-end pre-cutover, temporarily subscribe the phone to `http://192.168.1.4:8090/<topic>`, confirm delivery, unsubscribe. Then `[old]` `docker compose -f ~/repos/app-stockalert-monitor/docker-compose.yml down` (old ntfy dies here: phones lose notifications until cutover **unless** you leave *only* ntfy running: `docker compose ... up -d ntfy` after the down — do that; it's stopped in Phase 11).
+
+**Rollback (either app):** delete its Application from `argocd-apps/`, `docker compose up -d` the old stack. Data unchanged on old host until the compose `down`, and backed up since Phase 1 regardless.
+
+---
+
+### Phase 9 — Media disk move + media stack (plex, arrs, qbittorrent, audiobookshelf, syncthing)
+
+**Prerequisites:** Phase 8 (routine established). **This is the highest-impact phase — the media disk physically changes VMs. Schedule a maintenance window.**
+
+**Step 1 — write manifests first** (all 7 apps, per §4 recipe), commit with each Application file **named but with sync disabled** (`syncPolicy: {}` — no automated block — so Argo shows them OutOfSync but doesn't start pods before the disk exists). Key per-app deltas:
+
+| App | Image (pin) | Workload notes | Services/Ingress | Volumes |
+|---|---|---|---|---|
+| plex | `lscr.io/linuxserver/plex` | `hostNetwork: true`, `dnsPolicy: ClusterFirstWithHostNet`, env PUID/PGID=1000, TZ | none (host net exposes 32400) | PVC `plex-config` 5Gi → `/config`; hostPath `/mnt/media/library` → `/media` (ro) |
+| sonarr | `lscr.io/linuxserver/sonarr` | PUID/PGID 1000 | 8989 + `sonarr.lab.home.arpa` | PVC 2Gi → `/config`; hostPath `/mnt/media` → `/data` |
+| radarr | `lscr.io/linuxserver/radarr` | same | 7878 + `radarr.lab...` | same pattern |
+| prowlarr | `lscr.io/linuxserver/prowlarr` | same | 9696 + ingress | PVC 1Gi → `/config` only |
+| qbittorrent | `lscr.io/linuxserver/qbittorrent` | env WEBUI_PORT=8080 | ingress for web; **LoadBalancer Service port 6881 TCP + 6881 UDP** | PVC 1Gi → `/config`; hostPath `/mnt/media` → `/data` |
+| audiobookshelf | `advplyr/audiobookshelf` | | 80 + `abs.lab...` | PVCs → `/config`, `/metadata`; hostPath `/mnt/media` → `/data` (ro) |
+| syncthing | `lscr.io/linuxserver/syncthing` | PUID/PGID 1000; local discovery lost (no broadcast) — global discovery + static peer addresses cover it | ingress for 8384; **LoadBalancer 22000 TCP + 22000 UDP** | PVC 1Gi → `/config`; hostPath `/mnt/media` → `/data` |
+
+hostPath volume snippet (identical in-container paths to compose — preserves *arr path mappings and hardlinks):
+
+```yaml
+      volumes:
+        - name: media
+          hostPath: { path: /mnt/media, type: Directory }
+```
+
+**Step 2 — cold-stop old stack & final state copy** `[old]`:
+
+```bash
+cd /srv/containers/media && docker compose down       # media stack fully stopped (user-visible outage starts)
+BK=/mnt/media/backups/pre-k8s-final-$(date +%F)
+sudo mkdir -p "$BK" && sudo tar -C /srv/containers/media -czf "$BK/appdata-cold.tar.gz" appdata   # cold copy = consistent DBs
+sudo umount /mnt/media                                 # nothing may hold it; lsof /mnt/media to confirm first
+sudo sed -i 's|^.*/mnt/media|#&|' /etc/fstab           # old VM must not try to mount it on next boot
+```
+
+Then seed each app's `/config` PVC **from the cold tar over the network before moving the disk** — no: simpler and safer ordering: rsync appdata dirs to the new VM *now* (disk still mounted ro is fine too, but it's already unmounted — so re-mount ro if needed): practical sequence:
+
+```bash
+sudo mount -o ro /dev/sdb /mnt/media                   # remount ro for the copy window
+for app in plex sonarr radarr prowlarr qbittorrent audiobookshelf syncthing; do
+  sudo rsync -a /srv/containers/media/appdata/$app/ ops@192.168.1.4:/tmp/seed-$app/
+done
+sudo umount /mnt/media
+```
+
+(appdata lives on the *root* disk, not the media disk — the ro remount is only belt-and-braces against anything touching /mnt/media mid-move. The rsync source is the root disk; ~1.2 GB total, minutes on LAN.)
+
+**Step 3 — move the disk** `[pve]`:
+
+```bash
+qm shutdown <OLD_VMID> --timeout 120   # full shutdown required to release the disk cleanly
+qm move-disk <OLD_VMID> <MEDIA_DISK_SLOT> --target-vmid 200 --target-disk scsi2
+qm start <OLD_VMID>
+```
+
+`[new]`: `echo '/dev/sdc /mnt/media ext4 defaults,noatime,nofail 0 2' | sudo tee -a /etc/fstab && sudo mkdir -p /mnt/media && sudo mount -a` — **verify device name first** with `lsblk` (930G disk; likely `sdc`), and fold this mount into `roles/base` vars so Ansible owns it going forward. Check contents: `ls /mnt/media` shows `library downloads backups`.
+
+**Step 4 — seed PVCs & go live.** For each app: enable its Application (add the `automated` syncPolicy back, commit), let PVC bind, scale-0/seed-from-`/tmp/seed-<app>`/scale-1 per §4. Order: plex first (longest soak), then arr/qbt, then abs/syncthing.
+
+**Verification (before declaring the window closed):**
+- Plex: `http://192.168.1.4:32400/web` shows libraries with correct item counts; play a file; from a remote device on tailscale, confirm playback still direct (old VM still advertises the subnet route until Phase 11 — remote goes via `.3`? No: subnet route covers the whole /24, so remote clients reach `.4` fine through the old VM's route. Confirm in Plex remote settings.)
+- Sonarr/Radarr: UI loads, series/movie lists intact, root folder `/data/...` shows green (path preserved), trigger a manual import scan — no path errors. Prowlarr: indexers test OK, and update its Sonarr/Radarr app-sync URLs to the new in-cluster DNS names (`http://sonarr.sonarr.svc.cluster.local:8989` etc.) — cross-app URLs are the one config that *must* change.
+- qBittorrent: torrents resume/recheck against `/data/downloads`; port 6881 reachable (`nc -zv 192.168.1.4 6881`).
+- Audiobookshelf: library plays. Syncthing: peers reconnect (may need address hint `tcp://192.168.1.4:22000` on peer devices until cutover restores `.3`).
+
+**Rollback:** the full-reverse is documented and real: `qm shutdown 200` → `qm move-disk 200 scsi2 --target-vmid <OLD_VMID> --target-disk <MEDIA_DISK_SLOT>` → un-comment fstab on old → `docker compose up -d`. Appdata on the old root disk was never deleted (that happens only in Phase 12). Practice saying this out loud before Step 2.
+
+---
+
+### Phase 10 — Home Assistant
+
+**Prerequisites:** Phase 9 (pattern maturity; HA last because it's the most host-coupled).
+
+Manifests per recipe with: `hostNetwork: true`, `dnsPolicy: ClusterFirstWithHostNet`, `securityContext: {privileged: true}` (mirrors compose; required for its discovery/integrations), PVC `ha-config` 5Gi → `/config` seeded from `appdata/homeassistant`, no Service/Ingress needed for LAN use (host net :8123) but add Ingress `ha.lab.home.arpa` → a headless Service targeting the pod for TLS convenience. Env `TZ`.
+
+Stop old container first (`docker stop homeassistant && docker update --restart=no homeassistant`) since both bind host ports; seed; sync app.
+
+**Verification:** `http://192.168.1.4:8123` — dashboard loads, entity history intact, integrations connected. **Caveat:** if any integration used USB/Bluetooth hardware on the old VM it cannot work from the new VM without USB passthrough via Proxmox — check integrations page for broken devices (none expected; flag if found → Open Question 9).
+
+**Rollback:** `docker update --restart=unless-stopped homeassistant && docker start homeassistant`, remove Application.
+
+---
+
+### Phase 11 — Cutover: the IP swap
+
+**Prerequisites:** Phases 6–10 all verified; every `.lab.home.arpa` record present in the **new** Pi-hole. This phase makes `192.168.1.3` mean "the cluster". Total planned outage: ~2–5 minutes of LAN DNS (clients fall back to secondary if the router advertises one).
+
+**Steps, in exact order:**
+
+1. `[old]` Stop the last running old services: `docker compose -f ~/repos/app-stockalert-monitor/docker-compose.yml down` (kills the kept-alive old ntfy), `cd /srv/containers/media && docker compose down` (idempotent; already down since Phase 9 except pihole — pihole dies here; **LAN DNS now only from the router/secondary**), and disable Docker restart surprises: `sudo systemctl disable docker`.
+2. `[old]` Re-address to `.13`: edit `/etc/netplan/50-cloud-init.yaml` (or the file found in Phase 1 backup) `192.168.1.3/24` → `192.168.1.13/24`, `sudo netplan apply`. Remove subnet route advertisement: `sudo tailscale set --advertise-routes=`.
+3. `[any]` Re-address the cluster VM via IaC: in `terraform/terraform.tfvars` set `k8s_vm_ip = "192.168.1.3/24"`; `make infra-plan` (expect: cloud-init change only) `make infra-apply`; then `[pve]` `qm reboot 200` (cloud-init network changes apply on boot). Update `ansible/group_vars/k8s.yml` `node_ip: 192.168.1.3` and re-run `make configure` (k3s config + inventory refresh; tls-san already included `.3` since Phase 4 — this is why).
+4. `[new]` Advertise the subnet route: `sudo tailscale set --advertise-routes=192.168.1.0/24` → approve in the Tailscale admin console (route moves from old node to new). Verify IPv6 RA setting matches old host if Hyperoptic direct-v6 path is in use for Plex: `sysctl net.ipv6.conf.ens18.accept_ra=2` (add to Ansible base role sysctls).
+5. **Verify the new identity (checklist):**
+
+```bash
+dig @192.168.1.3 doubleclick.net         # 0.0.0.0 — cluster pihole is the LAN DNS
+dig @192.168.1.3 pihole.lab.home.arpa    # 192.168.1.3 — records survived
+curl -kI https://sonarr.lab.home.arpa    # ingress answers on .3
+curl -sI http://192.168.1.3:8090/v1/health   # ntfy on its historic URL — phones reconnect on their own
+# Phone: existing ntfy subscription (http://192.168.1.3:8090/<topic>) receives a test publish:
+curl -d "cutover test" http://192.168.1.3:8090/<topic>
+# Plex remote over tailscale from off-LAN device: direct play works (subnet route via new node)
+kubectl get nodes -o wide                 # INTERNAL-IP 192.168.1.3, Ready
+```
+
+6. Update the router: nothing to change if DHCP DNS pointed at `192.168.1.3` (it still does, and that's now the cluster). **Check** the router doesn't have a DHCP reservation pinning the old VM's MAC to `.3` — if it does, delete/repoint it (the VMs have different MACs; a reservation would fight the static assignment).
+
+**Rollback (symmetric, ~5 min):** old VM netplan back to `.3` + `netplan apply` + `systemctl enable --now docker` + compose up pihole; tfvars back to `.4` + apply + reboot 200; re-advertise route from old. Everything returns to the pre-phase state.
+
+---
+
+### Phase 12 — Decommission old Compose setup
+
+**Prerequisites:** Phase 11 + **a 14-day soak** with zero rollbacks. Do not rush this phase; it deletes the safety net.
+
+1. `[old]` Confirm nothing runs: `docker ps -q | wc -l` → 0.
+2. Move any remaining wanted files off (e.g. `~/repos` working copies — they're all pushed to GitHub; verify `git -C <repo> status` clean for each).
+3. `[pve]` `qm shutdown <OLD_VMID>`, leave it **stopped but existing** for 14 more days (snapshot from Phase 1 still inside it), then: `qm destroy <OLD_VMID> --purge` — **Warning:** this permanently deletes the old VM and its disks, including the original copies of all appdata and the Phase 1 root-disk backups (the `/mnt/media/backups` copies live on the media disk, which already moved — those survive). Confirm the restic backups (Phase 13) have run successfully before destroying.
+4. Remove the old node from Tailscale admin console (`lnsvrlab01`).
+5. Grow the cluster: `terraform.tfvars` `k8s_memory_mb = 16384`, `make infra-apply`, `qm reboot 200` if memory hot-plug doesn't apply it.
+6. Repo hygiene: delete `compose/` directory and stale `scripts/`/`systemd/` entries from the monorepo (Git history preserves them), update README to describe the k8s world.
+
+**Verification:** all apps green in Argo; `free -g` on node shows 16 GiB; monorepo contains no live references to compose.
+
+**Rollback:** before `qm destroy`, full rollback is still possible (start old VM, Phase 11 reverse). After `qm destroy`, rollback is restore-from-backup only.
+
+---
+
+### Phase 13 — Ops hardening + final validation
+
+**Prerequisites:** Phase 12.
+
+1. **restic backups** (add to `roles/base`): systemd service+timer `restic-appdata.timer` daily 03:00 — `restic -r /mnt/media/backups/restic-appdata backup /srv/appdata --exclude /srv/appdata/local-path/*/plex-config/*/Cache` with `RESTIC_PASSWORD_FILE=/root/.restic-pass` (generate once, add to layer-3 backup set); weekly `restic forget --keep-daily 14 --keep-weekly 8 --prune`. First run manual; verify `restic snapshots` lists one.
+2. **vzdump schedule** `[pve]`: Datacenter → Backup (or `/etc/pve/jobs.cfg`): weekly, VM 200 only, mode snapshot, target = backup storage from Phase 0. Set `backup=0` on scsi2: `qm set 200 --scsi2 <current-volume-spec>,backup=0` (fetch current spec from `qm config 200`). Verify one manual run completes and its size ≈ scsi0+scsi1 used space, not 1 TB.
+3. **Off-box crown jewels** (Open Question 6 destination): `/srv/appdata/key-backups/*`, `/root/.restic-pass`, `terraform/terraform.tfstate`, copy of this doc.
+4. **Reboot drill (mandatory):** `[pve]` `qm reboot 200`. Within ~3 minutes, without any human action: node Ready, all Argo apps Healthy, `dig @192.168.1.3 github.com` works, Plex plays, phone ntfy test delivers, HA loads. This proves power-loss recovery (on_boot=true → VM starts → k3s starts → pods start → pihole serves; node DNS independence per §1.12 means no deadlock).
+5. **Disaster-recovery doc:** write `docs/disaster-recovery.md`: rebuild = `make infra-apply` → `make configure` → restore sealed-secrets key + k3s token → Argo re-syncs everything → restic restore `/srv/appdata` → reattach media disk. Every input it needs must exist in Git or the layer-3 backup set — audit that claim.
+
+**Final validation checklist** (all must pass):
+
+- [ ] `kubectl get applications -n argocd` — every app Synced + Healthy
+- [ ] Git loop: image-tag bump commit on a custom app → live in-cluster within 5 min, no kubectl
+- [ ] LAN DNS + ad-blocking via `192.168.1.3` from ≥ 2 client devices
+- [ ] All `*.lab.home.arpa` ingresses serve with homelab-ca certs (no warnings on CA-trusting devices)
+- [ ] Plex: local + remote (tailscale, direct) playback
+- [ ] Sonarr/Radarr/Prowlarr/qBittorrent: end-to-end grab→download→import of one item
+- [ ] StockAlert: scheduled check ran, notification on phone via `http://192.168.1.3:8090`
+- [ ] learning-review `/health` 200 + data intact; audiobookshelf plays; syncthing peers in sync; HA entities live
+- [ ] `restic snapshots` ≥ 1; vzdump job ≥ 1 success; key-backups present off-box
+- [ ] Reboot drill passed
+- [ ] Old VM destroyed; tailnet shows `lnsvrk8s01` with subnet route; no `lnsvrlab01`
+
+---
+
+## 4. Per-App Migration Recipe (generic)
+
+Compose→Kubernetes translation table:
+
+| Compose construct | Kubernetes equivalent |
+|---|---|
+| `services.<x>` | `Deployment` (replicas 1, `strategy: Recreate` when any RWO PVC is mounted) in namespace `<x>` (or shared ns for tightly-coupled stacks like stockalert) |
+| `image:` | same image, **pinned tag** (§1.16); `build:` → GHCR image from CI (Phase 7 pattern) |
+| `ports: "H:C"` | ClusterIP Service port C + Ingress `<app>.lab.home.arpa` for HTTP UIs; **LoadBalancer Service** for raw TCP/UDP protocol ports (DNS 53, torrent 6881, syncthing 22000, ntfy 8090) |
+| `network_mode: host` | `hostNetwork: true` + `dnsPolicy: ClusterFirstWithHostNet` (only plex, homeassistant) |
+| `environment:` | `env:` inline for non-secrets; secrets → SealedSecret + `envFrom`/`secretKeyRef` |
+| `env_file: .env` | `kubectl create secret generic --from-env-file` → kubeseal |
+| named volume / appdata bind | PVC (local-path); size = current use × 4 rounded up |
+| ro config-file bind | ConfigMap with `subPath` mount |
+| `/mnt/media` bind | `hostPath` volume, **identical container path** as compose |
+| `depends_on` | drop it — probes + restarts converge; in-cluster DNS names replace compose service names (`<svc>.<ns>.svc.cluster.local`) — **grep app config for old hostnames** |
+| `restart: unless-stopped` | free (Deployment) |
+| `healthcheck` | livenessProbe + readinessProbe |
+| `cap_add` / `privileged` | `securityContext.capabilities.add` / `privileged: true` |
+| `dns:` overrides | drop — CoreDNS forwards to node's static 1.1.1.1 (§1.13) |
+
+Checklist per app:
+
+1. `mkdir kubernetes/apps/<app>` → `kustomization.yaml`, `deployment.yaml`, `pvc.yaml`, `service.yaml`, `ingress.yaml` (+ `configmap.yaml`/`sealedsecret.yaml` as needed). Set resource requests (start: cpu 100m / mem 128Mi req; mem limit ≈ observed × 3) — no CPU limits (throttling hurts more than it helps on one node).
+2. Add DNS record `<app>.lab.home.arpa → <cluster IP>` in Pi-hole (both old and new until cutover).
+3. Add `kubernetes/argocd-apps/app-<app>.yaml` — **with auto-sync disabled if data must be seeded**.
+4. Commit → Argo creates namespace + PVCs. Find each PVC's hostPath: `kubectl get pv $(kubectl -n <ns> get pvc <claim> -o jsonpath='{.spec.volumeName}') -o jsonpath='{.spec.hostPath.path}'`.
+5. Stop the old container (`docker stop <app>` — leave the rest of the old stack running). Cold-copy state: rsync/tar old data dir → PVC hostPath dir on the node. Preserve ownership: linuxserver images expect uid/gid 1000 inside `/config` (`chown -R 1000:1000` after copy); others match whatever the old data had.
+6. Enable/scale the app (auto-sync on, replicas 1). Watch `kubectl -n <ns> logs deploy/<app> -f` for a clean start.
+7. Verify app-specific function (UI, data present, one real operation), update any cross-app URLs to cluster DNS names.
+8. Only then declare the old container permanently dead (`docker update --restart=no <app>`). It is *removed* in Phase 11/12, not before.
+9. Add the app to the Phase 13 validation checklist.
+
+---
+
+## 5. Risks & Homelab-Specific Caveats
+
+- **Single point of failure is total.** One Proxmox host, one VM, one node: any hardware death takes everything. Mitigation is recovery speed, not availability: Git holds the entire definition, restic + vzdump + key backups make rebuild ≈ 1 hour. Accept this; don't fake HA on one box.
+- **The media disk is a second SPOF with no backup.** 761 GB of media is explicitly unbacked (existing posture). The `backups/` directory *rides on the media disk* — so app-state backups die with that disk. Layer-2 vzdump (on Proxmox storage) and layer-3 off-box copies exist precisely to cover that; don't skip Phase 13.3.
+- **Power loss / reboot behavior** is engineered, then *drilled* (Phase 13.4): VM `on_boot=true`, k3s systemd auto-start, node DNS never depends on its own Pi-hole, `nofail` on the media mount so a dead media disk can't hang boot. The drill is mandatory because untested recovery paths don't exist.
+- **Memory pressure during co-existence** (both VMs up, Phases 3–11): watched via Phase 0's host-RAM check + old-VM shrink. If the Proxmox host OOMs or heavily swaps (`free` on pve), pause and shrink further — a swapping hypervisor corrupts timing everywhere.
+- **k3s upgrades are your job now.** Unattended-upgrades covers the OS only. Process: bump `k3s_version` in group_vars, `make configure`, watch node. Do it at least quarterly; Argo/chart pins likewise (`docs/versions.md` is the ledger).
+- **Argo self-heal fights manual kubectl edits** — by design. The escape hatch during incidents: disable auto-sync on one app in the UI, fix, then reconcile Git. Never leave it disabled.
+- **Compose fallback lives until Phase 12** — stopped, not deleted. The old VM at `.13` can resurrect any app in minutes throughout the soak period. After `qm destroy`, Git + backups are the only fallback.
+- **Sealed-secrets key loss = every secret in Git is garbage.** The key backup (Phases 5/13) is not optional; test-decrypt one secret from a restored key during the reboot-drill week.
+- **Browser trust warnings** on devices without the homelab root CA installed (§1.9); fixed per-device once, or made moot by a future real-domain Let's Encrypt swap.
+- **hostNetwork pods (plex, HA) bypass NetworkPolicy/Service abstractions** — accepted mirror of today's compose posture; revisit if the cluster ever grows.
+- **Behavioral change:** config edits (e.g. `products.txt`, adding an app) are now Git commits, not SSH file edits. That's the point — but note the muscle-memory shift.
+
+---
+
+## 6. Open Questions (answer before the agent starts)
+
+1. **SSH access to Proxmox host:** confirm key-based root SSH to `lnproxlab01` (`100.82.112.92`) from `lnsvrlab01` works, or provide credentials/console access to set it up (Phase 0 hard-blocks without it). Also confirm its LAN IP.
+2. **Proxmox host capacity:** unknown RAM/CPU/storage totals — Phase 0 discovers; **but** if you already know the host has < 34 GiB RAM, approve the old-VM shrink to 6 GiB up front (brief full outage at Phase 0).
+3. **Public domain:** do you own a domain (and is it on Cloudflare) you'd like used for `*.lab.<domain>` with Let's Encrypt DNS-01 instead of the internal CA? (Plan proceeds with internal CA either way; this swaps one issuer file later.)
+4. **GHCR visibility:** keep `app-learning-review`/`app-stockalert-monitor` images private (requires you to mint a `read:packages` PAT for the pull secret, Phase 7) or make the packages public (no PAT needed)? Default if unanswered: private + PAT.
+5. **Tailscale auth key:** generate a reusable auth key in the admin console for Phase 4 (Settings → Keys), or pre-approve interactive `tailscale up` on the new VM.
+6. **Off-box backup destination** for crown jewels (sealed-secrets key, tfstate, restic password): options — private GitHub repo (encrypted with age), a cloud drive, a USB stick. Name one; Phase 13.3 blocks without it.
+7. **Proxmox Backup Server:** does one exist on your network? If yes, vzdump targets it (better dedup/retention); if no, which Proxmox storage should hold weekly VM backups (Phase 0 lists candidates)?
+8. **learning-review Obsidian vault mount:** compose declares an optional read-only vault bind but the running container doesn't have it. Confirm it's genuinely unused (migrate without, as planned) — if it *is* wanted, state the vault's path and how it reaches the new VM (likely via syncthing to a `/mnt/media` path).
+9. **Home Assistant hardware:** any USB/Zigbee/Bluetooth devices attached to integrations? (None visible from container config; if yes, Proxmox USB passthrough to VM 200 must be added in Phase 10 — say so now.)
+10. **Plex claim:** confirm the Plex server is claimed to your account (config PV migration preserves identity, so no re-claim expected — this is just the "if it asks, sign in and claim" heads-up).
