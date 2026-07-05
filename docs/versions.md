@@ -137,7 +137,7 @@ Resolved at execution time per §1.16. Remaining rows filled as later phases lan
 | Argo CD | `v3.4.4` | 2026-07-05 | latest stable (argoproj/argo-cd releases). `bootstrap/argocd/kustomization.yaml` install.yaml tag. |
 | ingress-nginx chart | `4.15.1` | 2026-07-05 | latest stable (controller v1.15.1). `argocd-apps/ingress-nginx.yaml`. |
 | cert-manager chart | `v1.20.3` | 2026-07-05 | latest stable (charts.jetstack.io). `argocd-apps/cert-manager.yaml`. |
-| sealed-secrets chart | `2.18.2` | 2026-07-05 | latest stable (bitnami-labs.github.io/sealed-secrets, Feb 2026). `argocd-apps/sealed-secrets.yaml`. |
+| sealed-secrets chart | `2.19.1` | 2026-07-05 | latest stable. **Repo moved** `bitnami-labs.github.io` → `bitnami.github.io/sealed-secrets` (old URL 404s). `argocd-apps/sealed-secrets.yaml`. |
 | App/container image tags | _TBD Phase 6+_ | | |
 
 ## Workstation toolchain (WSL2 Ubuntu-24.04, verified 2026-07-05)
