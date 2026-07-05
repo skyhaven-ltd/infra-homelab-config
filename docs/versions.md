@@ -162,7 +162,9 @@ Resolved at execution time per §1.16. Remaining rows filled as later phases lan
 | Pi-hole image | `pihole/pihole@sha256:91dc91d…eea40` | 2026-07-05 | pinned by **digest** = old container's exact image (Core v6.3) for byte-identical migration (§1.11). `apps/pihole/deployment.yaml`. |
 | `app-learning-review` image (GHCR) | `ghcr.io/skyhaven-ltd/app-learning-review@sha256:ce2944ad179eebc60bd8c149688304199b42a7c6833708f80f419aed6f812bb1` | 2026-07-05 | Phase 7 first CI build (SHA tag `9424c0b…`). Package **public**; **Phase 8 pins this digest** (learning-review Deployment). |
 | `app-stockalert-monitor` image (GHCR) | `ghcr.io/skyhaven-ltd/app-stockalert-monitor@sha256:0c78c241b526e4191de8d76b8f02ae9fb8f17dfd1ea15551fb06a7e883881d1d` | 2026-07-05 | Phase 7 first CI build (SHA tag `f54ba2e…`). Package **public**; **Phase 8 pins this digest** (stock-checker Deployment). |
-| Other app/container image tags | _TBD Phase 9+ (media stack: plex/arrs/qbt/abs/syncthing, ntfy, flaresolverr)_ | | |
+| ntfy image | `binwiederhier/ntfy@sha256:cfbbb1bac9196cb711e29ef0ac4adaeb033be6235f1df857705dc39c14384a1d` | 2026-07-05 | Phase 8: digest = old container's exact `:latest` (§1.11). `apps/stockalert/ntfy.yaml`. |
+| flaresolverr image | `ghcr.io/flaresolverr/flaresolverr@sha256:139dfee1c6f89249c8d665d1333a42e8ec74ec0a86bc6bb1c8461e10d3a66a47` | 2026-07-05 | Phase 8: digest = old container's exact `:latest` (§1.11). `apps/stockalert/flaresolverr.yaml`. |
+| Other app/container image tags | _TBD Phase 9+ (media stack: plex/arrs/qbt/abs/syncthing)_ | | |
 
 ## Workstation toolchain (WSL2 Ubuntu-24.04, verified 2026-07-05)
 

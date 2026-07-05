@@ -1,0 +1,33 @@
+# Products to monitor — one URL per line.
+#
+#   https://retailer.example/product-page
+#   https://retailer.example/product-page | Friendly name for notifications
+#
+# Lines starting with # are ignored. Any retailer works: known sites
+# (Currys, Amazon, Argos, AO, Very, B&Q, Screwfix, Toolstation,
+# Appliances Direct) get tuned parsers; everything else uses the generic
+# detector (JSON-LD availability + buy-button/out-of-stock phrases).
+
+https://www.currys.co.uk/products/bosch-cool-2000-portable-3in1-air-conditioner-and-dehumidifier-white-10304908
+https://www.currys.co.uk/products/daewoo-col1600ge-9000-btu-smart-air-conditioner-heater-and-dehumidifier-white-10260582
+https://www.currys.co.uk/products/delonghi-pinguino-ap130i-gentlejet-13000-btu-portable-air-conditioner-fan-and-dehumidifier-white-10300416
+https://www.currys.co.uk/products/delonghi-pinguino-ap98-gentlejet-11500-btu-portable-air-conditioner-fan-and-dehumidifier-white-10300393
+https://www.currys.co.uk/products/delonghi-pinguino-es72-8300-btu-air-conditioner-and-dehumidifier-white-10259980
+https://www.currys.co.uk/products/delonghi-pinguino-ex100-10000-btu-portable-air-conditioner-and-dehumidifier-white-10300973
+https://www.currys.co.uk/products/igenix-7000-btu-3in1-portable-air-conditioner-and-dehumidifier-white-10301516
+https://www.currys.co.uk/products/igenix-9000-btu-3in1-portable-air-conditioner-and-dehumidifier-white-10301517
+https://www.currys.co.uk/products/logik-lac07c25-portable-air-conditioner-and-dehumidifier-white-10270705
+https://www.currys.co.uk/products/logik-lac09c26-portable-air-conditioner-and-dehumidifier-white-10294164
+https://www.currys.co.uk/products/meaco-meacocool-mc12000chr-pro-smart-air-conditioner-heater-and-dehumidifier-white-10260647.html
+https://www.currys.co.uk/products/ecoair-apollo-12k-btu-smart-portable-air-conditioner-and-dehumidifier-white-10298698.html
+https://www.currys.co.uk/products/logik-lac12ch26-portable-air-conditioner-heater-and-dehumidifier-white-10294167.html
+https://www.currys.co.uk/products/logik-lac12c24-portable-air-conditioner-and-dehumidifier-white-10257344.html
+https://www.johnlewis.com/meaco-cirro-14000-btu-smart-portable-air-conditioner-and-heater-white/p115462789
+https://www.johnlewis.com/meaco-cirro-12000-btu-super-quiet-smart-portable-air-conditioner-and-heater-white/p115462788
+https://www.argos.co.uk/product/7611117?clickPR=plp:6:9
+https://www.argos.co.uk/product/4728522?clickPR=plp:10:9
+https://www.argos.co.uk/product/8217826?clickPR=plp:8:9
+https://ao.com/product/acirro12k-meaco-cirro-air-conditioner-white-112207-825.aspx
+https://ao.com/product/dxpac002-dimplex-ecoiq-air-conditioner-white-112179-825.aspx
+https://www.meaco.com/products/meaco-cirro-14000-btu-super-quiet-inverter-smart-portable-air-conditioner
+https://www.meaco.com/products/meaco-cirro-16000-btu-super-quiet-inverter-smart-portable-air-conditioner
