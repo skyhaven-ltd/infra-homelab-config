@@ -23,3 +23,9 @@
     src: /etc/rancher/k3s/k3s.yaml
     dest: "{{ playbook_dir }}/lnsvrk8s01-kubeconfig"
     flat: true
+- name: Point fetched kubeconfig at the node (raw k3s.yaml uses 127.0.0.1)
+  ansible.builtin.replace:
+    path: "{{ playbook_dir }}/lnsvrk8s01-kubeconfig"
+    regexp: 'https://127\.0\.0\.1:6443'
+    replace: 'https://{{ node_ip }}:6443'
+  delegate_to: localhost

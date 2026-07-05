@@ -7,11 +7,13 @@
 - name: Filesystem on appdata disk
   community.general.filesystem: { fstype: ext4, dev: "{{ appdata_device }}" }
 - name: Mount appdata disk
+  # by-id slot path (stable across reboots — device letters are not) + nofail so a
+  # missing appdata disk degrades apps but never hangs boot (matches media policy).
   ansible.posix.mount:
     path: "{{ appdata_mount }}"
     src: "{{ appdata_device }}"
     fstype: ext4
-    opts: defaults,noatime
+    opts: defaults,noatime,nofail
     state: mounted
 # Media disk carries existing data — never mkfs it. Mount by UUID with nofail so
 # a missing/dead media disk cannot block boot (hostPath apps degrade, node stays up).

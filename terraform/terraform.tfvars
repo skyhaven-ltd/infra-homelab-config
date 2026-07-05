@@ -4,7 +4,7 @@ proxmox_node = "lnproxlab01"
 vm_storage   = "local-lvm"
 iso_storage  = "local"
 
-k8s_vm_ip     = "192.168.1.4/24"
+k8s_vm_ip     = "192.168.1.3/24"
 lan_gateway   = "192.168.1.1"
 bridge        = "vmbr0"
 k8s_memory_mb = 12288
