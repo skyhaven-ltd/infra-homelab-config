@@ -262,6 +262,59 @@ VM 200 `lnsvrk8s01` provisioned via Terraform (`bpg/proxmox = 0.111.1`, pin in v
 - **`make infra-init/plan/apply` all run from WSL** via ssh-agent; `terraform` operates on the repo over
   `/mnt/c` (slow but fine). Helper `tf-run.sh` (loads token + agent) lives in the session scratchpad, not the repo.
 
+### ▶ Resuming at Phase 4 — execution mechanics for a fresh agent (READ THIS)
+
+The workstation is a **Windows 11 desktop running Claude Code**; the real toolchain
+(terraform/ansible/kubectl/ssh + the `pve`/`old` aliases + the Proxmox token) lives in
+**WSL2 `Ubuntu-24.04`**. Every live command runs through WSL:
+
+```
+wsl.exe -d Ubuntu-24.04 -- bash -lc '<command>'
+```
+
+Repo path inside WSL: `/mnt/c/Local Files/Repositories/Sky Haven/infra-homelab-config`
+(quote it — spaces). Terraform operates over `/mnt/c` (slow but fine).
+
+**Quoting landmine (hit twice — do not relearn):** never inline non-trivial bash
+(`$VAR`, `$(...)`, redirects, escaped quotes) inside `bash -lc '...'` — the
+cmd→wsl→bash layers silently mangle it. **Write the script to a file and run it:**
+`wsl.exe -d Ubuntu-24.04 -- bash -lc 'bash "/mnt/c/.../script.sh"'`. For remote
+commands, pipe: `ssh pve 'bash -s' < script.sh`. Note `wsl.exe -- bash /mnt/c/x.sh`
+(script path as a bare arg) gets path-rewritten by Git Bash — always wrap it in the
+`bash -lc 'bash "…"'` form so the `/mnt/c` path stays literal.
+
+**SSH targets (all key `~/.ssh/id_ed25519_proxmox`, non-interactive):** `ssh pve`
+(Proxmox 100.82.112.92), `ssh old` (VM 100, `192.168.1.3`, passwordless sudo), and the
+new node `ssh ops@192.168.1.4`. If the new VM is ever recreated, clear its stale key:
+`ssh-keygen -R 192.168.1.4`.
+
+**Re-running Terraform (only if needed — Phase 4 uses Ansible, not TF):** the provider
+needs both the token env var and a loaded ssh-agent, in one shell:
+```bash
+export TF_VAR_proxmox_api_token="$(cat ~/.tf_proxmox_token)"   # 0600, WSL-only, never in Git
+eval "$(ssh-agent -s)"; ssh-add ~/.ssh/id_ed25519_proxmox
+cd "/mnt/c/Local Files/Repositories/Sky Haven/infra-homelab-config/terraform" && terraform plan
+```
+Expect the **~3–4 min bpg guest-agent wait** on every plan/apply until Phase 4 installs
+qemu-guest-agent — run applies in the background, don't kill them.
+
+**Phase 4 prerequisites (get these before `make configure`):**
+1. **`TS_AUTHKEY`** — a reusable Tailscale auth key from the admin console. Passed inline
+   only: `TS_AUTHKEY=tskey-... make configure`. **Never** written to disk/Git.
+2. **k3s version pin** (§1.16) — resolve current stable `vX.Y.Z+k3s1`, write to
+   `ansible/group_vars/k8s.yml` **and** `docs/versions.md`.
+
+**Phase 4 facts already confirmed:** appdata disk = `/dev/sdb` (60G, present, unmounted) →
+`appdata_mount: /srv/appdata`; `node_ip: 192.168.1.4`; `ansible_user: ops`. The
+`ansible/` roles are empty `.gitkeep` placeholders — author `ansible.cfg`, `site.yml`,
+`requirements.yml` (`community.general`, `ansible.posix`), `group_vars/k8s.yml`, and the
+`base`/`tailscale`/`k3s` role tasks per the **Phase 4** section below (full task YAML is
+there). The generated `ansible/inventory/hosts.yml` already exists (Terraform, gitignored).
+
+**Run Phase 4 with `--skip-tags argocd`** (the `argocd_bootstrap` role is Phase 5 and will
+fail if run now): `TS_AUTHKEY=... ansible-playbook -i inventory/hosts.yml site.yml --skip-tags argocd`
+(or add the skip to the Makefile target while Phase 5 is pending).
+
 ### Still open
 
 - **Open Q7 — vzdump target** for backup layer 2. `local` 18 GB free (too small), `data` full, no PBS. Not blocking `terraform apply`; settle before weekly VM backups matter (likely needs a new disk, same as any future storage add).
