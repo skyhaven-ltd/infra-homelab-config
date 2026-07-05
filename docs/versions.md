@@ -107,6 +107,14 @@ Key `id_ed25519_proxmox.pub` installed on `lnsvrlab01` for user `lgoodchild-a`
 `192.168.1.3`. Bootstrap needed `PubkeyAuthentication=no` to avoid MaxAuthTries before
 password.
 
+## Phase 3 — COMPLETE (2026-07-05)
+
+VM 200 `lnsvrk8s01` provisioned by Terraform (`bpg/proxmox = 0.111.1`). `terraform@pve`
+user + token created (token in WSL `~/.tf_proxmox_token`, 0600, never in Git). VM live:
+Ubuntu 24.04.4, sda 40G / sdb 60G, IP 192.168.1.4, `ops` SSH OK, state clean. VM 100
+untouched. **Gotcha:** bpg blocks ~3-4 min per plan/apply waiting on the (not-yet-installed)
+QEMU guest agent — not a hang; run applies in background. Next: Phase 4 — Ansible.
+
 ## Phase 2 — COMPLETE (2026-07-05)
 
 Monorepo scaffold on branch `major/kubernetes`: full §2 directory tree (`.gitkeep`
@@ -117,8 +125,17 @@ already verified below). Next: Phase 3 — Proxmox API token + Terraform VM prov
 
 ## Pinned artifact versions
 
-_To be filled at execution time per §1.16 (Terraform provider, k3s, Argo CD,
-Helm charts, container image tags)._
+Resolved at execution time per §1.16. Remaining rows filled as later phases land.
+
+| Artifact | Pin | Resolved | Notes |
+|---|---|---|---|
+| `bpg/proxmox` Terraform provider | `= 0.111.1` | 2026-07-05 | latest stable (GitHub releases). `versions.tf`. |
+| `hashicorp/local` provider | `~> 2.5` | 2026-07-05 | inventory rendering only |
+| Ubuntu cloud image | `noble/current` (24.04.4 LTS) | 2026-07-05 | `image.tf`; downloaded to `local` storage |
+| k3s | _TBD Phase 4_ | | `group_vars/k8s.yml` |
+| Argo CD | _TBD Phase 5_ | | |
+| ingress-nginx / cert-manager / sealed-secrets charts | _TBD Phase 5_ | | |
+| App/container image tags | _TBD Phase 6+_ | | |
 
 ## Workstation toolchain (WSL2 Ubuntu-24.04, verified 2026-07-05)
 

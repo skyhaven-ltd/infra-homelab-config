@@ -1,6 +1,6 @@
 # Homelab Kubernetes + GitOps Migration Plan
 
-**Status:** ✅ **Phases 0, 1 and 2 COMPLETE (2026-07-05). Start here at Phase 3 (Proxmox API token + Terraform VM provision).** All open questions answered; both blockers resolved (Blocker 1 → VM disks `scsi0` 40 GB + `scsi1` **60 GB**; Blocker 2 → Option A, iGPU stays on old VM until cutover). Only **Open Q7 (vzdump target) remains open** — it affects backup *layer 2* only and does **not** block `terraform apply`; decide before relying on weekly VM backups. Read §0.2 (esp. the **Progress Log** at its end) before executing. Everything a fresh agent needs — access, aliases, discovered facts, corrected disk sizes — is in §0.2.
+**Status:** ✅ **Phases 0–3 COMPLETE (2026-07-05). Start here at Phase 4 (Ansible: base config, Tailscale, k3s).** VM 200 `lnsvrk8s01` provisioned and Terraform-managed; state clean; SSH as `ops@192.168.1.4` works. All open questions answered; both blockers resolved (Blocker 1 → VM disks `scsi0` 40 GB + `scsi1` **60 GB**; Blocker 2 → Option A, iGPU stays on old VM until cutover). Only **Open Q7 (vzdump target) remains open** — it affects backup *layer 2* only and does **not** block `terraform apply`; decide before relying on weekly VM backups. Read §0.2 (esp. the **Progress Log** at its end) before executing. Everything a fresh agent needs — access, aliases, discovered facts, corrected disk sizes — is in §0.2.
 **Audience:** An LLM coding agent with shell/file access to the operator's Windows desktop (workstation for this migration — see §0.2, not `lnsvrlab01` as originally assumed), SSH reachability to the Proxmox host (`lnproxlab01`), and push access to the `skyhaven-ltd` GitHub org. Read this document top-to-bottom once, then §0.2 Handoff Notes, then execute phases in order. Every architectural decision has already been made; where a value must be *discovered* (not decided), Phase 0 tells you how to discover it — most of Phase 0 is already done, see §0.2.
 
 ---
@@ -234,6 +234,33 @@ literal `k8s-migration` name was superseded; work continues on `major/kubernetes
   kept legacy `appdata/`). `Makefile` written with `infra-init/plan/apply`, `configure`, `bootstrap`, `seal`
   targets (tab-indented, verified).
 - Tooling install (Phase 2 step 4) is a **no-op** — WSL2 toolchain already installed & verified (§0.3, versions.md).
+
+### Phase 3 — DONE (2026-07-05)
+
+VM 200 `lnsvrk8s01` provisioned via Terraform (`bpg/proxmox = 0.111.1`, pin in versions.md):
+
+- **Proxmox identity:** `terraform@pve` user + `Administrator` ACL on `/` + API token `terraform@pve!tf`
+  created (`pveum`). **Token stored only in WSL `~/.tf_proxmox_token` (0600) — never in Git.** Consumed
+  via `TF_VAR_proxmox_api_token`. Provider SSH uses `ssh-agent` + `id_ed25519_proxmox`.
+- **Terraform config** written under `terraform/`: `versions.tf` (pins), `providers.tf`, `variables.tf`,
+  `terraform.tfvars` (non-secret Phase 0 facts; `proxmox_host = 100.82.112.92` tailscale), `image.tf`
+  (Ubuntu noble, uses `proxmox_download_file` — the non-deprecated resource), `vm-k8s.tf` (scsi0 40G +
+  scsi1 60G, no `hostpci` per Blocker 2 Option A, `ignore_changes = [disk[2]]` for the Phase 9 media
+  disk), `inventory.tf` (renders `ansible/inventory/hosts.yml`), `outputs.tf`. `iothread` removed from
+  both disks (bpg warns it needs a virtio-scsi-single controller; dropped rather than churn the disk).
+- **VM live:** Ubuntu 24.04.4, `sda` 40G (root, cloud-init `done`), `sdb` 60G (appdata, unmounted —
+  Ansible mounts it Phase 4), IP `192.168.1.4/24`, static DNS `1.1.1.1`/`8.8.8.8`, `ops` user SSH via
+  `id_ed25519_proxmox`. `on_boot = true`. VM 100 (production) untouched.
+- **⚠ Landmine hit + recorded — bpg guest-agent wait:** with `agent { enabled = true }` but
+  qemu-guest-agent not yet installed (that's Phase 4), every `terraform plan`/`apply` **blocks ~3–4 min**
+  on "waiting for the QEMU agent to publish network interfaces" then continues with a warning. **This is
+  not a hang** — let it finish; run applies in the background. This also explains a mid-Phase-3 incident:
+  the first `apply` was interrupted during that wait *after* Proxmox had already created+started the VM,
+  leaving VM 200 running but absent from tfstate. `terraform import` also stalls on the same agent wait.
+  Resolution: `qm destroy 200 --purge` then a clean background `apply` (state == reality). Stale host key
+  for `.4` was cleared with `ssh-keygen -R 192.168.1.4`.
+- **`make infra-init/plan/apply` all run from WSL** via ssh-agent; `terraform` operates on the repo over
+  `/mnt/c` (slow but fine). Helper `tf-run.sh` (loads token + agent) lives in the session scratchpad, not the repo.
 
 ### Still open
 
