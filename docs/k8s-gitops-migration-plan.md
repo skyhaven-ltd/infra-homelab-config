@@ -415,6 +415,26 @@ Both custom apps live on the cluster, verified, old stacks down (old ntfy kept u
 - (Optional pre-cutover) subscribe a phone to `http://192.168.1.4:8090/uk-aircon-2a486b394641` to confirm phone push from the new ntfy; unsubscribe after.
 - **Workflow change:** `products.txt` edits are now Git commits to the monorepo (configMapGenerator → rollout), not live file edits.
 
+### Phase 9 — DONE (2026-07-05)
+
+Media disk physically moved VM100→VM200 and all 7 media apps live on the cluster, data verified intact. Old media stack down (restart disabled); pihole/HA/ntfy on old VM still up until Phase 10/11.
+
+- **Manifests** `kubernetes/apps/{plex,sonarr,radarr,prowlarr,qbittorrent,audiobookshelf,syncthing}/` + Argo Apps. All 7 **Synced/Healthy**; 15/15 Argo apps green. Byte-identical (§1.11): each image pinned to the **old container's exact running `:latest` digest** (recorded `docs/versions.md`); env/ports/container-paths mirror `compose/compose.yaml` 1:1.
+- **Deviation from plan (correct, not a regression):** Step 2's literal `docker compose down` would kill pihole+HA (same compose file, not yet migrated). Followed §4 instead — stopped **only the 7 media services**, left pihole/HA/ntfy running. Also **media mounts kept `rw`** (compose is rw; byte-identical) not the plan table's `ro` for plex/abs.
+- **Disk move:** `qm move-disk 100 scsi1 --target-vmid 200 --target-disk scsi2` — same-storage reassign (fast, no copy). Now `scsi2: data:200/vm-200-disk-0.raw,size=930G`. Mounted on node **by UUID `bc0c5059…`** (device letter unstable) `defaults,noatime,nofail` — folded into `roles/base` + `group_vars/k8s.yml` (`media_mount`/`media_fs_uuid`, **no mkfs**). `terraform/vm-k8s.tf` keeps `ignore_changes = [disk[2]]` — the media disk is a pet, deliberately outside TF's destroy/recreate lifecycle (can't data-preservingly adopt a populated foreign volume anyway).
+- **⚠ Landmine — VM100 reboot re-armed the media containers** (`restart: unless-stopped` fired on boot) against an empty `/mnt/media`. Node seeds were already copied (pre-reboot) so unaffected; fixed with `docker update --restart=no` + stop on the 7 (the §4 step-8 action, early).
+- **⚠ Landmine — Argo root-app fights a live `automated: null` patch.** Pausing a child app for seeding doesn't stick because root re-applies the child's Application spec (automated enabled in Git) then selfHeal rescales. **Must pause the ROOT app first**, then children, then scale 0 (confirm zero pods) before seeding — else you seed under a live pod (SQLite corruption risk). Re-seeded all 6 cleanly at zero pods after discovering this.
+- **Data seed (Phase 6 recipe, corrected):** appdata (~1.2 GB, root disk) streamed old→WSL→node `/tmp/seed-<app>.tar` (no direct old↔new SSH); per app: pause root+child → scale 0 → confirm 0 pods → wipe PV → `tar -xp --strip-components` → chown 1000:1000 (linuxserver apps) → scale 1 → resume. abs split config/metadata into its 2 PVCs.
+- **Verified data intact:** plex 3 movies/12 shows + `/media` browseable; **sonarr 31 series**, **radarr 117 movies** (both rootfolders `/data/library/*` `accessible:true` — proves hostPath + path maps byte-identical), **prowlarr 333 indexers**, **qbittorrent 115 torrents**, **abs** health 200 + DB, **syncthing** 3 devices/1 folder. Plex identity `aa63d10e…` carried; old server had no token either (signed-out) → operator signs in via web UI to claim (Open Q10).
+- **Cross-app URLs repointed (the one config that must change):** all pointed at `192.168.1.3` (old VM). Updated via each app's API to **in-cluster DNS** — sonarr/radarr download-client host → `qbittorrent.qbittorrent.svc.cluster.local`; prowlarr Sonarr/Radarr apps → `*.svc.cluster.local` (Readarr skipped, not migrated). Reachability confirmed (200 / ping OK). These live on the PVs and use cluster DNS, so they **survive the Phase 11 IP cutover** unchanged.
+- **LoadBalancers** (klipper) all bound to `192.168.1.4`, no clashes: qbt 6881 tcp/udp, syncthing 22000 tcp/udp (+ plex hostNetwork 32400). Alongside 80/443, 53, 8090.
+- **Rollback:** `qm shutdown 200` → `qm move-disk 200 scsi2 --target-vmid 100 --target-disk scsi1` → uncomment old fstab → `docker update --restart=unless-stopped` + `docker compose up -d` the 7. Old appdata never deleted (Phase 12); Phase-1 backups + cold tar (`/mnt/media/backups/pre-k8s-final-2026-07-05/`, rides the moved disk) intact.
+
+**Operator follow-ups (non-blocking):**
+- Add `{sonarr,radarr,prowlarr,qbittorrent,abs,syncthing}.lab.home.arpa` → `192.168.1.4` A records in the **old** Pi-hole to browse the new ingresses before cutover (already resolvable in the new Pi-hole).
+- **Plex claim:** sign in via `http://192.168.1.4:32400/web` to re-associate the server to the account (config/identity migrated; libraries populate after sign-in).
+- Node `/tmp/seed-*.tar` (~1.2 GB) are transient seed sources — cleared on reboot, safe to `rm` anytime.
+
 ### Still open
 
 - **Open Q7 — vzdump target** for backup layer 2. `local` 18 GB free (too small), `data` full, no PBS. Not blocking; settle before weekly VM backups matter (likely needs a new disk).
