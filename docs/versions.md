@@ -180,7 +180,13 @@ Resolved at execution time per §1.16. Remaining rows filled as later phases lan
 | `app-stockalert-monitor` image (GHCR) | `ghcr.io/skyhaven-ltd/app-stockalert-monitor@sha256:0c78c241b526e4191de8d76b8f02ae9fb8f17dfd1ea15551fb06a7e883881d1d` | 2026-07-05 | Phase 7 first CI build (SHA tag `f54ba2e…`). Package **public**; **Phase 8 pins this digest** (stock-checker Deployment). |
 | ntfy image | `binwiederhier/ntfy@sha256:cfbbb1bac9196cb711e29ef0ac4adaeb033be6235f1df857705dc39c14384a1d` | 2026-07-05 | Phase 8: digest = old container's exact `:latest` (§1.11). `apps/stockalert/ntfy.yaml`. |
 | flaresolverr image | `ghcr.io/flaresolverr/flaresolverr@sha256:139dfee1c6f89249c8d665d1333a42e8ec74ec0a86bc6bb1c8461e10d3a66a47` | 2026-07-05 | Phase 8: digest = old container's exact `:latest` (§1.11). `apps/stockalert/flaresolverr.yaml`. |
-| Other app/container image tags | _TBD Phase 9+ (media stack: plex/arrs/qbt/abs/syncthing)_ | | |
+| plex image | `lscr.io/linuxserver/plex@sha256:c9d8dc46147dd1c3bfe6e80b50da12a973598ec86cfe672244e5d040ab3e62df` | 2026-07-05 | Phase 9: digest = old container's exact running `:latest` (§1.11). `apps/plex/deployment.yaml`. |
+| sonarr image | `lscr.io/linuxserver/sonarr@sha256:02b4d538d351d6e35882a021c08e8600fe95d28860fb1dd724b597166e7221ca` | 2026-07-05 | Phase 9: digest = old container's exact running `:latest` (§1.11). `apps/sonarr/deployment.yaml`. |
+| radarr image | `lscr.io/linuxserver/radarr@sha256:ba2693dd704b84eb0b404d40b3902bd3e62a1768dc5ee0d89b1f1d7cd51a66eb` | 2026-07-05 | Phase 9: digest = old container's exact running `:latest` (§1.11). `apps/radarr/deployment.yaml`. |
+| prowlarr image | `lscr.io/linuxserver/prowlarr@sha256:5339e9050cfcc0cb5331e9c98610ed9d4ce70ef481a5461ea664a13dda3f1eb0` | 2026-07-05 | Phase 9: digest = old container's exact running `:latest` (§1.11). `apps/prowlarr/deployment.yaml`. |
+| qbittorrent image | `lscr.io/linuxserver/qbittorrent@sha256:5b09709bb0eff4edb551f5b30029952ab4d67aa0d5ca3526889124173bd78a9c` | 2026-07-05 | Phase 9: digest = old container's exact running `:latest` (§1.11). `apps/qbittorrent/deployment.yaml`. |
+| audiobookshelf image | `advplyr/audiobookshelf@sha256:a52dc5db694a5bf041ce38f285dd6c6a660a4b1b21e37ad6b6746433263b2ae5` | 2026-07-05 | Phase 9: digest = old container's exact running `:latest` (§1.11). `apps/audiobookshelf/deployment.yaml`. |
+| syncthing image | `lscr.io/linuxserver/syncthing@sha256:6a5f5d3412f80539289cee9bd0a6df9645f8540ecaed7d34f1bd0930bfd8c55e` | 2026-07-05 | Phase 9: digest = old container's exact running `:latest` (§1.11). `apps/syncthing/deployment.yaml`. |
 
 ## Workstation toolchain (WSL2 Ubuntu-24.04, verified 2026-07-05)
 

@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: syncthing
+  namespace: syncthing
+spec:
+  # ClusterIP for the web GUI (fronted by Ingress).
+  selector:
+    app: syncthing
+  ports:
+    - { name: gui, port: 8384, targetPort: 8384 }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: syncthing-sync
+  namespace: syncthing
+spec:
+  # Raw sync protocol on the node IP. klipper binds only 22000 tcp/udp —
+  # no clash with 80/443, 53, 8090, 6881.
+  type: LoadBalancer
+  selector:
+    app: syncthing
+  ports:
+    - { name: sync-tcp, port: 22000, targetPort: 22000, protocol: TCP }
+    - { name: sync-udp, port: 22000, targetPort: 22000, protocol: UDP }

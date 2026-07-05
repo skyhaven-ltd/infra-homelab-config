@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: sonarr-config
+  namespace: sonarr
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      # Old /config ~159M; nominal headroom (local-path does not enforce it).
+      storage: 2Gi

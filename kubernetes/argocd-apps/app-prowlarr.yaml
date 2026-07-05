@@ -1,0 +1,23 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: prowlarr
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/skyhaven-ltd/infra-homelab-config.git
+    targetRevision: major/kubernetes
+    path: kubernetes/apps/prowlarr
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: prowlarr
+  # Phase 9 Step 1: sync DISABLED until the media disk is moved (Step 3) and data
+  # is seeded (Step 4). Argo shows OutOfSync but starts no pods before /mnt/media
+  # exists. Add the automated block (below) when going live per Step 4.
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+    # automated:
+    #   prune: true
+    #   selfHeal: true

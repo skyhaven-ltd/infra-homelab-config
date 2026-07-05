@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: plex-config
+  namespace: plex
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      # Old /config ~829M; headroom for metadata/thumbnail growth.
+      storage: 5Gi
