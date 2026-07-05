@@ -23,7 +23,7 @@ environment fact is recorded here. Never deploy `:latest`.
 | VMID | Name | Notes |
 |---|---|---|
 | 100 | `lnsvrlab01` | `OLD_VMID`. 8 cores, 20000 MB RAM. `scsi0` local-lvm 60G (thin, ~30G used). `scsi1` = `data:100/vm-100-disk-0.raw` 930G = `MEDIA_DISK_SLOT`. `hostpci0: 0000:00:02` (Intel UHD 770 iGPU → Blocker 2). |
-| 200 | `lnsvrk8s01` | New k3s VM, created by Terraform (not yet provisioned). |
+| 200 | `lnsvrk8s01` | New k3s VM. Provisioned (Phase 3). k3s `v1.36.2+k3s1` Ready (Phase 4). LAN `192.168.1.4`, Tailscale `100.90.207.55`. |
 
 ### Storage (physical disks)
 
@@ -131,8 +131,9 @@ Resolved at execution time per §1.16. Remaining rows filled as later phases lan
 |---|---|---|---|
 | `bpg/proxmox` Terraform provider | `= 0.111.1` | 2026-07-05 | latest stable (GitHub releases). `versions.tf`. |
 | `hashicorp/local` provider | `~> 2.5` | 2026-07-05 | inventory rendering only |
+| `tailscale/tailscale` provider | `= 0.29.2` | 2026-07-05 | latest stable. `terraform/tailscale/` (separate root/state) — disables node key expiry. OAuth client creds via env. |
 | Ubuntu cloud image | `noble/current` (24.04.4 LTS) | 2026-07-05 | `image.tf`; downloaded to `local` storage |
-| k3s | _TBD Phase 4_ | | `group_vars/k8s.yml` |
+| k3s | `v1.36.2+k3s1` | 2026-07-05 | latest stable (update.k3s.io stable channel). `group_vars/k8s.yml`. Plan §1.16 rule supersedes the plan's v1.32.x guess. |
 | Argo CD | _TBD Phase 5_ | | |
 | ingress-nginx / cert-manager / sealed-secrets charts | _TBD Phase 5_ | | |
 | App/container image tags | _TBD Phase 6+_ | | |
@@ -142,7 +143,7 @@ Resolved at execution time per §1.16. Remaining rows filled as later phases lan
 | Tool | Version |
 |---|---|
 | Terraform | v1.15.7 |
-| kubectl | v1.32.13 |
+| kubectl | v1.36.x (bumped 2026-07-05 from v1.32.13 to match k3s v1.36.2 server; ±1 skew window) |
 | Helm | v3.21.2 |
 | kubeseal | 0.38.4 |
 | Ansible | core 2.16.3 |

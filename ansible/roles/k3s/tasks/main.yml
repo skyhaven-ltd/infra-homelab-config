@@ -1,0 +1,25 @@
+- name: k3s config directory
+  ansible.builtin.file: { path: /etc/rancher/k3s, state: directory, mode: "0755" }
+- name: k3s config
+  ansible.builtin.copy:
+    dest: /etc/rancher/k3s/config.yaml
+    content: |
+      disable:
+        - traefik
+      node-ip: {{ node_ip }}
+      tls-san:
+        - lnsvrk8s01
+        - 192.168.1.3        # future identity after IP swap
+        - {{ node_ip }}
+      default-local-storage-path: {{ appdata_mount }}/local-path
+      write-kubeconfig-mode: "0640"
+  notify: restart k3s
+- name: Install k3s (pinned)
+  ansible.builtin.shell: |
+    curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION={{ k3s_version }} sh -s - server
+  args: { creates: /usr/local/bin/k3s }
+- name: Fetch kubeconfig to controller
+  ansible.builtin.fetch:
+    src: /etc/rancher/k3s/k3s.yaml
+    dest: "{{ playbook_dir }}/lnsvrk8s01-kubeconfig"
+    flat: true

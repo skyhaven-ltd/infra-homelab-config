@@ -1,0 +1,6 @@
+# k3s version pin (§1.16) — current stable resolved 2026-07-05; recorded in docs/versions.md
+k3s_version: "v1.36.2+k3s1"
+appdata_device: /dev/sdb          # the 60G scsi1 disk (§0.3)
+appdata_mount: /srv/appdata
+node_ip: 192.168.1.4              # updated to .3 at cutover (Phase 11)
+tailscale_authkey: "{{ lookup('env', 'TS_AUTHKEY') }}"   # one-time reusable key from admin console; never persisted to Git

@@ -1,0 +1,7 @@
+- hosts: k8s
+  become: true
+  roles:
+    - { role: base, tags: [base] }
+    - { role: tailscale, tags: [tailscale] }
+    - { role: k3s, tags: [k3s] }
+    - { role: argocd_bootstrap, tags: [argocd] }

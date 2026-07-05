@@ -1,6 +1,6 @@
 # Homelab Kubernetes + GitOps Migration Plan
 
-**Status:** ✅ **Phases 0–3 COMPLETE (2026-07-05). Start here at Phase 4 (Ansible: base config, Tailscale, k3s).** VM 200 `lnsvrk8s01` provisioned and Terraform-managed; state clean; SSH as `ops@192.168.1.4` works. All open questions answered; both blockers resolved (Blocker 1 → VM disks `scsi0` 40 GB + `scsi1` **60 GB**; Blocker 2 → Option A, iGPU stays on old VM until cutover). Only **Open Q7 (vzdump target) remains open** — it affects backup *layer 2* only and does **not** block `terraform apply`; decide before relying on weekly VM backups. Read §0.2 (esp. the **Progress Log** at its end) before executing. Everything a fresh agent needs — access, aliases, discovered facts, corrected disk sizes — is in §0.2.
+**Status:** ✅ **Phases 0–4 COMPLETE (2026-07-05). Start here at Phase 5 (Argo CD bootstrap + platform apps).** VM 200 `lnsvrk8s01` provisioned and Terraform-managed; single-node k3s `v1.36.2+k3s1` **Ready**; Tailscale joined (`100.90.207.55`); kubeconfig at `ansible/lnsvrk8s01-kubeconfig`; SSH as `ops@192.168.1.4` works. See §0.3 **Phase 4 — DONE** for the three role bugs fixed during execution. All open questions answered; both blockers resolved (Blocker 1 → VM disks `scsi0` 40 GB + `scsi1` **60 GB**; Blocker 2 → Option A, iGPU stays on old VM until cutover). Only **Open Q7 (vzdump target) remains open** — it affects backup *layer 2* only and does **not** block `terraform apply`; decide before relying on weekly VM backups. Read §0.2 (esp. the **Progress Log** at its end) before executing. Everything a fresh agent needs — access, aliases, discovered facts, corrected disk sizes — is in §0.2.
 **Audience:** An LLM coding agent with shell/file access to the operator's Windows desktop (workstation for this migration — see §0.2, not `lnsvrlab01` as originally assumed), SSH reachability to the Proxmox host (`lnproxlab01`), and push access to the `skyhaven-ltd` GitHub org. Read this document top-to-bottom once, then §0.2 Handoff Notes, then execute phases in order. Every architectural decision has already been made; where a value must be *discovered* (not decided), Phase 0 tells you how to discover it — most of Phase 0 is already done, see §0.2.
 
 ---
@@ -262,6 +262,25 @@ VM 200 `lnsvrk8s01` provisioned via Terraform (`bpg/proxmox = 0.111.1`, pin in v
 - **`make infra-init/plan/apply` all run from WSL** via ssh-agent; `terraform` operates on the repo over
   `/mnt/c` (slow but fine). Helper `tf-run.sh` (loads token + agent) lives in the session scratchpad, not the repo.
 
+### Phase 4 — DONE (2026-07-05)
+
+Ansible configured VM 200 → base OS, Tailscale, single-node k3s. Playbook `failed=0`. All §4 verifications pass.
+
+- **k3s pinned `v1.36.2+k3s1`** (§1.16 latest stable via `update.k3s.io` stable channel — plan's v1.32.x guess superseded; recorded `docs/versions.md`). Node `lnsvrk8s01` **Ready**, INTERNAL-IP `192.168.1.4`, containerd 2.3.2-k3s2. Bundled **Traefik disabled**; coredns + local-path-provisioner + metrics-server all Running.
+- **DNS test passed** (`kubectl run dns-test … nslookup github.com` → resolved via CoreDNS 10.43.0.10) — proves the §1.13 `--accept-dns=false` fix; no MagicDNS SERVFAIL.
+- **Tailscale joined**: node = **`100.90.207.55`** (`--accept-dns=false`, `--hostname=lnsvrk8s01`), tailnet alongside `pve` (`.92`) + `old` (`.63`).
+- **Tailscale key expiry disabled via IaC** (operator directive): new **separate** Terraform root `terraform/tailscale/` (`tailscale/tailscale = 0.29.2`) with a `tailscale_device_key { key_expiry_disabled = true }` on the node (looked up by hostname). Separate state because the device must be *joined* (Phase 4) before its key can be managed — running it in the main `terraform/` root would break a clean rebuild (VM apply precedes join). Make target **`tailscale-apply`**, run after `configure`. Creds = a tailnet **OAuth client** (`TAILSCALE_OAUTH_CLIENT_ID`/`_SECRET`, `devices:core` write scope), env-only, never in Git.
+- **appdata**: `/dev/sdb` ext4 mounted `/srv/appdata` (59G, `defaults,noatime`); `default-local-storage-path=/srv/appdata/local-path` (dir created on first PVC).
+- **kubeconfig** fetched to `ansible/lnsvrk8s01-kubeconfig` (gitignored `*-kubeconfig`), server rewritten `127.0.0.1`→`192.168.1.4`. **k3s token** `/var/lib/rancher/k3s/server/token` is the layer-3 backup artifact (kubeconfig itself is regenerable).
+- **kubectl bumped `v1.32.13 → v1.36.2`** in WSL (operator-approved) to sit inside the server's ±1 skew window.
+
+**Three role bugs found + fixed during execution (roles are now idempotent — re-runnable):**
+1. **Tailscale `creates:` guard false-skipped `tailscale up`** — installing the pkg starts `tailscaled` and writes `tailscaled.state` *before* login, so the guard saw the file and skipped join (node sat `Logged out`). **Fix:** gate on real backend state (`tailscale status` rc, run `up` only when `rc != 0`).
+2. **kubeconfig fetch dest was `{{ playbook_dir }}/../`** (repo root) but §4's sed targeted `ansible/`. **Fix:** dest → `{{ playbook_dir }}/lnsvrk8s01-kubeconfig`.
+3. **`ansible.cfg` ignored** because `/mnt/c` is world-writable (ansible security check). **Fix (execution-time, not a repo change):** export `ANSIBLE_CONFIG=<abs path>` + `--private-key ~/.ssh/id_ed25519_proxmox` (no ssh-config block exists for `ops@192.168.1.4`). The Makefile `configure` target still works *inside* WSL only if `ANSIBLE_CONFIG` is set — see mechanics note below.
+
+Also: `make configure` runs `site.yml` with **no** `--skip-tags` — Phase 4 was run with `--tags` / `--skip-tags argocd` manually. Before Phase 5, either add the `argocd` role or keep skipping it.
+
 ### ▶ Resuming at Phase 4 — execution mechanics for a fresh agent (READ THIS)
 
 The workstation is a **Windows 11 desktop running Claude Code**; the real toolchain
@@ -315,11 +334,34 @@ there). The generated `ansible/inventory/hosts.yml` already exists (Terraform, g
 fail if run now): `TS_AUTHKEY=... ansible-playbook -i inventory/hosts.yml site.yml --skip-tags argocd`
 (or add the skip to the Makefile target while Phase 5 is pending).
 
+### ▶ Resuming at Phase 5 — Argo CD bootstrap: handoff for a fresh agent (READ THIS)
+
+Phases 0–4 are done. k3s node is **Ready**. Phase 5 = install Argo CD, wire the app-of-apps root, and land the four platform Applications (ingress-nginx, cert-manager, sealed-secrets, cert-issuers). Full spec is **§ Phase 5** below — this block is the execution wrapper.
+
+**Execution mechanics are unchanged from Phase 4** — reuse the "▶ Resuming at Phase 4" block above verbatim for: the `wsl.exe -d Ubuntu-24.04 -- bash -lc '…'` pattern, the **write-a-script-and-run-it** quoting rule (never inline `$VAR`/`$(...)`/redirects), and the SSH targets (`ssh pve` / `ssh old` / `ssh ops@192.168.1.4`). Repo path in WSL: `/mnt/c/Local Files/Repositories/Sky Haven/infra-homelab-config`.
+
+**kubectl access (already working, persists on disk across a context clear):**
+- `KUBECONFIG=<repo>/ansible/lnsvrk8s01-kubeconfig` (gitignored; server already rewritten to `192.168.1.4`). Regenerable any time via the k3s role's fetch task.
+- WSL `kubectl` is **v1.36.2** (matches server). `/mnt/c` is world-writable so remember `export ANSIBLE_CONFIG=<repo>/ansible/ansible.cfg` for any `ansible-playbook` run.
+- `gh` in WSL is authenticated for `skyhaven-ltd` (needed for Step 2 `gh repo deploy-key add`).
+
+**⚠ BRANCH LANDMINE — resolve before Argo starts syncing.** Every Phase 5 `Application` (and the root-app) sets **`targetRevision: main`**, but all manifests live on branch **`major/kubernetes`** and are **not yet merged to `main`**. If you `kubectl apply` the root-app while `main` lacks the manifests, Argo syncs an empty/old tree. Pick one before Step 3:
+  1. **Merge `major/kubernetes` → `main` first** (the plan's phase-boundary rule), then apply root-app as written. Cleanest.
+  2. **Temporarily set `targetRevision: major/kubernetes`** on the root-app + all child Applications during migration; flip to `main` at merge. More churn.
+  Recommend #1 — commit Phase 4/5 work, merge, then bootstrap Argo against `main`.
+
+**Pins to resolve at execution time (§1.16) and record in `docs/versions.md`:** Argo CD (`install.yaml` tag, expect `v2.14.x`/`v3.x` — check argoproj/argo-cd releases), `ingress-nginx` chart, `cert-manager` chart, `sealed-secrets` chart. Never `:latest`.
+
+**The `argocd_bootstrap` role is still an empty `.gitkeep`.** `site.yml` already lists it (Phase 4 ran with `--skip-tags argocd`). Author it to wrap Steps 1–3 with `kubectl get`-guards so `make configure` / `make bootstrap` (`--tags argocd`) is idempotent for a clean rebuild.
+
+**Order of play:** Step 1 (namespace + kustomization) → Step 2 (repo deploy key, the ONE manual secret — `shred` it after) → Step 3 (root-app, mind the branch landmine) → Step 4 (four platform Apps, sync-waves -2/-1) → Step 5 (custody: back up sealed-secrets key + k3s token + root CA to `/srv/appdata/key-backups/`; export CA public cert to `docs/`). Verify per §Phase 5 (Argo UI, all Synced/Healthy, `curl -k https://192.168.1.4` → nginx 404, `clusterissuer homelab-ca` Ready, GitOps loop test).
+
 ### Still open
 
-- **Open Q7 — vzdump target** for backup layer 2. `local` 18 GB free (too small), `data` full, no PBS. Not blocking `terraform apply`; settle before weekly VM backups matter (likely needs a new disk, same as any future storage add).
-- **Commit/push/merge:** Phase 0–2 changes are staged in the working tree. Commit as a Phase 0–2 checkpoint; merge branch → `main` per the plan's phase-boundary rule when the operator is ready.
-- Stray files in repo root from tooling (WSL checkout only): `kubeseal`, `kubeseal-0.38.4-linux-amd64.tar.gz` — delete (kubeseal already installed in WSL), don't commit. (Not present in the Windows-desktop checkout.)
+- **Open Q7 — vzdump target** for backup layer 2. `local` 18 GB free (too small), `data` full, no PBS. Not blocking; settle before weekly VM backups matter (likely needs a new disk).
+- **Commit/push/merge:** Phases 0–3 are committed (see git log). **Phase 4 + `terraform/tailscale/` (key-expiry IaC) are DONE but UNCOMMITTED in the working tree** — commit as a Phase 4 checkpoint; merge `major/kubernetes` → `main` per the phase-boundary rule (also unblocks the Phase 5 branch landmine above).
+- **Secrets in transcript (revoke):** the Phase 4 Tailscale **auth key** and the key-expiry **API token** were pasted into an earlier chat. Both should be revoked in the Tailscale console (Settings → Keys) — node is joined and expiry is set, neither is needed again.
+- Stray files in repo root from tooling (WSL checkout only): `kubeseal`, `kubeseal-0.38.4-linux-amd64.tar.gz` — delete, don't commit. (Not present in the Windows-desktop checkout.)
 
 ---
 
@@ -806,7 +848,7 @@ make infra-apply
 
 ---
 
-### Phase 4 — Ansible: base config, Tailscale, k3s
+### Phase 4 — Ansible: base config, Tailscale, k3s ✅ DONE 2026-07-05 (see §0.3 for as-built + fixes)
 
 **Prerequisites:** Phase 3.
 

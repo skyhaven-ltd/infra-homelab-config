@@ -1,0 +1,26 @@
+- name: Install base packages
+  ansible.builtin.apt:
+    name: [qemu-guest-agent, curl, jq, restic, nfs-common, open-iscsi, htop, unattended-upgrades]
+    update_cache: true
+- name: Enable qemu-guest-agent
+  ansible.builtin.systemd: { name: qemu-guest-agent, state: started, enabled: true }
+- name: Filesystem on appdata disk
+  community.general.filesystem: { fstype: ext4, dev: "{{ appdata_device }}" }
+- name: Mount appdata disk
+  ansible.posix.mount:
+    path: "{{ appdata_mount }}"
+    src: "{{ appdata_device }}"
+    fstype: ext4
+    opts: defaults,noatime
+    state: mounted
+- name: Kernel params for k8s
+  ansible.posix.sysctl: { name: "{{ item.k }}", value: "{{ item.v }}", state: present }
+  loop:
+    - { k: fs.inotify.max_user_instances, v: "1024" }
+    - { k: fs.inotify.max_user_watches, v: "1048576" }
+- name: Enable unattended security upgrades
+  ansible.builtin.copy:
+    dest: /etc/apt/apt.conf.d/20auto-upgrades
+    content: |
+      APT::Periodic::Update-Package-Lists "1";
+      APT::Periodic::Unattended-Upgrade "1";

@@ -1,7 +1,8 @@
 TF_DIR      := terraform
+TS_DIR      := terraform/tailscale
 ANSIBLE_DIR := ansible
 
-.PHONY: infra-init infra-plan infra-apply configure bootstrap seal
+.PHONY: infra-init infra-plan infra-apply configure tailscale-apply bootstrap seal
 
 infra-init:
 	cd $(TF_DIR) && terraform init
@@ -15,6 +16,11 @@ infra-apply:
 configure:
 	cd $(ANSIBLE_DIR) && ansible-galaxy install -r requirements.yml && \
 	ansible-playbook -i inventory/hosts.yml site.yml
+
+# disable Tailscale key expiry for the node (run AFTER configure; node must be joined).
+# needs TAILSCALE_OAUTH_CLIENT_ID / TAILSCALE_OAUTH_CLIENT_SECRET in env (never in Git).
+tailscale-apply:
+	cd $(TS_DIR) && terraform init && terraform apply
 
 bootstrap:
 	cd $(ANSIBLE_DIR) && ansible-playbook -i inventory/hosts.yml site.yml --tags argocd
