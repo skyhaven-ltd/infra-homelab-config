@@ -394,6 +394,27 @@ CI images for the two custom apps build + push to GHCR on every push to `main`.
 - **✅ Both GHCR packages PUBLIC** (operator, 2026-07-05 — required lifting the org package policy to allow public containers first, then the per-package flip; the toggle was initially "disabled by organization administrators"). Anonymous pull verified `http=200`. No imagePullSecret anywhere — Phase 8 GHCR-secretless. **Pins upgraded to digest** (§1.11): learning-review `@sha256:ce2944ad…812bb1`, stockalert `@sha256:0c78c241…881d1d` (full digests in `docs/versions.md`).
 - **Rollback:** delete the two `publish.yml` files (no runtime impact).
 
+### Phase 8 — DONE (2026-07-05)
+
+Both custom apps live on the cluster, verified, old stacks down (old ntfy kept up).
+
+- **Manifests** `kubernetes/apps/{learning-review,stockalert}/` + Argo Applications `argocd-apps/app-{learning-review,stockalert}.yaml`. Both **Synced/Healthy**. Root-app auto-discovered them on push.
+- **learning-review:** Deployment (GHCR digest `@sha256:ce2944ad…`), PVC `learning-data` 2Gi at `/data`, Service 8080, Ingress `learning.lab.home.arpa` (homelab-ca TLS). Env from **SealedSecret `learning-review-env`** (19 keys, sealed from the Phase-1-reconstructed `.env`). **App binds 8080 despite `APP_PORT=8081`** (confirmed in logs — `APP_PORT` only affected the compose host-publish port), so containerPort/probes on 8080 as planned; `.env` kept byte-identical. No vault mount (Q8). `/health` → **HTTP 200** via ingress with seeded data.
+- **stockalert:** three Deployments in one dir.
+  - **ntfy** (digest `@sha256:cfbbb1ba…`, `args:[serve]`): split into **ClusterIP `ntfy:80`** (in-cluster, keeps `NTFY_SERVER=http://ntfy:80` byte-identical) **+ LoadBalancer `ntfy-lb` 8090→80** for phones. *Two ports on one LB would make klipper bind node :80 and clash with ingress-nginx* — hence the split. `/etc/ntfy` was empty on the old host → pure-env config, no server.yml. PVC `ntfy-cache` 1Gi.
+  - **flaresolverr** (digest `@sha256:139dfee1…`): ClusterIP `flaresolverr:8191`, mem limit 2Gi.
+  - **stock-checker** (GHCR digest `@sha256:0c78c241…`): `config.yaml`+`products.txt` via **configMapGenerator** (subPath ro mounts at `/app/`), env from **SealedSecret `stockalert-env`** (5 keys), PVC `stockalert-data` 1Gi at `/app/data`. **No value edits** — compose service names `ntfy`/`flaresolverr` map 1:1 to same-namespace Services, so in-cluster DNS resolves them byte-identically. No `dns:` pin (CoreDNS proven Phase 4).
+- **Byte-identical images (§1.11):** ntfy + flaresolverr pinned to the **exact running `:latest` digests** on the old host (recorded `docs/versions.md`). GHCR apps pinned to Phase-7 digests. **No imagePullSecret** (packages public, Q4).
+- **Data seed (Phase 6 recipe):** pause Argo autosync → scale 0 → `docker compose stop` old source (consistent SQLite) → clear PV → tar old→WSL→node (`ops` passwordless sudo, no direct old↔new SSH) → scale 1 → restore autosync. Seeded `learning.db` (1.44M) and stockalert `stock.db`+wal+shm+logs+html.
+- **Verified end-to-end:** stock-checker ran a full 23-product cycle (currys/ao/argos/johnlewis/meaco), **FlareSolverr round-trips exercised** (ao.com 200 via flaresolverr; argos/meaco challenge pages = identical to prod), scheduler armed at 300s. A **real restock notification** ("Currys Restock! DELONGHI Pinguino EX100 £949.00", priority 5) was delivered by the in-cluster stock-checker through `ntfy:80` and polled back from `ntfy-lb`. Test publish via LB (`.4:8090`) and in-cluster (`ntfy:80`) both HTTP 200.
+- **Old stacks down:** old `learning-review` + `stockalert` compose `down`; **old ntfy brought back up** (`.3:8090` → 200) so phones keep notifications until Phase 11 cutover. Media stack (Stack A, 9 containers + old pihole) untouched.
+- **Rollback:** delete the Application(s); `docker compose up -d` old stacks. Old data unchanged + Phase-1 backups intact.
+
+**Operator follow-ups (non-blocking):**
+- Add `learning.lab.home.arpa` → `192.168.1.4` A record in the **old** Pi-hole (and it's already seeded in the new one) to browse the new UI before cutover.
+- (Optional pre-cutover) subscribe a phone to `http://192.168.1.4:8090/uk-aircon-2a486b394641` to confirm phone push from the new ntfy; unsubscribe after.
+- **Workflow change:** `products.txt` edits are now Git commits to the monorepo (configMapGenerator → rollout), not live file edits.
+
 ### Still open
 
 - **Open Q7 — vzdump target** for backup layer 2. `local` 18 GB free (too small), `data` full, no PBS. Not blocking; settle before weekly VM backups matter (likely needs a new disk).

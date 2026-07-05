@@ -144,6 +144,22 @@ made through a pull request" ruleset on `main`; merged with `--admin`). Both run
   - `app-stockalert-monitor` → `@sha256:0c78c241b526e4191de8d76b8f02ae9fb8f17dfd1ea15551fb06a7e883881d1d`
 - Node.js-20 deprecation warning on the actions is cosmetic (forced onto Node 24) — ignore.
 
+## Phase 8 — Custom apps migrated (2026-07-05)
+
+learning-review + stockalert live on the cluster, verified, old stacks down (old
+ntfy kept up for phones until Phase 11).
+
+- Manifests `kubernetes/apps/{learning-review,stockalert}/` + Argo Apps; both
+  Synced/Healthy. SealedSecrets `learning-review-env` (19 keys) / `stockalert-env`
+  (5 keys) sealed from the Phase-1 `.env` files (plaintext never on `/mnt/c` or Git).
+- Byte-identical: GHCR digests (Phase 7) + ntfy/flaresolverr digests (rows below).
+  Config values unchanged — compose service names `ntfy`/`flaresolverr` resolve
+  1:1 as same-namespace Services. `APP_PORT=8081` kept in `.env`; app binds 8080.
+- ntfy Service split: ClusterIP `ntfy:80` (in-cluster) + LoadBalancer `ntfy-lb`
+  8090→80 (phones) — avoids klipper binding node :80 (ingress-nginx owns it).
+- Verified: LR `/health` 200 w/ seeded data; stock-checker full 23-product cycle
+  incl. FlareSolverr round-trips; real restock notification delivered via `ntfy:80`.
+
 ## Pinned artifact versions
 
 Resolved at execution time per §1.16. Remaining rows filled as later phases land.
