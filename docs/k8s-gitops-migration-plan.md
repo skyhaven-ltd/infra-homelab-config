@@ -1,6 +1,6 @@
 # Homelab Kubernetes + GitOps Migration Plan
 
-**Status:** ✅ **Phases 0–7 COMPLETE (2026-07-05). Start here at Phase 8 (migrate custom apps: learning-review + stockalert stack).** Custom-app images are public on GHCR, pinned by digest — `app-learning-review@sha256:ce2944ad…` and `app-stockalert-monitor@sha256:0c78c241…` (full digests in `docs/versions.md`); Phase 8 needs no imagePullSecret. VM 200 `lnsvrk8s01` provisioned and Terraform-managed; single-node k3s `v1.36.2+k3s1` **Ready**; Tailscale joined (`100.90.207.55`); kubeconfig at `ansible/lnsvrk8s01-kubeconfig`; SSH as `ops@192.168.1.4` works. See §0.3 **Phase 4 — DONE** for the three role bugs fixed during execution. All open questions answered; both blockers resolved (Blocker 1 → VM disks `scsi0` 40 GB + `scsi1` **60 GB**; Blocker 2 → Option A, iGPU stays on old VM until cutover). Only **Open Q7 (vzdump target) remains open** — it affects backup *layer 2* only and does **not** block `terraform apply`; decide before relying on weekly VM backups. Read §0.2 (esp. the **Progress Log** at its end) before executing. Everything a fresh agent needs — access, aliases, discovered facts, corrected disk sizes — is in §0.2.
+**Status:** ✅ **Phases 0–9 COMPLETE (2026-07-05). Phase 10 (Home Assistant) SKIPPED — operator doesn't use HA. Start here at Phase 11 (cutover: the IP swap — make `192.168.1.3` mean "the cluster").** Every app the operator uses is live on the cluster at `192.168.1.4`; all 15 Argo apps Synced/Healthy. Media disk (930G) moved VM100→VM200, all 7 media apps migrated byte-identical with data verified intact (§0.3 **Phase 9 — DONE**). Read the **▶ Resuming at Phase 11** block in §0.3 first — it has the pre-cutover gates, the IaC IP-swap sequence, and the repo-specific gotchas. Custom-app + media images pinned by digest in `docs/versions.md`. VM 200 `lnsvrk8s01` Terraform-managed; k3s `v1.36.2+k3s1`; Tailscale `100.90.207.55`; kubeconfig `ansible/lnsvrk8s01-kubeconfig`; SSH `ops@192.168.1.4` (pass `-i ~/.ssh/id_ed25519_proxmox`, no alias). **Open Q7 (vzdump target) still open** — backup *layer 2* only, non-blocking. Everything a fresh agent needs — access, aliases, discovered facts — is in §0.2 + §0.3 Progress Log.
 **Audience:** An LLM coding agent with shell/file access to the operator's Windows desktop (workstation for this migration — see §0.2, not `lnsvrlab01` as originally assumed), SSH reachability to the Proxmox host (`lnproxlab01`), and push access to the `skyhaven-ltd` GitHub org. Read this document top-to-bottom once, then §0.2 Handoff Notes, then execute phases in order. Every architectural decision has already been made; where a value must be *discovered* (not decided), Phase 0 tells you how to discover it — most of Phase 0 is already done, see §0.2.
 
 ---
@@ -434,6 +434,26 @@ Media disk physically moved VM100→VM200 and all 7 media apps live on the clust
 - Add `{sonarr,radarr,prowlarr,qbittorrent,abs,syncthing}.lab.home.arpa` → `192.168.1.4` A records in the **old** Pi-hole to browse the new ingresses before cutover (already resolvable in the new Pi-hole).
 - **Plex claim:** sign in via `http://192.168.1.4:32400/web` to re-associate the server to the account (config/identity migrated; libraries populate after sign-in).
 - Node `/tmp/seed-*.tar` (~1.2 GB) are transient seed sources — cleared on reboot, safe to `rm` anytime.
+
+### ▶ Resuming at Phase 11 — Cutover (the IP swap): handoff for a fresh agent (READ THIS)
+
+Phases 0–9 are **DONE**; **Phase 10 (Home Assistant) is SKIPPED** (operator doesn't use HA — it dies with the old VM, never migrated). Every app the operator uses is live on the cluster at **`192.168.1.4`**, all 15 Argo apps Synced/Healthy. Phase 11 = make **`192.168.1.3`** mean "the cluster": swap the cluster VM to `.3`, move the old VM to `.13`, move the Tailscale subnet route. Full spec is **§ Phase 11** below — this block is the execution wrapper.
+
+**Execution mechanics unchanged from Phase 4/5** — reuse the "▶ Resuming at Phase 4" block verbatim: `wsl.exe -d Ubuntu-24.04 -- bash -lc '…'`, the **write-a-script-and-run-it** quoting rule (never inline `$VAR`/`$(...)`/redirects), SSH targets `ssh pve` / `ssh old` / **`ssh -i ~/.ssh/id_ed25519_proxmox ops@192.168.1.4`** (the node has **no ssh-config alias** — always pass `-i`). Repo in WSL: `/mnt/c/Local Files/Repositories/Sky Haven/infra-homelab-config`. `KUBECONFIG=<repo>/ansible/lnsvrk8s01-kubeconfig` (regenerable; **server URL will need rewriting `.4`→`.3` after cutover**, or re-fetch via the k3s role).
+
+**Before you start (pre-cutover gates):**
+1. **DNS records:** confirm every `*.lab.home.arpa` the operator uses (`pihole,plex?,learning,sonarr,radarr,prowlarr,qbittorrent,abs,syncthing`) resolves in the **new** (cluster) Pi-hole. Plex uses host-net :32400, no ingress record needed.
+2. **Plex claim** still outstanding — sign in at `http://192.168.1.4:32400/web` first if you want claimed-server continuity verified before the IP moves.
+3. **Workstation DNS** is already pointed at the router `192.168.1.1` (§0.3) so it survives the Pi-hole blip — leave it there through the window, revert to DHCP/`.3` after.
+4. **`make configure` needs `TS_AUTHKEY`** in the env (the tailscale role runs; join is idempotent-guarded so it won't re-login, but the var must be set). Same reusable key mechanism as Phase 4 — never persist it.
+
+**Cutover gotchas specific to this repo:**
+- **Argo reads `origin/major/kubernetes`** (not `main`). Any manifest change (none strictly required for Phase 11) must be committed **and pushed** before Argo sees it.
+- **IaC drives the cluster IP:** `terraform/terraform.tfvars` `k8s_vm_ip = "192.168.1.3/24"` → `make infra-apply` (cloud-init change only; expect the **~3–4 min bpg guest-agent wait** — not a hang) → `[pve] qm reboot 200` (cloud-init network applies on boot). Then `ansible/group_vars/k8s.yml` `node_ip: 192.168.1.3` → `make configure`. **tls-san already includes `.3`** since Phase 4, so kubeconfig/k3s cert stays valid.
+- **`nofail` media mount + `on_boot=true`** already survive the reboot; after `qm reboot 200` re-verify `df -h /mnt/media` shows the 930G disk and all pods return.
+- **Subnet route** moves old→new: `[old] sudo tailscale set --advertise-routes=` then `[new] sudo tailscale set --advertise-routes=192.168.1.0/24` → **approve in the Tailscale admin console**.
+- **Old VM** goes to `.13` and `systemctl disable docker`; its `homeassistant`/`pihole`/`ntfy` containers stop for good at step 1 (`docker compose down` + stockalert compose down). The 7 media containers are already `restart=no` + stopped (Phase 9).
+- **Rollback is symmetric (~5 min)** and documented in §Phase 11 — practice saying it before step 1.
 
 ### Still open
 
@@ -1445,7 +1465,11 @@ qm start <OLD_VMID>
 
 ---
 
-### Phase 10 — Home Assistant
+### Phase 10 — Home Assistant — SKIPPED (2026-07-05, operator directive)
+
+**Operator does not use Home Assistant — Phase 10 is skipped entirely.** HA is **not migrated** to the cluster; it is decommissioned with the old VM. The old `homeassistant` container keeps running on VM100 until Phase 11 step 1 (`docker compose down`), then dies with the rest of the old stack — no cluster manifest, no data seed, no Ingress. The empty `kubernetes/apps/homeassistant/` placeholder and Open Question 9 (HA hardware passthrough) are moot.
+
+<details><summary>Original Phase 10 plan (not executed — kept for history)</summary>
 
 **Prerequisites:** Phase 9 (pattern maturity; HA last because it's the most host-coupled).
 
@@ -1453,15 +1477,17 @@ Manifests per recipe with: `hostNetwork: true`, `dnsPolicy: ClusterFirstWithHost
 
 Stop old container first (`docker stop homeassistant && docker update --restart=no homeassistant`) since both bind host ports; seed; sync app.
 
-**Verification:** `http://192.168.1.4:8123` — dashboard loads, entity history intact, integrations connected. **Caveat:** if any integration used USB/Bluetooth hardware on the old VM it cannot work from the new VM without USB passthrough via Proxmox — check integrations page for broken devices (none expected; flag if found → Open Question 9).
+**Verification:** `http://192.168.1.4:8123` — dashboard loads, entity history intact, integrations connected.
 
 **Rollback:** `docker update --restart=unless-stopped homeassistant && docker start homeassistant`, remove Application.
+
+</details>
 
 ---
 
 ### Phase 11 — Cutover: the IP swap
 
-**Prerequisites:** Phases 6–10 all verified; every `.lab.home.arpa` record present in the **new** Pi-hole. This phase makes `192.168.1.3` mean "the cluster". Total planned outage: ~2–5 minutes of LAN DNS (clients fall back to secondary if the router advertises one).
+**Prerequisites:** Phases 6–9 verified (**Phase 10 skipped** — HA not migrated); every `.lab.home.arpa` record present in the **new** Pi-hole. This phase makes `192.168.1.3` mean "the cluster". Total planned outage: ~2–5 minutes of LAN DNS (clients fall back to secondary if the router advertises one). Note: step 1's `docker compose down` also kills the old `homeassistant` container permanently — intended (not migrated).
 
 **Steps, in exact order:**
 
@@ -1512,7 +1538,7 @@ kubectl get nodes -o wide                 # INTERNAL-IP 192.168.1.3, Ready
 1. **restic backups** (add to `roles/base`): systemd service+timer `restic-appdata.timer` daily 03:00 — `restic -r /mnt/media/backups/restic-appdata backup /srv/appdata --exclude /srv/appdata/local-path/*/plex-config/*/Cache` with `RESTIC_PASSWORD_FILE=/root/.restic-pass` (generate once, add to layer-3 backup set); weekly `restic forget --keep-daily 14 --keep-weekly 8 --prune`. First run manual; verify `restic snapshots` lists one.
 2. **vzdump schedule** `[pve]`: Datacenter → Backup (or `/etc/pve/jobs.cfg`): weekly, VM 200 only, mode snapshot, target = backup storage from Phase 0. Set `backup=0` on scsi2: `qm set 200 --scsi2 <current-volume-spec>,backup=0` (fetch current spec from `qm config 200`). Verify one manual run completes and its size ≈ scsi0+scsi1 used space, not 1 TB.
 3. **Off-box crown jewels** (Open Question 6 destination): `/srv/appdata/key-backups/*`, `/root/.restic-pass`, `terraform/terraform.tfstate`, copy of this doc.
-4. **Reboot drill (mandatory):** `[pve]` `qm reboot 200`. Within ~3 minutes, without any human action: node Ready, all Argo apps Healthy, `dig @192.168.1.3 github.com` works, Plex plays, phone ntfy test delivers, HA loads. This proves power-loss recovery (on_boot=true → VM starts → k3s starts → pods start → pihole serves; node DNS independence per §1.12 means no deadlock).
+4. **Reboot drill (mandatory):** `[pve]` `qm reboot 200`. Within ~3 minutes, without any human action: node Ready, all Argo apps Healthy, `dig @192.168.1.3 github.com` works, Plex plays, phone ntfy test delivers. This proves power-loss recovery (on_boot=true → VM starts → k3s starts → pods start → pihole serves; node DNS independence per §1.12 means no deadlock).
 5. **Disaster-recovery doc:** write `docs/disaster-recovery.md`: rebuild = `make infra-apply` → `make configure` → restore sealed-secrets key + k3s token → Argo re-syncs everything → restic restore `/srv/appdata` → reattach media disk. Every input it needs must exist in Git or the layer-3 backup set — audit that claim.
 
 **Final validation checklist** (all must pass):
@@ -1524,7 +1550,7 @@ kubectl get nodes -o wide                 # INTERNAL-IP 192.168.1.3, Ready
 - [ ] Plex: local + remote (tailscale, direct) playback
 - [ ] Sonarr/Radarr/Prowlarr/qBittorrent: end-to-end grab→download→import of one item
 - [ ] StockAlert: scheduled check ran, notification on phone via `http://192.168.1.3:8090`
-- [ ] learning-review `/health` 200 + data intact; audiobookshelf plays; syncthing peers in sync; HA entities live
+- [ ] learning-review `/health` 200 + data intact; audiobookshelf plays; syncthing peers in sync
 - [ ] `restic snapshots` ≥ 1; vzdump job ≥ 1 success; key-backups present off-box
 - [ ] Reboot drill passed
 - [ ] Old VM destroyed; tailnet shows `lnsvrk8s01` with subnet route; no `lnsvrlab01`
