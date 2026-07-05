@@ -1,7 +1,7 @@
 # Homelab Kubernetes + GitOps Migration Plan
 
-**Status:** Ready for execution pending answers to §7 (Open Questions).
-**Audience:** An LLM coding agent with shell/file access to the current Docker host (`lnsvrlab01`), SSH reachability to the Proxmox host (`lnproxlab01`), and push access to the `skyhaven-ltd` GitHub org. Read this document top-to-bottom once, then execute phases in order. Every architectural decision has already been made; where a value must be *discovered* (not decided), Phase 0 tells you how to discover it.
+**Status:** ✅ **Phases 0, 1 and 2 COMPLETE (2026-07-05). Start here at Phase 3 (Proxmox API token + Terraform VM provision).** All open questions answered; both blockers resolved (Blocker 1 → VM disks `scsi0` 40 GB + `scsi1` **60 GB**; Blocker 2 → Option A, iGPU stays on old VM until cutover). Only **Open Q7 (vzdump target) remains open** — it affects backup *layer 2* only and does **not** block `terraform apply`; decide before relying on weekly VM backups. Read §0.2 (esp. the **Progress Log** at its end) before executing. Everything a fresh agent needs — access, aliases, discovered facts, corrected disk sizes — is in §0.2.
+**Audience:** An LLM coding agent with shell/file access to the operator's Windows desktop (workstation for this migration — see §0.2, not `lnsvrlab01` as originally assumed), SSH reachability to the Proxmox host (`lnproxlab01`), and push access to the `skyhaven-ltd` GitHub org. Read this document top-to-bottom once, then §0.2 Handoff Notes, then execute phases in order. Every architectural decision has already been made; where a value must be *discovered* (not decided), Phase 0 tells you how to discover it — most of Phase 0 is already done, see §0.2.
 
 ---
 
@@ -13,7 +13,7 @@ These facts were gathered directly from the live environment. Re-verify anything
 
 | Host | Role | Details |
 |---|---|---|
-| `lnproxlab01` | Proxmox VE host | Tailscale IP `100.82.112.92`. LAN IP, node name, storage IDs, total RAM/CPU *(discover)* |
+| `lnproxlab01` | Proxmox VE host | Tailscale IP `100.82.112.92`, LAN IP `192.168.1.2`. Node name `lnproxlab01`, PVE 8.3.0. 12 cores (Intel Alder Lake-S, Dell). RAM 23 GiB total. Storage: see §0.2 — **capacity blocker found** |
 | `lnsvrlab01` | Current Docker workload VM (KVM guest on the Proxmox host) | Ubuntu 24.04.3 LTS, 8 vCPU, 20 GiB RAM, LAN `192.168.1.3/24` on `ens18`, Tailscale `100.98.14.63`. Disks: `sda` 60 GB (LVM; root LV only 29 GB, **77 % full**), `sdb` 930 GB ext4 mounted `/mnt/media` |
 | `lnsvrk8s01` | **New** Kubernetes VM (created by this plan) | See VM sizing decision, §1.2 |
 
@@ -57,6 +57,192 @@ These facts were gathered directly from the live environment. Re-verify anything
 
 ---
 
+## 0.2 Handoff Notes — executed 2026-07-05 (read this before doing anything else)
+
+The operator ran Phase 0 discovery and initial access setup interactively before handing this off. Below is everything that changed vs. the original plan, everything discovered, and — critically — **two new blockers that need a decision before Phase 3 (Terraform apply)**.
+
+### Workstation change (affects every `[old]` step in §3)
+
+The plan originally assumed `lnsvrlab01` was the ops workstation. **It is not.** The operator's Windows 11 desktop is the workstation for this entire migration. Ansible has no native Windows control-node support, so the actual toolchain lives in **WSL2, distro `Ubuntu-24.04`**, installed and running on that desktop. Everywhere the phased plan says `[old]`, read it as "the WSL2 Ubuntu-24.04 environment on the operator's desktop" unless the step is explicitly about the Docker host's filesystem/containers themselves (e.g. Phase 1 backup steps, which still run on `lnsvrlab01` because that's where the data is).
+
+Installed and verified working inside WSL2 `Ubuntu-24.04`:
+
+| Tool | Version |
+|---|---|
+| Terraform | v1.15.7 |
+| kubectl | v1.32.13 |
+| Helm | v3.21.2 |
+| kubeseal | 0.38.4 |
+| Ansible | core 2.16.3 |
+| gh | 2.96.0 |
+| sshpass | 1.09 (used once to bootstrap the key below, not needed again) |
+
+WSL user: `lgoodchild-a`, passwordless sudo configured (`/etc/sudoers.d/lgoodchild-a`) so future automation doesn't need password prompts.
+
+### Proxmox SSH access — resolved (Open Question 1)
+
+Generated `~/.ssh/id_ed25519_proxmox` (ed25519) in WSL, installed the public key into `lnproxlab01`'s `root/.ssh/authorized_keys` (it already had two other pre-existing keys — untouched, not overwritten). Verified key-only, non-interactive SSH works over **both** paths:
+
+```
+ssh -o BatchMode=yes -i ~/.ssh/id_ed25519_proxmox root@192.168.1.2      # LAN
+ssh -o BatchMode=yes -i ~/.ssh/id_ed25519_proxmox root@100.82.112.92    # Tailscale
+```
+
+An SSH config alias exists in WSL (`~/.ssh/config`): `Host lnproxlab01 pve` → resolves via the Tailscale IP with the right identity file, so `ssh pve` works directly.
+
+**Lesson learned, worth knowing:** the Proxmox web GUI's `>_ Shell` console (xterm.js/noVNC) mangles pastes of long single lines — it injects a real newline at the visual wrap point, silently corrupting multi-line commands. Don't paste long strings (like SSH public keys) into that console. Use `ssh-copy-id` / `scp` / piped `ssh` from a real terminal instead, which transfers content programmatically rather than relying on clipboard+paste.
+
+### Phase 0 discovery — executed, full results
+
+```
+Node: lnproxlab01, PVE 8.3.0, kernel 6.8.12-4-pve
+CPU: 12 cores (nproc), Intel Alder Lake-S (Dell OEM)
+RAM: 23 GiB total (free -g) — confirms the <34 GiB branch in §1.2/Open Q2
+Gateway: 192.168.1.1 via vmbr0 (confirmed, matches assumption)
+Bridge: vmbr0 (confirmed)
+
+VMs: only VMID 100 = lnsvrlab01 (OLD_VMID = 100)
+  qm config 100:
+    cores: 8, memory: 20000 (MB), cpu: x86-64-v2-AES
+    scsi0: local-lvm:vm-100-disk-0, 60G (thin; actually ~30GB used, 50.85%)
+    scsi1: data:100/vm-100-disk-0.raw, 930G   <- MEDIA_DISK_SLOT = scsi1
+    net0: virtio, bridge=vmbr0
+    hostpci0: 0000:00:02   <- UNDOCUMENTED, see Blocker 2 below
+
+Storage (pvesm status):
+  local        dir      32.7 GB total,  18.3 GB avail  (iso/templates only)
+  local-lvm    lvmthin  186.5 GB total, 154.5 GB "avail" per pvesm — MISLEADING, see Blocker 1
+  data         dir      959.5 GB total, 0 GB avail (99.58% full) — this is the 930G media disk, backed by
+               a dedicated physical disk (/dev/sda, 931.5G), mounted at /data on the host
+
+Underlying LVM (nvme0n1, 238.5 GB physical disk):
+  VG pve: 237.47G total, VFree 16.00G   <- the REAL free space, not what pvesm reports
+  LV pve/data (thinpool, backs "local-lvm" storage): 177.84G size, 17.16% used
+  LV pve/root: 32G, LV pve/swap: 8G
+```
+
+### BLOCKER 1 — RESOLVED 2026-07-05 (VM disks resized to 40 GB + 60 GB)
+
+**Resolution.** Re-verified live storage over SSH (`lsblk`, `pvs`, `vgs`, `lvs`, `pvesm status`, `df -h`). Confirmed two physical disks:
+
+| Disk | Size | Role | Free |
+|---|---|---|---|
+| `nvme0n1` | 238.5 GB | Proxmox system disk — holds VG `pve` | 16 GB unallocated in VG (`VFree`) |
+| `sda` | 931.5 GB | Media library, ext4 at `/data` (moves to new VM in Phase 9) | **0 GB — 100 % full (912G/916G)** |
+
+The 1 TB `sda` cannot host the OS disk (already full, and it *moves* wholesale to the new VM). The 240 GB `nvme0n1` is fully carved: 32G root + 8G swap + 177.84G `local-lvm` thin pool + 16G VG free.
+
+The original blocker conflated **VG physical free (16 GB)** with **thin-pool logical avail (154 GB)** — bpg/proxmox creates VM disks *on the `local-lvm` thin pool*, not from VG free space, so the OS disk was never the problem. The oversized **150 GB appdata disk** was: 40+150 = 190 GB nominal > 154 GB thin avail, forcing overcommit of a 177.84 GB physical pool (old VM already writes ~30 GB of it), which risks filling the pool and corrupting every volume in it.
+
+**Decision (operator, 2026-07-05):** shrink `scsi1` (appdata) from 150 GB → **60 GB**. New layout `scsi0` 40 GB + `scsi1` 60 GB = **100 GB nominal < 154 GB thin avail — no overcommit**. App state is single-digit GB today; grow the thin appdata disk later (trivial) after Phase 12 decommission frees the old VM's ~30 GB. **No new hardware.** `terraform/vm-k8s.tf` and `variables.tf` use 60 GB for scsi1; §1.2's table is superseded on this one value.
+
+Note: this does *not* resolve Open Q7 (vzdump target) — `local` has only 18 GB free, still too small for weekly whole-VM backups. Decide the backup target separately before relying on backup layer 2.
+
+<details><summary>Original blocker text (kept for history)</summary>
+
+**BLOCKER 1 — NVMe storage will not fit the planned VM disks (needs a decision)**
+
+§1.2 sizes the new VM at `scsi0` 40 GB + `scsi1` 150 GB = **190 GB combined**, intended for `local-lvm`. Reality: the `local-lvm` thin pool is only 177.84 GB total, and the **actual unallocated space in the backing volume group is 16 GB** (`vgs` → VFree). `pvesm status`'s "Available: 154 GB" for a thinly-provisioned pool is *logical* headroom assuming average block efficiency, not physical disk space — it is not trustworthy for a sizing decision here. Decommissioning the old VM's 60 GB thin disk (Phase 12) only reclaims its ~30 GB actually-written blocks, bringing real free space to roughly 46 GB — still far short of 190 GB.
+
+The other physical disk (`data`, 930 GB SATA, backing the existing media disk) has **0 GB available** — it's already 99.58% full with the current media library, and that disk is slated to *move* (not be shared) to the new VM in Phase 9 anyway.
+
+**This means, as currently scoped, the new VM's disk layout in §1.2/`terraform/vm-k8s.tf` cannot be provisioned on this host's existing storage.** Options, none yet chosen — flag to the operator for a decision before writing `terraform/vm-k8s.tf`:
+1. Operator adds a new physical disk (SSD/NVMe) to the Proxmox host and a new Proxmox storage is created on it for the new VM's disks.
+2. Shrink the new VM's disk plan to fit within realistic free space (~16 GB now / ~46 GB post-decommission) — but the whole reason §1.2 sized 40 GB for the OS disk was that the *old* VM's 29 GB root disk was already 77% full, so a small disk here risks repeating that problem quickly.
+3. Free space by shrinking the old VM's OS disk before provisioning the new one (limited headroom — old OS disk only uses ~30 GB of its 60 GB already).
+
+Do not proceed to Phase 3 (`terraform apply`) until this is resolved with the operator.
+
+</details>
+
+### BLOCKER 2 — RESOLVED 2026-07-05 (Option A: iGPU stays on old VM until cutover)
+
+**Decision (operator, 2026-07-05): Option A.** The iGPU (`hostpci0: 0000:00:02`, Intel UHD 770) stays on `lnsvrlab01` for the whole soak period — production Plex keeps HW transcode. New-cluster Plex runs software transcode until cutover. At Phase 11/12, the old VM is shut down and the `hostpci` moves to VM 200. Consequences: `terraform/vm-k8s.tf` gets **no `hostpci` block now** (added at cutover); the Plex manifest's GPU device-plugin/resource wiring is deferred to Phase 12. Lower risk — production stack keeps HW transcode until it's retired.
+
+<details><summary>Original blocker text (kept for history)</summary>
+
+**BLOCKER 2 — undocumented iGPU PCI passthrough on the old VM (needs a decision)**
+
+`qm config 100` shows `hostpci0: 0000:00:02`, confirmed via `lspci -s 00:02.0 -k` to be the host's integrated GPU (`Intel UHD Graphics 770`, currently bound to `vfio-pci`). This is almost certainly powering Plex hardware transcoding and is **not mentioned anywhere in the original plan** (§1.2 sizing, Phase 9/10 media-disk-move steps, or the Plex app migration checklist in §4).
+
+A PCI device can only be passed through to one *running* VM at a time, which matters for the plan's whole co-existence strategy (old + new VM running simultaneously across Phases 3–11). Needs a decision, not yet made:
+- **Option A (lower risk):** leave the iGPU passthrough on `lnsvrlab01` for the entire soak period; the new cluster's Plex runs without hardware transcode (software transcode, or transcoding simply not exercised) until final cutover (Phase 11/12), at which point the old VM is shut down and the iGPU passthrough moves to `lnsvrk8s01`'s VM config.
+- **Option B:** move the iGPU to the new VM immediately — old VM's Plex loses HW transcode for the whole migration, which is riskier given it's the production stack until cutover.
+
+Whichever is chosen, `terraform/vm-k8s.tf` needs a `hostpci` block added (currently absent from the plan's example in §3 Phase 3), and the Ansible/Plex app manifest (kubernetes/apps/plex) needs the device plugin / resource request wired up for GPU access in-cluster (not otherwise covered by the plan's k3s role).
+
+</details>
+
+### Open Questions (§6) — operator's answers, 2026-07-05
+
+1. **SSH access:** resolved above — workstation is the desktop (WSL2), not `lnsvrlab01`. Proxmox LAN IP is `192.168.1.2`.
+2. **Proxmox host capacity:** discovered above. RAM confirms the <34 GiB branch — **approve shrinking `lnsvrlab01` to 6 GiB (`qm set 100 --memory 6144`) plus a reboot before Phase 3**, per §1.2's own mitigation. Not yet executed — do this first in Phase 0 continuation. Storage capacity is Blocker 1 above, more severe than the plan anticipated.
+3. **Public domain:** none. Proceed with the internal self-signed CA per §1.9's default path.
+4. **GHCR visibility:** make `app-learning-review` / `app-stockalert-monitor` packages **public**. This removes the need for a `read:packages` PAT / `imagePullSecret` in Phase 7 — simplify those steps accordingly (drop the `ghcr-pull` secret and its reference in the Deployment specs).
+5. **Private keys in Git:** operator asked whether generated keys (SSH key above, Tailscale auth key) can be stored in the GitHub repo. **No** — private keys never go in Git, even a private repo. They stay local only: the Proxmox SSH key lives in WSL's `~/.ssh` (outside the repo); the Tailscale auth key is passed via the `TS_AUTHKEY` env var at `make configure` time (already how §3 Phase 4 documents it) and otherwise not persisted to disk in the repo tree.
+6. **Off-box backup destination (crown jewels — sealed-secrets key, k3s token, tfstate, restic password):** operator asked whether GitHub (Actions) Secrets could serve this purpose, org- or repo-level. **They can't, for this use case** — GitHub Actions Secrets are write-only: injectable into a workflow run, never retrievable afterward via API or UI. Since §1.8 deliberately runs no CI for infra, there's no workflow to consume them, and they can't be pulled back down for a manual disaster-recovery restore. Recommended instead (already one of the plan's own listed options): a **private repo in the `skyhaven-ltd` org**, holding age-encrypted backup files of the crown jewels — `git clone` + `age -d` is the restore path. Repo-level is sufficient for a single operator; no need for org-level secrets machinery.
+7. **Proxmox Backup Server:** none exists. Single host, no dedicated backup server — vzdump targets local Proxmox storage. **Unresolved which storage**, given Blocker 1: `local` only has 18 GB free (too small for weekly VM backups) and `data` has 0 GB free. This needs to be settled alongside Blocker 1 — likely the same new-disk decision would also provide the vzdump target.
+8. **learning-review Obsidian vault:** confirmed genuinely unused. Migrate without it, as the plan already defaults to.
+9. **Home Assistant hardware:** no USB/Zigbee/Bluetooth passthrough currently in use — confirmed no HA-related hardware integrations to carry over. (Note: this is unrelated to Blocker 2's iGPU passthrough, which is for Plex, not Home Assistant.)
+10. **Plex claim:** acknowledged — proceed assuming the existing claimed server identity carries over via the config PV migration, per the plan's expectation.
+
+### Additional operator directives (not part of the numbered Open Questions)
+
+- Downtime during migration is acceptable — no requirement to keep every app up throughout.
+- During the Pi-hole cutover window (Phase 11), the operator will temporarily point this desktop's own DNS at `192.168.1.1` (the router) so it keeps outbound internet while Pi-hole is being rebuilt in-cluster. This is a workstation-local, temporary change — not something to script into the Ansible/Terraform, just a heads-up for timing that phase.
+- **Hard requirement, repeated for emphasis:** container configuration must be byte-identical post-migration. This is already §1.11's design goal (hostPath mirrors compose binds exactly, PV data is cold-copied not recreated) — treat any deviation from existing app config/behavior as a regression, not an acceptable simplification.
+
+---
+
+## 0.3 Progress Log — Phases 0 & 1 executed 2026-07-05 (READ THIS FIRST if resuming)
+
+A fresh agent starting here has **already-completed Phases 0 and 1**. Begin work at **Phase 2**. Everything below is the actual end-state.
+
+### Access & tooling (all from WSL2 `Ubuntu-24.04` on the operator's desktop)
+
+- **Proxmox:** `ssh pve` (alias in WSL `~/.ssh/config` → `100.82.112.92`, user `root`, key `~/.ssh/id_ed25519_proxmox`). Works non-interactively.
+- **Old VM `lnsvrlab01`:** `ssh old` (alias → `192.168.1.3`, user `lgoodchild-a`, **passwordless sudo**, same key). Set up 2026-07-05.
+- **Nested-quoting landmine:** running commands as `wsl -d Ubuntu-24.04 bash -c "ssh pve '…'"` mangles `$VAR`, `$(...)`, and redirections across the three shell layers (they silently become empty / syntax-error). **Always** write a local `.sh` and pipe it: `ssh pve 'bash -s' < script.sh` (or `ssh old 'bash -s' < script.sh`). Vars then expand on the target only.
+- `gh` authenticated for `skyhaven-ltd` (verify with `gh auth status`).
+
+### Phase 0 — DONE
+
+- Discovery re-verified live (see §0.2 + `docs/versions.md` "Environment facts"). Node `lnproxlab01`, PVE 8.3.0, 12 cores, **23 GiB RAM**, gateway `192.168.1.1`, bridge `vmbr0`, `OLD_VMID=100`, media disk = `scsi1` on `data` storage.
+- **Storage truth (Blocker 1 resolved):** NVMe `nvme0n1` 238.5 GB = Proxmox system disk (VG `pve`: 32G root + 8G swap + 177.84G `local-lvm` thinpool + 16G VFree). SATA `sda` 931.5 GB = media, ext4 `/data`, 100% full at host level (thick 930G raw), **96 GB free inside the VM**. `local-lvm` thinpool has 154 GB thin-logical avail (old VM writes ~30 GB). **New VM disks = 40 GB + 60 GB = 100 GB nominal, no overcommit.** No new hardware.
+- **iGPU (Blocker 2 resolved, Option A):** `hostpci0: 0000:00:02` (Intel UHD 770) **stays on VM 100** until cutover. `terraform/vm-k8s.tf` gets **no `hostpci` block** now; Plex runs software transcode on the new cluster until Phase 12.
+- **Old VM RAM shrunk 20 GiB → 6 GiB** (`qm set 100 --memory 6144` + stop/start). Verified: all 13 containers back up, Pi-hole DNS resolving, ports 53/8989/7878/9696/8080/13378/8384/32400/8090/8081 open. Host now **15 GiB available** — new VM's 12 GiB co-existence RAM fits.
+- **Workstation DNS:** desktop was resolving via Pi-hole (`192.168.1.3`); temporarily repointed to router `192.168.1.1` (interfaces `Ethernet 2`, `WiFi 2`) so it survives Pi-hole outages during migration. **Revert to DHCP/.3 post-migration.** (Proxmox uses Tailscale MagicDNS, not Pi-hole — untouched.)
+
+### Phase 1 — DONE
+
+- Backups at `/mnt/media/backups/pre-k8s-2026-07-05` (842 MB), all archives verified: `media-compose.yaml`, `stockalert/*`, `learning-review/*`, `appdata.tar.gz` (881 MB, 9 apps), `learning-data.tar.gz`, `stockalert-data.tar.gz`, network identity files.
+- **⚠ learning-review `.env` was deleted from disk** (compose still has `env_file: - .env`). Values survive only in the running container. **Reconstructed** to `…/learning-review/.env` (19 app keys incl. secrets `APP_SECRET_KEY`, `WORKER_TOKEN`, `APP_PASSWORD`) via `docker inspect` minus image-baked vars. **This is the authoritative source for the Phase 7 learning-review Secret/ConfigMap.** Vault confirmed unmounted (only `learning_data`→/data) — migrate without it (Q8).
+- **Rollback point:** full `qm snapshot`/`vzdump` impossible (media disk `.raw` on dir-storage isn't snapshot-capable; too big for 18 GB `local`). Took a **thin LVM snapshot of the OS disk only**: `vm-100-disk-0-prek8s` (origin `pve/vm-100-disk-0`). Restore: `qm stop 100` → `lvconvert --merge pve/vm-100-disk-0-prek8s` → `qm start 100`. Remove when migration done: `lvremove pve/vm-100-disk-0-prek8s`.
+
+### Phase 2 — DONE (2026-07-05)
+
+Monorepo scaffold created on branch `major/kubernetes` (the migration branch — the plan's
+literal `k8s-migration` name was superseded; work continues on `major/kubernetes`):
+
+- Full §2 directory tree created (`terraform/`, `ansible/{group_vars,inventory,roles/{base,tailscale,k3s,argocd_bootstrap}}`,
+  `kubernetes/{bootstrap/argocd,argocd-apps,infrastructure/{ingress-nginx,cert-manager,cert-issuers,sealed-secrets},apps/{pihole,plex,sonarr,radarr,prowlarr,qbittorrent,audiobookshelf,syncthing,homeassistant,learning-review,stockalert}}`,
+  `compose/`). Empty dirs hold `.gitkeep` placeholders (removed as real files land in later phases).
+- `compose.yaml` → `compose/compose.yaml` via `git mv`. **Running stack unaffected** — the `systemd/`
+  units reference host absolute paths (`/srv/containers/media/…`), not the repo compose path, so no
+  systemd edit or host re-link was needed. README pointer updated to the new path + a layout table.
+- `.gitignore` extended (tfstate, `.terraform/`, `ansible/inventory/hosts.yml`, `*.key`, `*-kubeconfig`;
+  kept legacy `appdata/`). `Makefile` written with `infra-init/plan/apply`, `configure`, `bootstrap`, `seal`
+  targets (tab-indented, verified).
+- Tooling install (Phase 2 step 4) is a **no-op** — WSL2 toolchain already installed & verified (§0.3, versions.md).
+
+### Still open
+
+- **Open Q7 — vzdump target** for backup layer 2. `local` 18 GB free (too small), `data` full, no PBS. Not blocking `terraform apply`; settle before weekly VM backups matter (likely needs a new disk, same as any future storage add).
+- **Commit/push/merge:** Phase 0–2 changes are staged in the working tree. Commit as a Phase 0–2 checkpoint; merge branch → `main` per the plan's phase-boundary rule when the operator is ready.
+- Stray files in repo root from tooling (WSL checkout only): `kubeseal`, `kubeseal-0.38.4-linux-amd64.tar.gz` — delete (kubeseal already installed in WSL), don't commit. (Not present in the Windows-desktop checkout.)
+
+---
+
 ## 1. Decision Record
 
 Each entry: **Decision**, then reasoning. Items marked *(judgment call)* are opinionated recommendations; everything else is close to forced by the constraints.
@@ -74,7 +260,7 @@ Reasoning: `telmate/proxmox` is effectively unmaintained, has long-standing bugs
 | Disk | Size | Purpose |
 |---|---|---|
 | `scsi0` | 40 GB | OS + k3s binaries/images. The old VM's 29 GB root at 77 % proves 29 GB is too small; 40 GB with no LVM shrinkage gives headroom for container images |
-| `scsi1` | 150 GB | `/srv/appdata` — all Kubernetes PV data (local-path). Separate disk so the OS disk can be rebuilt without touching state, and so Proxmox backups can target it selectively |
+| `scsi1` | ~~150 GB~~ **60 GB** (Blocker 1, §0.3) | `/srv/appdata` — all Kubernetes PV data (local-path). Separate disk so the OS disk can be rebuilt without touching state, and so Proxmox backups can target it selectively. 60 not 150 to avoid thin-pool overcommit; grow later. |
 | `scsi2` | (moved, not created) | The existing 930 GB media disk, moved from `lnsvrlab01` in Phase 9, mounted `/mnt/media` |
 
 Reasoning: total current container RSS is ~2.5 GiB; k3s control plane + Argo CD + ingress adds ~1.5–2 GiB; Plex transcodes spike CPU not RAM. 12 GiB is comfortable. CPU overcommit on Proxmox is harmless for this workload, so both VMs can claim 8 vCPU simultaneously. RAM is the real co-existence constraint and the Proxmox host's total RAM is unknown — **Phase 0 discovers it; if host RAM < 34 GiB, shrink `lnsvrlab01` to 6 GiB first** (it uses 2.5 GiB; this is safe) via Proxmox UI or `qm set <vmid> --memory 6144` + reboot.
@@ -137,7 +323,7 @@ Reasoning vs SOPS: SOPS+age is a fine tool but integrates with Argo CD only via 
 ### 1.11 Persistent storage: local-path-provisioner + hostPath for media
 
 **Decision:**
-- **App state** (Pi-hole config, *arr databases, Plex metadata, SQLite files, HA config): k3s's bundled **local-path-provisioner** as default StorageClass, with its data root moved to `/srv/appdata/local-path` (the dedicated 150 GB `scsi1` disk).
+- **App state** (Pi-hole config, *arr databases, Plex metadata, SQLite files, HA config): k3s's bundled **local-path-provisioner** as default StorageClass, with its data root moved to `/srv/appdata/local-path` (the dedicated 60 GB `scsi1` disk, §0.3).
 - **Bulk media** (`/mnt/media`): the existing 930 GB disk moved to the new VM and mounted as **hostPath volumes** in pod specs, exactly mirroring today's bind mounts (`/mnt/media` → `/data` in-container, preserving *arr/qbittorrent path mappings and hardlink behavior).
 - **Longhorn: rejected.**
 
@@ -251,7 +437,7 @@ General rules for every phase:
 
 ---
 
-### Phase 0 — Preflight discovery & access
+### Phase 0 — Preflight discovery & access ✅ DONE (2026-07-05, see §0.3)
 
 **Prerequisites:** none.
 
@@ -283,7 +469,7 @@ cat /etc/pve/qemu-server/<OLD_VMID>.conf | grep net0   # → bridge name (expect
 
 ---
 
-### Phase 1 — Backup current state
+### Phase 1 — Backup current state ✅ DONE (2026-07-05, see §0.3)
 
 **Prerequisites:** Phase 0.
 
@@ -477,7 +663,7 @@ resource "proxmox_virtual_environment_vm" "k8s" {
   disk {
     datastore_id = var.vm_storage
     interface    = "scsi1"
-    size         = 150
+    size         = 60          # Blocker 1 (§0.2/§0.3): 60 not 150 — 40+60=100 GB fits local-lvm thin (154 GB avail) with no overcommit. Grow later after Phase 12 frees old VM's ~30 GB.
     iothread     = true
     discard      = "on"
     file_format  = "raw"
@@ -534,7 +720,7 @@ make infra-init && make infra-plan   # review: 3 resources to add
 make infra-apply
 ```
 
-**Verification:** `qm list` on pve shows VMID 200 running; `ssh ops@192.168.1.4 'lsb_release -d && lsblk'` succeeds and shows sda 40G / sdb 150G; `ansible/inventory/hosts.yml` exists. Old stack untouched.
+**Verification:** `qm list` on pve shows VMID 200 running; `ssh ops@192.168.1.4 'lsb_release -d && lsblk'` succeeds and shows sda 40G / sdb 60G; `ansible/inventory/hosts.yml` exists. Old stack untouched.
 
 **Rollback:** `terraform destroy` (only touches VM 200 + downloaded image). Nothing on the old VM changed.
 
@@ -558,7 +744,7 @@ interpreter_python = auto_silent
 
 ```yaml
 k3s_version: "<PIN per §1.16, e.g. v1.32.x+k3s1>"
-appdata_device: /dev/sdb          # the 150G scsi1 disk
+appdata_device: /dev/sdb          # the 60G scsi1 disk (§0.3)
 appdata_mount: /srv/appdata
 node_ip: 192.168.1.4              # updated to .3 at cutover (Phase 11)
 tailscale_authkey: "{{ lookup('env', 'TS_AUTHKEY') }}"   # one-time reusable key from admin console
@@ -1197,13 +1383,15 @@ Checklist per app:
 
 ## 6. Open Questions (answer before the agent starts)
 
-1. **SSH access to Proxmox host:** confirm key-based root SSH to `lnproxlab01` (`100.82.112.92`) from `lnsvrlab01` works, or provide credentials/console access to set it up (Phase 0 hard-blocks without it). Also confirm its LAN IP.
-2. **Proxmox host capacity:** unknown RAM/CPU/storage totals — Phase 0 discovers; **but** if you already know the host has < 34 GiB RAM, approve the old-VM shrink to 6 GiB up front (brief full outage at Phase 0).
-3. **Public domain:** do you own a domain (and is it on Cloudflare) you'd like used for `*.lab.<domain>` with Let's Encrypt DNS-01 instead of the internal CA? (Plan proceeds with internal CA either way; this swaps one issuer file later.)
-4. **GHCR visibility:** keep `app-learning-review`/`app-stockalert-monitor` images private (requires you to mint a `read:packages` PAT for the pull secret, Phase 7) or make the packages public (no PAT needed)? Default if unanswered: private + PAT.
-5. **Tailscale auth key:** generate a reusable auth key in the admin console for Phase 4 (Settings → Keys), or pre-approve interactive `tailscale up` on the new VM.
-6. **Off-box backup destination** for crown jewels (sealed-secrets key, tfstate, restic password): options — private GitHub repo (encrypted with age), a cloud drive, a USB stick. Name one; Phase 13.3 blocks without it.
-7. **Proxmox Backup Server:** does one exist on your network? If yes, vzdump targets it (better dedup/retention); if no, which Proxmox storage should hold weekly VM backups (Phase 0 lists candidates)?
-8. **learning-review Obsidian vault mount:** compose declares an optional read-only vault bind but the running container doesn't have it. Confirm it's genuinely unused (migrate without, as planned) — if it *is* wanted, state the vault's path and how it reaches the new VM (likely via syncthing to a `/mnt/media` path).
-9. **Home Assistant hardware:** any USB/Zigbee/Bluetooth devices attached to integrations? (None visible from container config; if yes, Proxmox USB passthrough to VM 200 must be added in Phase 10 — say so now.)
-10. **Plex claim:** confirm the Plex server is claimed to your account (config PV migration preserves identity, so no re-claim expected — this is just the "if it asks, sign in and claim" heads-up).
+**All answered 2026-07-05 — full detail in §0.2. Quick index:**
+
+1. **SSH access to Proxmox host:** confirm key-based root SSH to `lnproxlab01` (`100.82.112.92`) from `lnsvrlab01` works, or provide credentials/console access to set it up (Phase 0 hard-blocks without it). Also confirm its LAN IP. → **Answered.** Workstation is the desktop (WSL2 Ubuntu-24.04), not `lnsvrlab01`. LAN IP `192.168.1.2`. Key generated and installed, verified over LAN + Tailscale. See §0.2.
+2. **Proxmox host capacity:** unknown RAM/CPU/storage totals — Phase 0 discovers; **but** if you already know the host has < 34 GiB RAM, approve the old-VM shrink to 6 GiB up front (brief full outage at Phase 0). → **Answered/discovered.** 23 GiB RAM, 12 cores — shrink approved but **not yet executed**. Storage discovery surfaced **Blocker 1** (§0.2) — worse than anticipated, needs a decision before Phase 3.
+3. **Public domain:** do you own a domain (and is it on Cloudflare) you'd like used for `*.lab.<domain>` with Let's Encrypt DNS-01 instead of the internal CA? (Plan proceeds with internal CA either way; this swaps one issuer file later.) → **Answered: no domain, use internal CA** (plan's default path, unchanged).
+4. **GHCR visibility:** keep `app-learning-review`/`app-stockalert-monitor` images private (requires you to mint a `read:packages` PAT for the pull secret, Phase 7) or make the packages public (no PAT needed)? Default if unanswered: private + PAT. → **Answered: make public.** Drop the `ghcr-pull` imagePullSecret/PAT steps in Phase 7.
+5. **Tailscale auth key:** generate a reusable auth key in the admin console for Phase 4 (Settings → Keys), or pre-approve interactive `tailscale up` on the new VM. → **Not yet answered** — still needed before Phase 4. (Not to be confused with the operator's separate question about *whether* generated keys can live in Git — see §0.2 item 5: no, they can't, keep this one as an env var too.)
+6. **Off-box backup destination** for crown jewels (sealed-secrets key, tfstate, restic password): options — private GitHub repo (encrypted with age), a cloud drive, a USB stick. Name one; Phase 13.3 blocks without it. → **Answered: private GitHub repo (age-encrypted), repo-level, in `skyhaven-ltd`.** GitHub Actions Secrets ruled out — write-only, can't be retrieved for restore. See §0.2.
+7. **Proxmox Backup Server:** does one exist on your network? If yes, vzdump targets it (better dedup/retention); if no, which Proxmox storage should hold weekly VM backups (Phase 0 lists candidates)? → **Answered: no PBS, single host.** Target storage still **unresolved** — tangled up with Blocker 1 (§0.2), both existing storages are nearly full.
+8. **learning-review Obsidian vault mount:** compose declares an optional read-only vault bind but the running container doesn't have it. Confirm it's genuinely unused (migrate without, as planned) — if it *is* wanted, state the vault's path and how it reaches the new VM (likely via syncthing to a `/mnt/media` path). → **Answered: confirmed unused,** migrate without it.
+9. **Home Assistant hardware:** any USB/Zigbee/Bluetooth devices attached to integrations? (None visible from container config; if yes, Proxmox USB passthrough to VM 200 must be added in Phase 10 — say so now.) → **Answered: no HA hardware integrations in use.** (Separately, Phase 0 discovery found an *undocumented* iGPU passthrough for Plex — Blocker 2 in §0.2, unrelated to this question.)
+10. **Plex claim:** confirm the Plex server is claimed to your account (config PV migration preserves identity, so no re-claim expected — this is just the "if it asks, sign in and claim" heads-up). → **Acknowledged.**
