@@ -7,6 +7,6 @@ iso_storage  = "local"
 k8s_vm_ip     = "192.168.1.3/24"
 lan_gateway   = "192.168.1.1"
 bridge        = "vmbr0"
-k8s_memory_mb = 12288
+k8s_memory_mb = 16384
 
 ssh_public_key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIH/2sxw8l1OAhwW3Yald3xYgnJ9SG+wfgKoHJRSmMALh ops-desktop@lnproxlab01"
