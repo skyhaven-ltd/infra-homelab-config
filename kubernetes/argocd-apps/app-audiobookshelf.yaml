@@ -12,12 +12,10 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: audiobookshelf
-  # Phase 9 Step 1: sync DISABLED until the media disk is moved (Step 3) and data
-  # is seeded (Step 4). Argo shows OutOfSync but starts no pods before /mnt/media
-  # exists. Add the automated block (below) when going live per Step 4.
+  # Phase 9 Step 4: live — media disk moved + data seeded.
   syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
     syncOptions:
       - CreateNamespace=true
-    # automated:
-    #   prune: true
-    #   selfHeal: true
