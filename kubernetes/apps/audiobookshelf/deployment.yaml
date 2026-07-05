@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: audiobookshelf
+  namespace: audiobookshelf
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate # RWO config/metadata volumes
+  selector:
+    matchLabels:
+      app: audiobookshelf
+  template:
+    metadata:
+      labels:
+        app: audiobookshelf
+    spec:
+      containers:
+        - name: audiobookshelf
+          # Pinned by digest = old container's exact running :latest image (§1.11).
+          image: advplyr/audiobookshelf@sha256:a52dc5db694a5bf041ce38f285dd6c6a660a4b1b21e37ad6b6746433263b2ae5
+          env:
+            # Only TZ in compose (no PUID/PGID for this image).
+            - { name: TZ, value: "Etc/UTC" }
+          ports:
+            - { name: http, containerPort: 80 }
+          volumeMounts:
+            - { name: config, mountPath: /config }
+            - { name: metadata, mountPath: /metadata }
+            # Compose /mnt/media:/data (rw). Byte-identical (§1.11).
+            - { name: media, mountPath: /data }
+          readinessProbe:
+            httpGet: { path: /healthcheck, port: 80 }
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests: { cpu: 100m, memory: 128Mi }
+            limits: { memory: 512Mi }
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: audiobookshelf-config
+        - name: metadata
+          persistentVolumeClaim:
+            claimName: audiobookshelf-metadata
+        - name: media
+          hostPath: { path: /mnt/media, type: Directory }

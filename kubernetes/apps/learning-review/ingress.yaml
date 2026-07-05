@@ -1,0 +1,23 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: learning-review
+  namespace: learning-review
+  annotations:
+    cert-manager.io/cluster-issuer: homelab-ca
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts: [learning.lab.home.arpa]
+      secretName: learning-review-tls
+  rules:
+    - host: learning.lab.home.arpa
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: learning-review
+                port:
+                  number: 8080

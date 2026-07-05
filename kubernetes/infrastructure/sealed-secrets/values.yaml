@@ -1,0 +1,3 @@
+# sealed-secrets chart 2.19.1 (repo bitnami.github.io/sealed-secrets). §1.10.
+# Stable controller name so `kubeseal --controller-name` / Service lookups are predictable.
+fullnameOverride: sealed-secrets-controller

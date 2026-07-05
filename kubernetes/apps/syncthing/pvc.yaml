@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: syncthing-config
+  namespace: syncthing
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      # Old /config ~112K; nominal headroom.
+      storage: 1Gi

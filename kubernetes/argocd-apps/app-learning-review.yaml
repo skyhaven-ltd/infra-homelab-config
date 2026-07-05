@@ -1,0 +1,20 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: learning-review
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/skyhaven-ltd/infra-homelab-config.git
+    targetRevision: major/kubernetes
+    path: kubernetes/apps/learning-review
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: learning-review
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

@@ -1,0 +1,13 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: stockalert
+resources:
+  - sealedsecret.yaml
+  - ntfy.yaml
+  - flaresolverr.yaml
+  - stock-checker.yaml
+configMapGenerator:
+  - name: stockalert-config
+    files:
+      - config.yaml
+      - products.txt

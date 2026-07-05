@@ -1,0 +1,19 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: root
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/skyhaven-ltd/infra-homelab-config.git
+    # Migration runs on major/kubernetes (not yet merged to main). Flip to `main` at merge.
+    targetRevision: major/kubernetes
+    path: kubernetes/argocd-apps
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

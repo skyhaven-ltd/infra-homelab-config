@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: syncthing
+  namespace: syncthing
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate # RWO config volume
+  selector:
+    matchLabels:
+      app: syncthing
+  template:
+    metadata:
+      labels:
+        app: syncthing
+    spec:
+      containers:
+        - name: syncthing
+          # Pinned by digest = old container's exact running :latest image (§1.11).
+          image: lscr.io/linuxserver/syncthing@sha256:6a5f5d3412f80539289cee9bd0a6df9645f8540ecaed7d34f1bd0930bfd8c55e
+          env:
+            - { name: PUID, value: "1000" }
+            - { name: PGID, value: "1000" }
+            - { name: TZ, value: "Etc/UTC" }
+          ports:
+            - { name: gui, containerPort: 8384 }
+            - { name: sync-tcp, containerPort: 22000, protocol: TCP }
+            - { name: sync-udp, containerPort: 22000, protocol: UDP }
+            # 21027/udp local-discovery broadcast dropped — no L2 broadcast behind a
+            # Service; global discovery + static peer addresses cover it (Phase 9 note).
+          volumeMounts:
+            - { name: config, mountPath: /config }
+            - { name: media, mountPath: /data }
+          resources:
+            requests: { cpu: 100m, memory: 128Mi }
+            limits: { memory: 256Mi }
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: syncthing-config
+        - name: media
+          hostPath: { path: /mnt/media, type: Directory }

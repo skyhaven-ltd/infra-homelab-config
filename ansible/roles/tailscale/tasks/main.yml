@@ -1,0 +1,17 @@
+- name: Add tailscale repo key/source
+  ansible.builtin.shell: |
+    curl -fsSL https://pkgs.tailscale.com/stable/ubuntu/noble.noarmor.gpg -o /usr/share/keyrings/tailscale-archive-keyring.gpg
+    curl -fsSL https://pkgs.tailscale.com/stable/ubuntu/noble.tailscale-keyring.list -o /etc/apt/sources.list.d/tailscale.list
+  args: { creates: /etc/apt/sources.list.d/tailscale.list }
+- name: Install tailscale
+  ansible.builtin.apt: { name: tailscale, update_cache: true }
+- name: Check tailscale backend state
+  ansible.builtin.command: tailscale status
+  register: ts_status
+  changed_when: false
+  failed_when: false
+- name: Bring up tailscale (MagicDNS OFF on this node — see decision 1.13)
+  # installing the pkg creates tailscaled.state before login, so a `creates:` guard
+  # would false-skip this; gate on actual backend state instead (rc!=0 == not Running)
+  ansible.builtin.command: tailscale up --authkey={{ tailscale_authkey }} --accept-dns=false --hostname=lnsvrk8s01
+  when: ts_status.rc != 0

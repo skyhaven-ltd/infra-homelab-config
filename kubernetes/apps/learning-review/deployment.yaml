@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: learning-review
+  namespace: learning-review
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate # RWO volume: never two pods at once
+  selector:
+    matchLabels:
+      app: learning-review
+  template:
+    metadata:
+      labels:
+        app: learning-review
+    spec:
+      containers:
+        - name: app
+          # Phase 7 CI build, pinned by digest (§1.11). main SHA 9424c0b.
+          image: ghcr.io/skyhaven-ltd/app-learning-review@sha256:ce2944ad179eebc60bd8c149688304199b42a7c6833708f80f419aed6f812bb1
+          # Byte-identical env from the reconstructed repo .env (Phase 1). App
+          # listens on 8080 inside the container (compose mapped ${APP_PORT}:8080,
+          # healthcheck curled localhost:8080/health) regardless of APP_PORT.
+          envFrom:
+            - secretRef:
+                name: learning-review-env
+          ports:
+            - { name: http, containerPort: 8080 }
+          volumeMounts:
+            # No vault mount — running container had none (Open Question 8).
+            - { name: learning-data, mountPath: /data }
+          # Compose healthcheck translated: curl -fsS localhost:8080/health.
+          livenessProbe:
+            httpGet: { path: /health, port: 8080 }
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet: { path: /health, port: 8080 }
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits: { memory: 512Mi }
+      volumes:
+        - name: learning-data
+          persistentVolumeClaim:
+            claimName: learning-data

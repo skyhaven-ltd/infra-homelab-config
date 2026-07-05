@@ -1,0 +1,14 @@
+# k3s version pin (§1.16) — current stable resolved 2026-07-05; recorded in docs/versions.md
+k3s_version: "v1.36.2+k3s1"
+# scsi1 slot = 60G appdata disk. Use the stable by-id slot path, NOT /dev/sdX:
+# device letters swap on reboot (media took /dev/sdb after the Phase 11 reboot),
+# which mis-mounted appdata onto the media disk. by-id is deterministic per slot
+# and works on a blank disk (clean rebuild) before any UUID exists.
+appdata_device: /dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_drive-scsi1
+appdata_mount: /srv/appdata
+# Media disk (930G ext4) moved from VM100 in Phase 9 as scsi2. Mounted by UUID
+# (device letter is unstable) with nofail so a dead media disk can't hang boot (§1.12/§5).
+media_mount: /mnt/media
+media_fs_uuid: bc0c5059-f2ae-4c3a-9822-1781a090b2a8
+node_ip: 192.168.1.3              # cutover done (Phase 11): cluster now owns .3
+tailscale_authkey: "{{ lookup('env', 'TS_AUTHKEY') }}"   # one-time reusable key from admin console; never persisted to Git

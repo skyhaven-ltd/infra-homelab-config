@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prowlarr
+  namespace: prowlarr
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate # RWO config volume
+  selector:
+    matchLabels:
+      app: prowlarr
+  template:
+    metadata:
+      labels:
+        app: prowlarr
+    spec:
+      containers:
+        - name: prowlarr
+          # Pinned by digest = old container's exact running :latest image (§1.11).
+          image: lscr.io/linuxserver/prowlarr@sha256:5339e9050cfcc0cb5331e9c98610ed9d4ce70ef481a5461ea664a13dda3f1eb0
+          env:
+            - { name: PUID, value: "1000" }
+            - { name: PGID, value: "1000" }
+            - { name: TZ, value: "Etc/UTC" }
+          ports:
+            - { name: http, containerPort: 9696 }
+          # No media mount — compose gave prowlarr /config only.
+          volumeMounts:
+            - { name: config, mountPath: /config }
+          readinessProbe:
+            httpGet: { path: /ping, port: 9696 }
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests: { cpu: 100m, memory: 128Mi }
+            limits: { memory: 512Mi }
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: prowlarr-config

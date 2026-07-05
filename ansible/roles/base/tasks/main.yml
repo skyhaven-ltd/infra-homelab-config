@@ -1,0 +1,62 @@
+- name: Install base packages
+  ansible.builtin.apt:
+    name: [qemu-guest-agent, curl, jq, restic, nfs-common, open-iscsi, htop, unattended-upgrades]
+    update_cache: true
+- name: Enable qemu-guest-agent
+  ansible.builtin.systemd: { name: qemu-guest-agent, state: started, enabled: true }
+- name: Filesystem on appdata disk
+  community.general.filesystem: { fstype: ext4, dev: "{{ appdata_device }}" }
+- name: Mount appdata disk
+  # by-id slot path (stable across reboots — device letters are not) + nofail so a
+  # missing appdata disk degrades apps but never hangs boot (matches media policy).
+  ansible.posix.mount:
+    path: "{{ appdata_mount }}"
+    src: "{{ appdata_device }}"
+    fstype: ext4
+    opts: defaults,noatime,nofail
+    state: mounted
+# Media disk carries existing data — never mkfs it. Mount by UUID with nofail so
+# a missing/dead media disk cannot block boot (hostPath apps degrade, node stays up).
+- name: Mount media disk
+  ansible.posix.mount:
+    path: "{{ media_mount }}"
+    src: "UUID={{ media_fs_uuid }}"
+    fstype: ext4
+    opts: defaults,noatime,nofail
+    state: mounted
+- name: Kernel params for k8s
+  ansible.posix.sysctl: { name: "{{ item.k }}", value: "{{ item.v }}", state: present }
+  loop:
+    - { k: fs.inotify.max_user_instances, v: "1024" }
+    - { k: fs.inotify.max_user_watches, v: "1048576" }
+- name: Enable unattended security upgrades
+  ansible.builtin.copy:
+    dest: /etc/apt/apt.conf.d/20auto-upgrades
+    content: |
+      APT::Periodic::Update-Package-Lists "1";
+      APT::Periodic::Unattended-Upgrade "1";
+# DNS hardening: the systemd-resolved stub (127.0.0.53) was observed dead
+# ("connection refused"), which broke containerd image pulls. Pin the uplink DNS
+# servers, disable the flaky stub listener, and point resolv.conf directly at
+# resolved's uplink file so clients (containerd, apt, etc.) resolve without the stub.
+- name: Ensure systemd-resolved drop-in dir
+  ansible.builtin.file:
+    path: /etc/systemd/resolved.conf.d
+    state: directory
+    mode: "0755"
+- name: Pin DNS + disable resolved stub listener
+  ansible.builtin.copy:
+    dest: /etc/systemd/resolved.conf.d/10-homelab-dns.conf
+    content: |
+      [Resolve]
+      DNS=1.1.1.1 8.8.8.8
+      DNSStubListener=no
+    mode: "0644"
+  notify: restart systemd-resolved
+- name: Point resolv.conf at resolved uplink file (bypass stub)
+  ansible.builtin.file:
+    src: /run/systemd/resolve/resolv.conf
+    dest: /etc/resolv.conf
+    state: link
+    force: true
+  notify: restart systemd-resolved
