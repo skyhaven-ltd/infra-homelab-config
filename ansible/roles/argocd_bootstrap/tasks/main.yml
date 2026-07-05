@@ -1,0 +1,93 @@
+# Phase 5 — Argo CD bootstrap (idempotent). Runs on the k3s node; kubectl uses the
+# k3s kubeconfig. Wraps plan Steps 1-3 so a clean rebuild is `make bootstrap` end-to-end.
+# The ONE manual, never-in-Git secret is the repo deploy key: generate it + register it
+# on GitHub from the workstation, pass its private-key path via `argocd_repo_key_path`.
+- name: Stage Argo CD bootstrap manifests on the node
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../kubernetes/bootstrap/argocd/"
+    dest: /var/lib/rancher/k3s-bootstrap/argocd/
+    mode: "0644"
+
+- name: Check whether Argo CD is already installed
+  ansible.builtin.command: kubectl get deployment argocd-server -n argocd
+  environment: { KUBECONFIG: "{{ argocd_kubeconfig }}" }
+  register: argocd_deploy
+  changed_when: false
+  failed_when: false
+
+- name: Install Argo CD (namespace + pinned install.yaml via kustomize)
+  ansible.builtin.command: kubectl apply -k /var/lib/rancher/k3s-bootstrap/argocd/
+  environment: { KUBECONFIG: "{{ argocd_kubeconfig }}" }
+  when: argocd_deploy.rc != 0
+  register: argocd_apply
+  changed_when: "'created' in argocd_apply.stdout or 'configured' in argocd_apply.stdout"
+
+- name: Wait for argocd-server to become available
+  ansible.builtin.command: >-
+    kubectl -n argocd wait --for=condition=Available deployment/argocd-server --timeout=180s
+  environment: { KUBECONFIG: "{{ argocd_kubeconfig }}" }
+  changed_when: false
+
+- name: Check whether the repo deploy-key secret exists
+  ansible.builtin.command: kubectl -n argocd get secret repo-infra-homelab-config
+  environment: { KUBECONFIG: "{{ argocd_kubeconfig }}" }
+  register: repo_secret
+  changed_when: false
+  failed_when: false
+
+# The private key is passed by path (never committed). If the secret is absent and no
+# key was provided, fail loudly — the operator must run the workstation step first:
+#   ssh-keygen -t ed25519 -f /tmp/argocd-repo-key -N "" -C argocd@lnsvrk8s01
+#   gh repo deploy-key add /tmp/argocd-repo-key.pub -R skyhaven-ltd/infra-homelab-config --title argocd-readonly
+#   make bootstrap ARGOCD_REPO_KEY=/tmp/argocd-repo-key   (then shred the key)
+- name: Fail if repo secret is missing and no deploy key was supplied
+  ansible.builtin.fail:
+    msg: >-
+      Argo CD repo secret 'repo-infra-homelab-config' is absent. Generate the deploy key,
+      register it on GitHub, and re-run with -e argocd_repo_key_path=/path/to/private-key.
+  when:
+    - repo_secret.rc != 0
+    - argocd_repo_key_path | default('') | length == 0
+
+- name: Stage the repo deploy key on the node
+  ansible.builtin.copy:
+    src: "{{ argocd_repo_key_path }}"
+    dest: /var/lib/rancher/k3s-bootstrap/argocd-repo-key
+    mode: "0600"
+  when:
+    - repo_secret.rc != 0
+    - argocd_repo_key_path | default('') | length > 0
+
+- name: Create the Argo CD repository secret
+  ansible.builtin.command: >-
+    kubectl -n argocd create secret generic repo-infra-homelab-config
+    --from-literal=type=git
+    --from-literal=url=git@github.com:skyhaven-ltd/infra-homelab-config.git
+    --from-file=sshPrivateKey=/var/lib/rancher/k3s-bootstrap/argocd-repo-key
+  environment: { KUBECONFIG: "{{ argocd_kubeconfig }}" }
+  when:
+    - repo_secret.rc != 0
+    - argocd_repo_key_path | default('') | length > 0
+
+- name: Label the repository secret
+  ansible.builtin.command: >-
+    kubectl -n argocd label --overwrite secret repo-infra-homelab-config
+    argocd.argoproj.io/secret-type=repository
+  environment: { KUBECONFIG: "{{ argocd_kubeconfig }}" }
+  when:
+    - repo_secret.rc != 0
+    - argocd_repo_key_path | default('') | length > 0
+
+- name: Remove the staged deploy key from the node
+  ansible.builtin.file:
+    path: /var/lib/rancher/k3s-bootstrap/argocd-repo-key
+    state: absent
+  when: argocd_repo_key_path | default('') | length > 0
+
+- name: Apply the app-of-apps root Application
+  ansible.builtin.command: kubectl apply -f -
+  args:
+    stdin: "{{ lookup('file', playbook_dir + '/../kubernetes/argocd-apps/root-app.yaml') }}"
+  environment: { KUBECONFIG: "{{ argocd_kubeconfig }}" }
+  register: root_apply
+  changed_when: "'created' in root_apply.stdout or 'configured' in root_apply.stdout"

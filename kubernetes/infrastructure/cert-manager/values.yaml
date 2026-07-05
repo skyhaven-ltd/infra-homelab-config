@@ -1,0 +1,4 @@
+# cert-manager chart v1.20.3. §1.9.
+# Install CRDs with the chart so the issuers/certificates in cert-issuers can apply.
+crds:
+  enabled: true

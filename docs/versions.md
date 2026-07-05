@@ -134,8 +134,10 @@ Resolved at execution time per §1.16. Remaining rows filled as later phases lan
 | `tailscale/tailscale` provider | `= 0.29.2` | 2026-07-05 | latest stable. `terraform/tailscale/` (separate root/state) — disables node key expiry. OAuth client creds via env. |
 | Ubuntu cloud image | `noble/current` (24.04.4 LTS) | 2026-07-05 | `image.tf`; downloaded to `local` storage |
 | k3s | `v1.36.2+k3s1` | 2026-07-05 | latest stable (update.k3s.io stable channel). `group_vars/k8s.yml`. Plan §1.16 rule supersedes the plan's v1.32.x guess. |
-| Argo CD | _TBD Phase 5_ | | |
-| ingress-nginx / cert-manager / sealed-secrets charts | _TBD Phase 5_ | | |
+| Argo CD | `v3.4.4` | 2026-07-05 | latest stable (argoproj/argo-cd releases). `bootstrap/argocd/kustomization.yaml` install.yaml tag. |
+| ingress-nginx chart | `4.15.1` | 2026-07-05 | latest stable (controller v1.15.1). `argocd-apps/ingress-nginx.yaml`. |
+| cert-manager chart | `v1.20.3` | 2026-07-05 | latest stable (charts.jetstack.io). `argocd-apps/cert-manager.yaml`. |
+| sealed-secrets chart | `2.18.2` | 2026-07-05 | latest stable (bitnami-labs.github.io/sealed-secrets, Feb 2026). `argocd-apps/sealed-secrets.yaml`. |
 | App/container image tags | _TBD Phase 6+_ | | |
 
 ## Workstation toolchain (WSL2 Ubuntu-24.04, verified 2026-07-05)
