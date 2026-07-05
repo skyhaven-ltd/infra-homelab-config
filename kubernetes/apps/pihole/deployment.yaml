@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pihole
+  namespace: pihole
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate # RWO volumes: never two pods at once
+  selector:
+    matchLabels:
+      app: pihole
+  template:
+    metadata:
+      labels:
+        app: pihole
+    spec:
+      containers:
+        - name: pihole
+          # Pinned by digest = old container's exact image (Core v6.3). §1.16 / byte-identical (§1.11).
+          image: pihole/pihole@sha256:91dc91ddd413bf461c283204558f8f21839851e9824799075a7ceff7c77eea40
+          env:
+            # Mirrors the old compose env (only TZ). The web/API password is NOT set here —
+            # it carries over inside the seeded pihole.toml (pwhash), so no sealed secret.
+            - { name: TZ, value: "Etc/UTC" }
+            # Required platform adaptation: old ran host-network (listeningMode LOCAL was fine);
+            # here the pod sits behind a Service, so answer on all interfaces. v6 writes this
+            # back into pihole.toml on start.
+            - { name: FTLCONF_dns_listeningMode, value: "all" }
+          ports:
+            - { name: dns-tcp, containerPort: 53, protocol: TCP }
+            - { name: dns-udp, containerPort: 53, protocol: UDP }
+            - { name: http, containerPort: 80 }
+          volumeMounts:
+            - { name: etc-pihole, mountPath: /etc/pihole }
+            - { name: etc-dnsmasq, mountPath: /etc/dnsmasq.d }
+          resources:
+            requests: { cpu: 100m, memory: 128Mi }
+            limits: { memory: 512Mi }
+          securityContext:
+            capabilities:
+              add: [NET_ADMIN] # mirrors compose cap_add
+          livenessProbe:
+            exec:
+              command: [dig, "@127.0.0.1", "pi.hole"]
+            initialDelaySeconds: 30
+      volumes:
+        - name: etc-pihole
+          persistentVolumeClaim:
+            claimName: pihole-etc
+        - name: etc-dnsmasq
+          persistentVolumeClaim:
+            claimName: pihole-dnsmasq
