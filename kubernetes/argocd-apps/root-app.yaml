@@ -7,8 +7,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/skyhaven-ltd/infra-homelab-config.git
-    # Migration runs on major/kubernetes (not yet merged to main). Flip to `main` at merge.
-    targetRevision: major/kubernetes
+    targetRevision: main
     path: kubernetes/argocd-apps
   destination:
     server: https://kubernetes.default.svc

@@ -15,7 +15,7 @@ spec:
         valueFiles:
           - $values/kubernetes/infrastructure/ingress-nginx/values.yaml
     - repoURL: https://github.com/skyhaven-ltd/infra-homelab-config.git
-      targetRevision: major/kubernetes
+      targetRevision: main
       ref: values
   destination:
     server: https://kubernetes.default.svc

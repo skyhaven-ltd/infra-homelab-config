@@ -9,7 +9,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/skyhaven-ltd/infra-homelab-config.git
-    targetRevision: major/kubernetes
+    targetRevision: main
     path: kubernetes/infrastructure/cert-issuers
   destination:
     server: https://kubernetes.default.svc
