@@ -123,6 +123,32 @@ systemd units use host paths so running stack is untouched), `.gitignore` +
 `Makefile` written, README updated. Tooling install was a no-op (WSL toolchain
 already verified below). Next: Phase 3 — Proxmox API token + Terraform VM provision.
 
+## Phase 7 — CI images to GHCR (2026-07-05)
+
+`publish.yml` workflow added to both app repos (via PR — both have a "changes must be
+made through a pull request" ruleset on `main`; merged with `--admin`). Both runs
+**success**:
+
+| Repo | main SHA (= image tag) | Run |
+|---|---|---|
+| `skyhaven-ltd/app-learning-review` | `9424c0b64d9f85d9107e8d3226c35311d0cc9d8a` | build 33s ✓ |
+| `skyhaven-ltd/app-stockalert-monitor` | `f54ba2e7f2bd7a5ad13c914067b802975677e97f` | build 1m41s ✓ |
+
+- **Simplified per Open Q4:** packages go **public**, so the `ghcr-pull` imagePullSecret /
+  `read:packages` PAT (plan Step 2) is **dropped** — no sealed secret in Phase 8.
+- **⚠ OPERATOR ACTION OUTSTANDING — make both GHCR packages public (web UI only).**
+  Anonymous pull currently `403` (packages default private on first publish, even though
+  both repos are public). There is **no REST API** to change GHCR package visibility, and
+  the workstation `gh` token lacks `read:/write:packages` scope — must be done in the UI:
+  - <https://github.com/orgs/skyhaven-ltd/packages/container/app-learning-review/settings>
+  - <https://github.com/orgs/skyhaven-ltd/packages/container/app-stockalert-monitor/settings>
+
+  Danger Zone → *Change package visibility* → **Public**. Until done, Phase 8 pods will
+  `ImagePullBackOff` unless an imagePullSecret is added back.
+- Pinned by **SHA tag** for now; upgrade to `@sha256:` digest (pihole pattern) once the
+  package is public and the digest is anonymously readable.
+- Node.js-20 deprecation warning on the actions is cosmetic (forced onto Node 24) — ignore.
+
 ## Pinned artifact versions
 
 Resolved at execution time per §1.16. Remaining rows filled as later phases land.
@@ -139,7 +165,9 @@ Resolved at execution time per §1.16. Remaining rows filled as later phases lan
 | cert-manager chart | `v1.20.3` | 2026-07-05 | latest stable (charts.jetstack.io). `argocd-apps/cert-manager.yaml`. |
 | sealed-secrets chart | `2.19.1` | 2026-07-05 | latest stable. **Repo moved** `bitnami-labs.github.io` → `bitnami.github.io/sealed-secrets` (old URL 404s). `argocd-apps/sealed-secrets.yaml`. |
 | Pi-hole image | `pihole/pihole@sha256:91dc91d…eea40` | 2026-07-05 | pinned by **digest** = old container's exact image (Core v6.3) for byte-identical migration (§1.11). `apps/pihole/deployment.yaml`. |
-| Other app/container image tags | _TBD Phase 7+_ | | |
+| `app-learning-review` image (GHCR) | `ghcr.io/skyhaven-ltd/app-learning-review:9424c0b64d9f85d9107e8d3226c35311d0cc9d8a` | 2026-07-05 | Phase 7 first CI build. Tag = commit SHA on `main`. **Phase 8 pins this SHA** (upgrade to digest once package is public + readable). |
+| `app-stockalert-monitor` image (GHCR) | `ghcr.io/skyhaven-ltd/app-stockalert-monitor:f54ba2e7f2bd7a5ad13c914067b802975677e97f` | 2026-07-05 | Phase 7 first CI build. Tag = commit SHA on `main`. **Phase 8 pins this SHA** (stock-checker Deployment). |
+| Other app/container image tags | _TBD Phase 9+ (media stack: plex/arrs/qbt/abs/syncthing, ntfy, flaresolverr)_ | | |
 
 ## Workstation toolchain (WSL2 Ubuntu-24.04, verified 2026-07-05)
 
