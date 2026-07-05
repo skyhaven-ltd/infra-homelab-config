@@ -138,7 +138,8 @@ Resolved at execution time per §1.16. Remaining rows filled as later phases lan
 | ingress-nginx chart | `4.15.1` | 2026-07-05 | latest stable (controller v1.15.1). `argocd-apps/ingress-nginx.yaml`. |
 | cert-manager chart | `v1.20.3` | 2026-07-05 | latest stable (charts.jetstack.io). `argocd-apps/cert-manager.yaml`. |
 | sealed-secrets chart | `2.19.1` | 2026-07-05 | latest stable. **Repo moved** `bitnami-labs.github.io` → `bitnami.github.io/sealed-secrets` (old URL 404s). `argocd-apps/sealed-secrets.yaml`. |
-| App/container image tags | _TBD Phase 6+_ | | |
+| Pi-hole image | `pihole/pihole@sha256:91dc91d…eea40` | 2026-07-05 | pinned by **digest** = old container's exact image (Core v6.3) for byte-identical migration (§1.11). `apps/pihole/deployment.yaml`. |
+| Other app/container image tags | _TBD Phase 7+_ | | |
 
 ## Workstation toolchain (WSL2 Ubuntu-24.04, verified 2026-07-05)
 

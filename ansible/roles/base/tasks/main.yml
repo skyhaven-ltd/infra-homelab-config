@@ -24,3 +24,28 @@
     content: |
       APT::Periodic::Update-Package-Lists "1";
       APT::Periodic::Unattended-Upgrade "1";
+# DNS hardening: the systemd-resolved stub (127.0.0.53) was observed dead
+# ("connection refused"), which broke containerd image pulls. Pin the uplink DNS
+# servers, disable the flaky stub listener, and point resolv.conf directly at
+# resolved's uplink file so clients (containerd, apt, etc.) resolve without the stub.
+- name: Ensure systemd-resolved drop-in dir
+  ansible.builtin.file:
+    path: /etc/systemd/resolved.conf.d
+    state: directory
+    mode: "0755"
+- name: Pin DNS + disable resolved stub listener
+  ansible.builtin.copy:
+    dest: /etc/systemd/resolved.conf.d/10-homelab-dns.conf
+    content: |
+      [Resolve]
+      DNS=1.1.1.1 8.8.8.8
+      DNSStubListener=no
+    mode: "0644"
+  notify: restart systemd-resolved
+- name: Point resolv.conf at resolved uplink file (bypass stub)
+  ansible.builtin.file:
+    src: /run/systemd/resolve/resolv.conf
+    dest: /etc/resolv.conf
+    state: link
+    force: true
+  notify: restart systemd-resolved
