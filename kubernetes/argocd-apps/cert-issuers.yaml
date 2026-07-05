@@ -8,7 +8,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: git@github.com:skyhaven-ltd/infra-homelab-config.git
+    repoURL: https://github.com/skyhaven-ltd/infra-homelab-config.git
     targetRevision: major/kubernetes
     path: kubernetes/infrastructure/cert-issuers
   destination:

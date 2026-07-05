@@ -22,12 +22,10 @@ configure:
 tailscale-apply:
 	cd $(TS_DIR) && terraform init && terraform apply
 
-# first run creates the Argo CD repo deploy-key secret:
-#   make bootstrap ARGOCD_REPO_KEY=/tmp/argocd-repo-key   (then `shred -u` the key)
-# subsequent runs are no-ops (secret already in-cluster) — ARGOCD_REPO_KEY optional.
+# installs Argo CD + app-of-apps root. Public repo => no repo secret needed.
+# Idempotent: re-runs are no-ops once argocd-server + root Application exist.
 bootstrap:
-	cd $(ANSIBLE_DIR) && ansible-playbook -i inventory/hosts.yml site.yml --tags argocd \
-	  $(if $(ARGOCD_REPO_KEY),-e argocd_repo_key_path=$(ARGOCD_REPO_KEY))
+	cd $(ANSIBLE_DIR) && ansible-playbook -i inventory/hosts.yml site.yml --tags argocd
 
 # usage: make seal FILE=secret.yaml OUT=kubernetes/apps/foo/sealedsecret.yaml
 seal:

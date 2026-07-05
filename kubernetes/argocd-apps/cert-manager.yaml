@@ -14,7 +14,7 @@ spec:
       helm:
         valueFiles:
           - $values/kubernetes/infrastructure/cert-manager/values.yaml
-    - repoURL: git@github.com:skyhaven-ltd/infra-homelab-config.git
+    - repoURL: https://github.com/skyhaven-ltd/infra-homelab-config.git
       targetRevision: major/kubernetes
       ref: values
   destination:
