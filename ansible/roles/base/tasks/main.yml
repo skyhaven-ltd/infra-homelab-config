@@ -13,6 +13,15 @@
     fstype: ext4
     opts: defaults,noatime
     state: mounted
+# Media disk carries existing data — never mkfs it. Mount by UUID with nofail so
+# a missing/dead media disk cannot block boot (hostPath apps degrade, node stays up).
+- name: Mount media disk
+  ansible.posix.mount:
+    path: "{{ media_mount }}"
+    src: "UUID={{ media_fs_uuid }}"
+    fstype: ext4
+    opts: defaults,noatime,nofail
+    state: mounted
 - name: Kernel params for k8s
   ansible.posix.sysctl: { name: "{{ item.k }}", value: "{{ item.v }}", state: present }
   loop:
