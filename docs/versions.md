@@ -23,7 +23,7 @@ environment fact is recorded here. Never deploy `:latest`.
 | VMID | Name | Notes |
 |---|---|---|
 | 100 | `lnsvrlab01` | `OLD_VMID`. 8 cores, 20000 MB RAM. `scsi0` local-lvm 60G (thin, ~30G used). `scsi1` = `data:100/vm-100-disk-0.raw` 930G = `MEDIA_DISK_SLOT`. `hostpci0: 0000:00:02` (Intel UHD 770 iGPU → Blocker 2). |
-| 200 | `lnsvrk8s01` | New k3s VM. Provisioned (Phase 3). k3s `v1.36.2+k3s1` Ready (Phase 4). LAN `192.168.1.4`, Tailscale `100.90.207.55`. |
+| 200 | `lnsvrk8s01` | New k3s VM. Provisioned (Phase 3). k3s `v1.36.2+k3s1` Ready (Phase 4). LAN `192.168.1.3` (reassigned from decommissioned VM 100 at cutover; was `.4` pre-cutover), Tailscale `100.90.207.55`. |
 
 ### Storage (physical disks)
 
@@ -111,7 +111,7 @@ password.
 
 VM 200 `lnsvrk8s01` provisioned by Terraform (`bpg/proxmox = 0.111.1`). `terraform@pve`
 user + token created (token in WSL `~/.tf_proxmox_token`, 0600, never in Git). VM live:
-Ubuntu 24.04.4, sda 40G / sdb 60G, IP 192.168.1.4, `ops` SSH OK, state clean. VM 100
+Ubuntu 24.04.4, sda 40G / sdb 60G, IP 192.168.1.3 (Phase 3 was `.4`; took `.3` at cutover when VM 100 decommissioned), `ops` SSH OK, state clean. VM 100
 untouched. **Gotcha:** bpg blocks ~3-4 min per plan/apply waiting on the (not-yet-installed)
 QEMU guest agent — not a hang; run applies in background. Next: Phase 4 — Ansible.
 
