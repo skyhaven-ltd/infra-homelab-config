@@ -1,3 +1,9 @@
+# Admin users + SSH access — every host (k8s node + Proxmox).
+- hosts: all
+  roles:
+    - { role: users, tags: [users] }
+
+# k3s cluster stack — k8s node only.
 - hosts: k8s
   become: true
   roles:

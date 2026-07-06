@@ -1,0 +1,9 @@
+# Validate config first so a bad drop-in can never wedge sshd on restart.
+- name: restart ssh
+  ansible.builtin.command: sshd -t
+  changed_when: false
+  notify: do restart ssh
+- name: do restart ssh
+  ansible.builtin.service:
+    name: ssh
+    state: restarted

@@ -1,0 +1,43 @@
+# Same admin user on every host. Key auth is primary; password (from Bitwarden)
+# is a break-glass / bootstrap + sudo credential. See docs/ssh-access-setup.md.
+- name: Ensure admin user exists
+  ansible.builtin.user:
+    name: "{{ admin_user }}"
+    comment: "{{ admin_user_comment }}"
+    groups: "{{ admin_user_groups }}"
+    append: true
+    shell: /bin/bash
+    create_home: true
+
+# Only touches the password when a hash is passed via env — keeps plaintext out
+# of Git and avoids locking the account when the hash is absent.
+- name: Set admin password (only when a hash is supplied)
+  ansible.builtin.user:
+    name: "{{ admin_user }}"
+    password: "{{ admin_password_hash }}"
+  when: admin_password_hash | length > 0
+  no_log: true
+
+# Every *.pub under files/authorized_keys.d/ becomes an authorized key. Add a new
+# client by committing its public key there and re-running with -t users.
+- name: Install authorized SSH keys
+  ansible.posix.authorized_key:
+    user: "{{ admin_user }}"
+    key: "{{ lookup('file', item) }}"
+    state: present
+    exclusive: false
+  with_fileglob:
+    - "authorized_keys.d/*.pub"
+
+# Drop-in overrides any cloud-image default (k8s ships PasswordAuthentication no).
+# Loads before higher-numbered fragments; sshd uses the first value seen.
+- name: Configure SSH auth methods
+  ansible.builtin.copy:
+    dest: /etc/ssh/sshd_config.d/00-homelab-auth.conf
+    content: |
+      # Managed by ansible role 'users'. Primary auth = SSH keys; password auth
+      # kept ON so a brand-new client can bootstrap with the Bitwarden password.
+      PubkeyAuthentication yes
+      PasswordAuthentication {{ 'yes' if ssh_password_authentication else 'no' }}
+    mode: "0644"
+  notify: restart ssh

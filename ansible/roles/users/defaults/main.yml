@@ -1,0 +1,17 @@
+# Personal admin user, created identically on every host (k8s node + Proxmox).
+admin_user: liam
+admin_user_comment: "Liam Goodchild (personal admin)"
+admin_user_groups: [sudo]
+
+# SHA-512 crypt hash of the account password. The PLAINTEXT lives in Bitwarden
+# ONLY and never touches Git. Supply the hash at runtime via env so it is not
+# persisted here either:
+#   LIAM_PASSWORD_HASH="$(mkpasswd -m sha-512)"  ansible-playbook site.yml -t users
+# (or:  openssl passwd -6 )
+# Empty => password left unchanged (no lockout; SSH-key auth is unaffected).
+admin_password_hash: "{{ lookup('env', 'LIAM_PASSWORD_HASH') | default('', true) }}"
+
+# Primary auth = SSH keys. Password auth is kept ON so a brand-new client with no
+# key yet can bootstrap in using the Bitwarden password, then add its own key.
+# (Decision 2026-07-06 — see docs/ssh-access-setup.md.)
+ssh_password_authentication: true
