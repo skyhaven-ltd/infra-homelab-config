@@ -1,0 +1,14 @@
+# gitleaks config for infra-homelab-config.
+# Extends the default ruleset (used by MegaLinter's REPOSITORY_GITLEAKS) and
+# allowlists Bitnami SealedSecret manifests. A SealedSecret stores values
+# asymmetrically encrypted with the cluster's public key — the ciphertext is
+# designed to be committed to Git and cannot be decrypted without the
+# controller's private key, so its high-entropy fields are not real leaks.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "SealedSecret manifests hold encrypted ciphertext, safe to commit"
+paths = [
+  '''kubernetes/apps/.*/sealedsecret\.yaml$''',
+]
