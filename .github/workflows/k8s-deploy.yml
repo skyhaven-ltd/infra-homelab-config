@@ -1,0 +1,217 @@
+name: Deploy
+
+# The only workflow that runs inside the home network. Guard rails:
+#
+#   * `pull_request` is NOT a trigger — unreviewed code never executes here.
+#   * The `homelab` environment releases its secrets only to workflows on `main`,
+#     enforced by a custom deployment branch policy (this org protects `main`
+#     with a repository ruleset, and the built-in "protected branches" option
+#     ignores rulesets).
+#   * A push to `main` only ever plans. Applying is an explicit, deliberate
+#     workflow_dispatch — this manages physical infrastructure.
+#
+# Argo CD reconciles everything under kubernetes/ from Git, so this workflow
+# never `kubectl apply`s application manifests. It does what Argo cannot: VM
+# lifecycle, host configuration, and verifying the result.
+#
+# terraform/runner is absent by design: it provisions the machine this job runs
+# on. It is a bootstrap root, applied by the operator. See docs/gha-runner.md.
+#
+# The `ghrunner` service account is deliberately not in `sudo`, so nothing here
+# may use it. Tools are installed into RUNNER_TEMP and exported via GITHUB_PATH.
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "terraform/cluster/**"
+      - "ansible/**"
+      - ".github/workflows/k8s-deploy.yml"
+  workflow_dispatch:
+    inputs:
+      terraform_action:
+        description: "Terraform action"
+        type: choice
+        default: plan
+        options:
+          - plan
+          - apply
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: k8s-deploy-${{ github.repository }}
+  cancel-in-progress: false
+
+env:
+  KUBECTL_VERSION: "v1.36.2"
+  KUBECTL_SHA256: "1e9045ec32bea85da43de85f0065358529ea7c7a152eca78154fba5b58c27d82"
+  ANSIBLE_CORE_VERSION: "2.21.1"
+  TERRAFORM_VERSION: "1.14.8"
+
+jobs:
+  deploy:
+    name: Deploy homelab (${{ inputs.terraform_action || 'plan' }})
+    runs-on: [self-hosted, homelab]
+    environment: homelab
+    timeout-minutes: 45
+
+    env:
+      TF_ACTION: ${{ inputs.terraform_action || 'plan' }}
+
+      # The azurerm backend authenticates by OIDC directly, reading the
+      # ACTIONS_ID_TOKEN_REQUEST_* variables that `id-token: write` injects. That
+      # avoids installing the Azure CLI on the runner purely in order to log in.
+      ARM_USE_OIDC: "true"
+      ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_PLATFORM_SUBSCRIPTION_ID }}
+
+      # Homelab credentials live in the `homelab` environment rather than the
+      # platform Key Vault: they grant nothing in Azure, and reading them from
+      # Key Vault would mean giving this runner data-plane access it has no other
+      # reason to hold.
+      TF_VAR_proxmox_api_token: ${{ secrets.PROXMOX_API_TOKEN }}
+
+      # Same backend values as the Makefile; change them in both places.
+      TF_BACKEND_RG: rg-platform-prd-uks-01
+      TF_BACKEND_SA: stplatformprduks02
+      TF_BACKEND_CONTAINER: infra-homelab-config
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
+
+      - name: Terraform Init
+        run: |
+          set -euo pipefail
+          terraform -chdir=terraform/cluster init -input=false \
+            -backend-config="resource_group_name=${TF_BACKEND_RG}" \
+            -backend-config="storage_account_name=${TF_BACKEND_SA}" \
+            -backend-config="container_name=${TF_BACKEND_CONTAINER}" \
+            -backend-config="key=cluster.tfstate" \
+            -backend-config="subscription_id=${ARM_SUBSCRIPTION_ID}"
+
+      - name: Terraform Plan
+        if: env.TF_ACTION == 'plan'
+        run: terraform -chdir=terraform/cluster plan -input=false -var-file="vars/homelab.tfvars"
+
+      - name: Terraform Apply
+        if: env.TF_ACTION == 'apply'
+        run: terraform -chdir=terraform/cluster apply -input=false -auto-approve -var-file="vars/homelab.tfvars"
+
+      # Everything below configures and verifies a real cluster, so it runs only
+      # behind an apply. On a plan the Ansible inventory does not even exist:
+      # terraform/cluster writes ansible/inventory/hosts.yml as a resource.
+
+      # Ubuntu 24.04 marks its system Python externally-managed (PEP 668), so a
+      # plain `pip install --user` is refused. A venv is the supported path.
+      - name: Install Ansible
+        if: env.TF_ACTION == 'apply'
+        run: |
+          set -euo pipefail
+          python3 -m venv "${RUNNER_TEMP}/venv"
+          "${RUNNER_TEMP}/venv/bin/pip" install --quiet --disable-pip-version-check \
+            "ansible-core==${ANSIBLE_CORE_VERSION}"
+          echo "${RUNNER_TEMP}/venv/bin" >> "${GITHUB_PATH}"
+
+      - name: Write the deploy SSH key
+        if: env.TF_ACTION == 'apply'
+        env:
+          ANSIBLE_SSH_PRIVATE_KEY: ${{ secrets.ANSIBLE_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          umask 077
+          printf '%s\n' "${ANSIBLE_SSH_PRIVATE_KEY}" > "${RUNNER_TEMP}/homelab_deploy"
+
+      # `runner` context is only available in step-level env, not job-level.
+      - name: Ansible check run
+        if: env.TF_ACTION == 'apply'
+        working-directory: ansible
+        env:
+          ANSIBLE_PRIVATE_KEY_FILE: ${{ runner.temp }}/homelab_deploy
+        run: |
+          set -euo pipefail
+          ansible-galaxy install -r requirements.yml
+          ansible-playbook -i inventory/hosts.yml site.yml --check --diff
+
+      - name: Ansible apply
+        if: env.TF_ACTION == 'apply'
+        working-directory: ansible
+        env:
+          ANSIBLE_PRIVATE_KEY_FILE: ${{ runner.temp }}/homelab_deploy
+        run: ansible-playbook -i inventory/hosts.yml site.yml
+
+      # No sudo: install into RUNNER_TEMP and put it on PATH.
+      - name: Install kubectl
+        if: env.TF_ACTION == 'apply'
+        run: |
+          set -euo pipefail
+          mkdir -p "${RUNNER_TEMP}/bin"
+          cd "${RUNNER_TEMP}"
+          curl -fsSLO "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
+          echo "${KUBECTL_SHA256}  kubectl" | sha256sum -c -
+          install -m 0755 kubectl "${RUNNER_TEMP}/bin/kubectl"
+          echo "${RUNNER_TEMP}/bin" >> "${GITHUB_PATH}"
+
+      # The real success criterion: Argo CD reconciled the repo onto the cluster.
+      # A green terraform apply proves only that a VM exists.
+      #
+      # ARGOCD_KUBECONFIG is a least-privilege ServiceAccount kubeconfig whose
+      # server address is the node's LAN IP, not the k3s default of 127.0.0.1.
+      - name: Verify Argo CD applications are synced and healthy
+        if: env.TF_ACTION == 'apply'
+        env:
+          ARGOCD_KUBECONFIG: ${{ secrets.ARGOCD_KUBECONFIG }}
+        run: |
+          set -euo pipefail
+          umask 077
+          kubeconfig="${RUNNER_TEMP}/argocd-kubeconfig"
+          printf '%s\n' "${ARGOCD_KUBECONFIG}" > "${kubeconfig}"
+          export KUBECONFIG="${kubeconfig}"
+
+          # An empty list must not read as success.
+          count="$(kubectl -n argocd get applications.argoproj.io -o name | wc -l)"
+          if [ "${count}" -eq 0 ]; then
+            echo "::error::No Argo CD applications found — the app-of-apps root is missing."
+            exit 1
+          fi
+          echo "Tracking ${count} Argo CD applications."
+
+          deadline=$(( SECONDS + 600 ))
+          while :; do
+            pending="$(kubectl -n argocd get applications.argoproj.io \
+              -o jsonpath='{range .items[*]}{.metadata.name} {.status.sync.status} {.status.health.status}{"\n"}{end}' \
+              | awk 'NF && ($2 != "Synced" || $3 != "Healthy")')"
+
+            if [ -z "${pending}" ]; then
+              echo "All ${count} Argo CD applications are Synced and Healthy."
+              break
+            fi
+
+            if [ "${SECONDS}" -ge "${deadline}" ]; then
+              echo "::error::Argo CD applications did not converge within 10 minutes:"
+              printf '%s\n' "${pending}"
+              exit 1
+            fi
+
+            echo "Waiting for Argo CD to converge:"
+            printf '%s\n' "${pending}"
+            sleep 15
+          done
+
+      # The runner is persistent, so secrets must not outlive the job.
+      - name: Remove job secrets from disk
+        if: always()
+        run: rm -f "${RUNNER_TEMP}/homelab_deploy" "${RUNNER_TEMP}/argocd-kubeconfig"
