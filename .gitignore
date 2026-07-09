@@ -14,3 +14,7 @@ ansible/inventory/hosts.yml
 # Secrets / creds — never in Git
 *.key
 *-kubeconfig
+
+# docs/ is ignored by the developer-machine global gitignore; keep it tracked here
+!docs/
+!docs/**

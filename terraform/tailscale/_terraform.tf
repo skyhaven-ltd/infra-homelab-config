@@ -1,6 +1,10 @@
 terraform {
   required_version = ">= 1.9"
 
+  # Partial configuration — see terraform/cluster/_terraform.tf. State key:
+  # tailscale.tfstate.
+  backend "azurerm" {}
+
   required_providers {
     tailscale = {
       source  = "tailscale/tailscale"

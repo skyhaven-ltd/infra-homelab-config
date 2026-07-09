@@ -1,5 +1,5 @@
 resource "local_file" "ansible_inventory" {
-  filename        = "${path.module}/../ansible/inventory/hosts.yml"
+  filename        = "${path.module}/../../ansible/inventory/hosts.yml"
   file_permission = "0640"
 
   content = yamlencode({
