@@ -20,8 +20,9 @@ variable "vm_storage" {
 }
 
 variable "iso_storage" {
-  type    = string
-  default = "local"
+  type        = string
+  description = "Datastore ID holding the downloaded cloud image"
+  default     = "local"
 }
 
 variable "k8s_vm_ip" {
@@ -31,18 +32,21 @@ variable "k8s_vm_ip" {
 }
 
 variable "lan_gateway" {
-  type    = string
-  default = "192.168.1.1"
+  type        = string
+  description = "Default gateway for the k3s VM"
+  default     = "192.168.1.1"
 }
 
 variable "bridge" {
-  type    = string
-  default = "vmbr0"
+  type        = string
+  description = "Proxmox network bridge the k3s VM attaches to"
+  default     = "vmbr0"
 }
 
 variable "k8s_memory_mb" {
-  type    = number
-  default = 12288 # → 16384 in Phase 12 after old VM decommission
+  type        = number
+  description = "Dedicated memory for the k3s VM, in MiB"
+  default     = 12288 # → 16384 in Phase 12 after old VM decommission
 }
 
 variable "ssh_public_key" {

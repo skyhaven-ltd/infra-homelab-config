@@ -11,3 +11,11 @@
     - { role: tailscale, tags: [tailscale] }
     - { role: k3s, tags: [k3s] }
     - { role: argocd_bootstrap, tags: [argocd] }
+
+# GitHub Actions runner — the LXC on the Proxmox host, outside the cluster. Its
+# host lives in inventory/runner.yml (written by terraform/runner), so this play
+# matches nothing when the default k8s inventory is used.
+- hosts: gha_runner
+  become: true
+  roles:
+    - { role: gha_runner, tags: [gha_runner] }
