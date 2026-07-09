@@ -12,6 +12,23 @@
     name: "{{ gha_runner_packages }}"
     update_cache: true
 
+- name: Add the Azure CLI apt repository and signing key
+  ansible.builtin.deb822_repository:
+    name: azure-cli
+    types: [deb]
+    uris: "https://packages.microsoft.com/repos/azure-cli/"
+    suites: ["{{ ansible_distribution_release }}"]
+    components: [main]
+    architectures: [amd64]
+    signed_by: "https://packages.microsoft.com/keys/microsoft.asc"
+    state: present
+  register: gha_runner_azure_cli_repo
+
+- name: Install the Azure CLI
+  ansible.builtin.apt:
+    name: azure-cli
+    update_cache: "{{ gha_runner_azure_cli_repo is changed }}"
+
 - name: Ensure the runner group exists
   ansible.builtin.group:
     name: "{{ gha_runner_group }}"
