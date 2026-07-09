@@ -23,9 +23,11 @@ DISABLE_LINTERS:
 # lychee resolves every URL-shaped string it finds. Workflows and Ansible tasks
 # build download URLs out of shell variables (${KUBECTL_VERSION}) and Go or Jinja
 # templates ({{.Group}}, {{ gha_runner_version }}); those are not links and always
-# 404. Link checking is for prose, so restrict it to Markdown and the README.
+# 404. The rollout runbook likewise builds a cluster URL from ${NODE_IP} and points
+# at a LAN address CI cannot reach. Link checking is for prose, so restrict it to
+# the remaining Markdown and the README.
 # Unanchored: MegaLinter matches this against the workspace-prefixed path.
-SPELL_LYCHEE_FILTER_REGEX_EXCLUDE: "(\\.github/|ansible/|terraform/)"
+SPELL_LYCHEE_FILTER_REGEX_EXCLUDE: "(\\.github/|ansible/|terraform/|docs/rollout-runbook\\.md)"
 
 SHOW_ELAPSED_TIME: true
 FLAVOR_SUGGESTIONS: false

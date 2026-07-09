@@ -39,6 +39,8 @@ lifecycle, host configuration, and verifying the result.
 
 ## Documentation
 
+- [`docs/rollout-runbook.md`](docs/rollout-runbook.md) — one-time, gated sequence
+  to take the runner and pipelines from merged PRs to a working deployment.
 - [`docs/gha-runner.md`](docs/gha-runner.md) — the self-hosted runner: shape, why
   registration is persistent rather than ephemeral, bootstrapping, and rebuilds.
 - [`docs/terraform-state-migration.md`](docs/terraform-state-migration.md) —
