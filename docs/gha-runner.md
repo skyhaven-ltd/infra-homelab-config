@@ -62,8 +62,12 @@ create the runner with state already living in Azure. Nothing needs to exist
 first.
 
 ```bash
-# 1. Provision the container. Needs tailnet reachability to the Proxmox API.
-export TF_VAR_proxmox_api_token='terraform@pve!tf=...'
+# 1. Provision the container. Needs tailnet reachability to the Proxmox API and
+#    the Proxmox SSH key in your agent (see docs/rollout-runbook.md Stage 0). The
+#    API token comes from Key Vault, so this works from any authenticated box.
+export TF_VAR_proxmox_api_token="$(az keyvault secret show \
+  --vault-name kv-platform-prd-uks-02 --name homelab-proxmox-api-token \
+  --query value -o tsv)"
 make runner-plan
 make runner-apply
 ```
@@ -95,32 +99,84 @@ gh api repos/skyhaven-ltd/infra-homelab-config/actions/runners \
 
 ## Secrets the deploy workflow needs
 
-Three secrets on the `homelab` GitHub environment. They are **not** in the
-platform Key Vault: none of them grants anything in Azure, and reading them from
-Key Vault would mean installing the Azure CLI on this runner and giving it Key
-Vault data-plane access it has no other reason to hold. Azure is used for
-Terraform state alone, authenticated by the azurerm backend's native OIDC.
+Every homelab secret lives in the platform Key Vault, `kv-platform-prd-uks-02`.
+One copy, one source of truth: the operator populates and rotates it from any
+authenticated workstation, and both CI and the operator read it back — nothing is
+copied into a GitHub environment secret or a Bitwarden entry to drift out of sync.
 
-| Secret | What it is |
-| --- | --- |
-| `PROXMOX_API_TOKEN` | `terraform@pve!tf=<uuid>`, becomes `TF_VAR_proxmox_api_token` |
-| `ANSIBLE_SSH_PRIVATE_KEY` | private key whose public half is in `ansible/roles/users/files/authorized_keys.d/` |
-| `ARGOCD_KUBECONFIG` | least-privilege ServiceAccount kubeconfig, read-only on Argo CD Applications |
+The deploy workflow reads what it needs at job time with the shared
+`keyvault-secrets` action — the same pattern every other Skyhaven pipeline uses.
+The runner already has `id-token: write` and authenticates to Azure by OIDC; one
+`azure/login` at the top of the job establishes the session, and the action reads
+the vault under it:
 
-```bash
-gh secret set PROXMOX_API_TOKEN       --repo skyhaven-ltd/infra-homelab-config --env homelab
-gh secret set ANSIBLE_SSH_PRIVATE_KEY --repo skyhaven-ltd/infra-homelab-config --env homelab < ~/.ssh/homelab_deploy
-gh secret set ARGOCD_KUBECONFIG       --repo skyhaven-ltd/infra-homelab-config --env homelab < ./argocd-kubeconfig
+```yaml
+- name: Azure Login
+  uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43
+  with:
+    client-id: ${{ vars.AZURE_CLIENT_ID }}
+    tenant-id: ${{ vars.AZURE_TENANT_ID }}
+    subscription-id: ${{ vars.AZURE_PLATFORM_SUBSCRIPTION_ID }}
+
+- name: Fetch secrets from Key Vault
+  uses: skyhaven-ltd/pipeline-engineering-github-actions/actions/keyvault-secrets@6cfa143b42ff464e4101d69c09945db9fac369e5
+  with:
+    keyvault_name: kv-platform-prd-uks-02
+    login: "false"        # the job already logged in above
+    secrets: |
+      TF_VAR_proxmox_api_token=homelab-proxmox-api-token
+      ANSIBLE_SSH_PRIVATE_KEY=homelab-ansible-ssh-private-key
+      ARGOCD_KUBECONFIG=homelab-argocd-kubeconfig
 ```
 
-`ARGOCD_KUBECONFIG` must not be the cluster-admin `/etc/rancher/k3s/k3s.yaml`
-verbatim. That file points its server at `127.0.0.1:6443`, which on the runner
-resolves to the runner. Rewrite the server to the node's LAN address and use a
-ServiceAccount token that can only `get`/`list` `applications.argoproj.io`.
+The action masks each value (line by line, so multiline PEM keys and kubeconfigs
+stay hidden) and exports it to `$GITHUB_ENV` for later steps.
+
+Two things this pattern costs, both one-time:
+
+- **The runner carries the Azure CLI.** `azure/login` and the action's
+  `az keyvault secret show` need it, and this container is minimal by design. It
+  is installed by the `gha_runner` Ansible role, so the dependency is in Git, not
+  a hand-built image.
+- **The federated identity needs read access to the vault.** The
+  `homelab` environment's federated credential (`fc-infra-homelab-config-homelab`)
+  must hold **Key Vault Secrets User** on `kv-platform-prd-uks-02`. That role is
+  assigned in `infra-landingzone-platform` alongside the vault, not here. It is
+  strictly read-only and scoped to this one vault.
+
+The secrets themselves (all under the `homelab-` prefix):
+
+| Key Vault secret | Read by | What it is |
+| --- | --- | --- |
+| `homelab-proxmox-api-token` | CI + operator | `terraform@pve!tf=<uuid>`, becomes `TF_VAR_proxmox_api_token` |
+| `homelab-ansible-ssh-private-key` | CI + operator | private key whose public half is in `ansible/roles/users/files/authorized_keys.d/` |
+| `homelab-argocd-kubeconfig` | CI + operator | least-privilege ServiceAccount kubeconfig, read-only on Argo CD Applications |
+| `homelab-proxmox-ssh-private-key` | operator only | `id_ed25519_proxmox`; the `bpg/proxmox` provider's `ssh-agent` key at apply time. CI reaches Proxmox over the API, not host SSH, so the deploy workflow never fetches this |
+| `homelab-tailscale-api-key` | operator only | `TAILSCALE_API_KEY` for the `terraform/tailscale` root, which CI does not run |
+
+Populate or rotate any of them from an authenticated workstation. `--file` keeps
+multiline values (private keys, kubeconfigs) intact where `--value` would mangle
+newlines:
+
+```bash
+az keyvault secret set --vault-name kv-platform-prd-uks-02 \
+  --name homelab-proxmox-api-token --value 'terraform@pve!tf=...'
+az keyvault secret set --vault-name kv-platform-prd-uks-02 \
+  --name homelab-ansible-ssh-private-key --file ~/.ssh/homelab_deploy
+az keyvault secret set --vault-name kv-platform-prd-uks-02 \
+  --name homelab-argocd-kubeconfig --file ./argocd-kubeconfig
+```
+
+`homelab-argocd-kubeconfig` must not be the cluster-admin
+`/etc/rancher/k3s/k3s.yaml` verbatim. That file points its server at
+`127.0.0.1:6443`, which on the runner resolves to the runner. Rewrite the server
+to the node's LAN address and use a ServiceAccount token that can only
+`get`/`list` `applications.argoproj.io`.
 
 The `AZURE_CLIENT_ID`, `AZURE_TENANT_ID` and `AZURE_PLATFORM_SUBSCRIPTION_ID`
-*variables* on the same environment are created by `bootstrap-platform.sh` in
-`infra-landingzone-platform`; they are GUIDs, not secrets.
+*variables* on the `homelab` environment are created by `bootstrap-platform.sh`
+in `infra-landingzone-platform`; they are GUIDs, not secrets, and drive the
+`azure/login` above.
 
 ## Rebuilding
 
@@ -151,5 +207,6 @@ Record the new version in `docs/versions.md`, then `make runner-configure`.
   for `root`, so `ssh root@192.168.1.5` is the access path. Add `--tags
   gha_runner,users` if you want the standard admin account there too.
 - Jobs install `terraform` and `ansible` themselves, so those versions live in
-  Git rather than in a hand-built container image. The container only carries
-  `git`, `python3`, `acl` and the runner's own .NET dependencies.
+  Git rather than in a hand-built container image. The container carries `git`,
+  `python3`, `acl`, the Azure CLI (for the Key Vault fetch — installed by the
+  `gha_runner` role) and the runner's own .NET dependencies.

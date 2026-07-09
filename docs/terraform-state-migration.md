@@ -9,6 +9,12 @@ homelab before. That is the only place `terraform.tfstate` exists; other clones
 (for example a Windows checkout) have no state and would upload nothing. CI
 cannot do it either: `terraform init -migrate-state` is interactive.
 
+This one constraint — local state lives on one box — is *why* the migration is
+tied to that checkout, and it is the last such tie. Every secret the plan needs
+(the Proxmox token, the Tailscale key) comes from the platform Key Vault, so once
+state is in Azure the ordinary operator tasks run from anywhere with `az login`
+and a tailnet route. See [`gha-runner.md`](gha-runner.md) for the vault layout.
+
 Confirm you are in the right checkout before starting:
 
 ```bash
@@ -46,7 +52,9 @@ circularity, and it changes rarely.
 ## Prerequisites
 
 - `az login`, with Storage Account Contributor on `stplatformprduks02`
-  (`spn-personal` and the operator both have it).
+  (`spn-personal` and the operator both have it), and **Key Vault Secrets User**
+  on `kv-platform-prd-uks-02` to read the plan's secrets (the operator also holds
+  **Key Vault Secrets Officer** there to set and rotate them).
 - [skyhaven-ltd/infra-landingzone-platform#31](https://github.com/skyhaven-ltd/infra-landingzone-platform/pull/31)
   merged and `bootstrap-platform.sh` re-run, so the `homelab` GitHub environment
   and its federated credential exist.
@@ -115,8 +123,13 @@ changes**. A plan proposing to create the VM means the state did not migrate and
 you are one `apply` away from a duplicate — stop and restore from step 1.
 
 ```bash
-TF_VAR_proxmox_api_token='...' terraform -chdir=terraform/cluster plan -var-file="vars/homelab.tfvars"
-TAILSCALE_API_KEY='...'        terraform -chdir=terraform/tailscale plan
+export TF_VAR_proxmox_api_token="$(az keyvault secret show \
+  --vault-name kv-platform-prd-uks-02 --name homelab-proxmox-api-token --query value -o tsv)"
+export TAILSCALE_API_KEY="$(az keyvault secret show \
+  --vault-name kv-platform-prd-uks-02 --name homelab-tailscale-api-key --query value -o tsv)"
+
+terraform -chdir=terraform/cluster   plan -var-file="vars/homelab.tfvars"
+terraform -chdir=terraform/tailscale plan
 ```
 
 ## Step 5 — Clean up
