@@ -1,0 +1,11 @@
+---
+# `min` reports only fatal problems: parse errors, load failures, and playbook
+# syntax errors. That is deliberately conservative — the base, users, k3s and
+# tailscale roles predate any linting, and a stricter profile would fail CI on
+# pre-existing style rather than on real defects.
+#
+# Tighten to `basic` once those roles have been cleaned up separately.
+profile: min
+
+exclude_paths:
+  - inventory/
