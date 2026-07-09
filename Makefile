@@ -1,8 +1,10 @@
 TF_CLUSTER   := terraform/cluster
+TF_RUNNER    := terraform/runner
 TF_TAILSCALE := terraform/tailscale
 ANSIBLE_DIR  := ansible
 
 TF_CLUSTER_VARS := vars/homelab.tfvars
+TF_RUNNER_VARS  := vars/homelab.tfvars
 
 # Azure remote state. These mirror the values .github/workflows/k8s-deploy.yml
 # feeds the shared terraform-backend-init action; change them in both places.
@@ -22,7 +24,8 @@ define tf_init
 	  -backend-config="subscription_id=$(TF_BACKEND_SUB)"
 endef
 
-.PHONY: infra-init infra-plan infra-apply configure tailscale-apply bootstrap seal
+.PHONY: infra-init infra-plan infra-apply configure tailscale-apply bootstrap seal \
+        runner-init runner-plan runner-apply runner-configure
 
 infra-init:
 	$(call tf_init,$(TF_CLUSTER),cluster.tfstate)
@@ -36,6 +39,27 @@ infra-apply: infra-init
 configure:
 	cd $(ANSIBLE_DIR) && ansible-galaxy install -r requirements.yml && \
 	ansible-playbook -i inventory/hosts.yml site.yml
+
+# --- GitHub Actions runner (bootstrap root) ------------------------------------
+# Operator-applied only, from inside the network boundary. CI must never run
+# these: this root provisions the machine CI runs on. See docs/gha-runner.md.
+
+runner-init:
+	$(call tf_init,$(TF_RUNNER),runner.tfstate)
+
+runner-plan: runner-init
+	terraform -chdir=$(TF_RUNNER) plan -var-file="$(TF_RUNNER_VARS)"
+
+runner-apply: runner-init
+	terraform -chdir=$(TF_RUNNER) apply -var-file="$(TF_RUNNER_VARS)"
+
+# First run needs a short-lived registration token; later runs skip registration:
+#   GHA_RUNNER_TOKEN="$$(gh api --method POST \
+#     repos/skyhaven-ltd/infra-homelab-config/actions/runners/registration-token \
+#     --jq .token)" make runner-configure
+runner-configure:
+	cd $(ANSIBLE_DIR) && ansible-galaxy install -r requirements.yml && \
+	ansible-playbook -i inventory/runner.yml site.yml --tags gha_runner
 
 # disable Tailscale key expiry for the node (run AFTER configure; node must be joined).
 # needs TAILSCALE_API_KEY in env (never in Git) — see terraform/tailscale/_providers.tf.

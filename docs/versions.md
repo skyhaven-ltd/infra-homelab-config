@@ -24,6 +24,7 @@ environment fact is recorded here. Never deploy `:latest`.
 |---|---|---|
 | 100 | `lnsvrlab01` | `OLD_VMID`. 8 cores, 20000 MB RAM. `scsi0` local-lvm 60G (thin, ~30G used). `scsi1` = `data:100/vm-100-disk-0.raw` 930G = `MEDIA_DISK_SLOT`. `hostpci0: 0000:00:02` (Intel UHD 770 iGPU → Blocker 2). |
 | 200 | `lnsvrk8s01` | New k3s VM. Provisioned (Phase 3). k3s `v1.36.2+k3s1` Ready (Phase 4). LAN `192.168.1.3` (reassigned from decommissioned VM 100 at cutover; was `.4` pre-cutover), Tailscale `100.90.207.55`. |
+| 300 | `lnsvrgha01` | GitHub Actions self-hosted runner. **LXC**, not a VM: unprivileged, nesting off, 2 vCPU / 2 GiB / 16 GiB disk. LAN `192.168.1.5`. Bootstrap root `terraform/runner` — operator-applied, never CI-applied. See `docs/gha-runner.md`. |
 
 ### Storage (physical disks)
 
@@ -166,10 +167,12 @@ Resolved at execution time per §1.16. Remaining rows filled as later phases lan
 
 | Artifact | Pin | Resolved | Notes |
 |---|---|---|---|
-| `bpg/proxmox` Terraform provider | `= 0.111.1` | 2026-07-05 | latest stable (GitHub releases). `versions.tf`. |
+| `bpg/proxmox` Terraform provider | `= 0.111.1` | 2026-07-05 | latest stable (GitHub releases). `terraform/cluster/_terraform.tf` and `terraform/runner/_terraform.tf`. |
 | `hashicorp/local` provider | `~> 2.5` | 2026-07-05 | inventory rendering only |
-| `tailscale/tailscale` provider | `= 0.29.2` | 2026-07-05 | latest stable. `terraform/tailscale/` (separate root/state) — disables node key expiry. OAuth client creds via env. |
-| Ubuntu cloud image | `noble/current` (24.04.4 LTS) | 2026-07-05 | `image.tf`; downloaded to `local` storage |
+| `tailscale/tailscale` provider | `= 0.29.2` | 2026-07-05 | latest stable. `terraform/tailscale/` (separate root/state) — disables node key expiry. Tailnet API key via `TAILSCALE_API_KEY`; OAuth is the rejected path (write scope is tag-restricted). |
+| Ubuntu cloud image | `noble/current` (24.04.4 LTS) | 2026-07-05 | `terraform/cluster/image.tf`; downloaded to `local` storage |
+| Ubuntu LXC template | `ubuntu-24.04-standard_24.04-2_amd64.tar.zst` | 2026-07-09 | `terraform/runner/template.tf`. sha512-pinned from `aplinfo-pve-8.dat` — Proxmox's mirror offers no TLS, so the checksum is the integrity control, not a nicety. |
+| `actions/runner` | `v2.335.1` | 2026-07-09 | latest stable (actions/runner releases). sha256 `4ef2f25…c8cf` (linux-x64). `ansible/roles/gha_runner/defaults/main.yml`. |
 | k3s | `v1.36.2+k3s1` | 2026-07-05 | latest stable (update.k3s.io stable channel). `group_vars/k8s.yml`. Plan §1.16 rule supersedes the plan's v1.32.x guess. |
 | Argo CD | `v3.4.4` | 2026-07-05 | latest stable (argoproj/argo-cd releases). `bootstrap/argocd/kustomization.yaml` install.yaml tag. |
 | ingress-nginx chart | `4.15.1` | 2026-07-05 | latest stable (controller v1.15.1). `argocd-apps/ingress-nginx.yaml`. |
