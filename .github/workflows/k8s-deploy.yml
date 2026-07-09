@@ -105,11 +105,11 @@ jobs:
 
       - name: Terraform Plan
         if: env.TF_ACTION == 'plan'
-        run: terraform -chdir=terraform/cluster plan -input=false -var-file="vars/homelab.tfvars"
+        run: terraform -chdir=terraform/cluster plan -input=false -var-file="vars/homelab.tfvars" -var="proxmox_host=192.168.1.2"
 
       - name: Terraform Apply
         if: env.TF_ACTION == 'apply'
-        run: terraform -chdir=terraform/cluster apply -input=false -auto-approve -var-file="vars/homelab.tfvars"
+        run: terraform -chdir=terraform/cluster apply -input=false -auto-approve -var-file="vars/homelab.tfvars" -var="proxmox_host=192.168.1.2"
 
       # Everything below configures and verifies a real cluster, so it runs only
       # behind an apply. On a plan the Ansible inventory does not even exist:
