@@ -7,8 +7,6 @@ spec:
   accessModes: [ReadWriteOnce]
   resources:
     requests:
-      # ~320M seeded today (dominated by pihole-FTL.db query history); local-path
-      # does not enforce capacity, so this is nominal headroom for FTL db growth.
       storage: 2Gi
 ---
 apiVersion: v1

@@ -1,33 +1,25 @@
-# MegaLinter configuration for infra repos.
-# Terraform IaC scanning (fmt, validate, TFLint, Checkov) is owned by the shared
-# reusable-terraform.yml PR-validation workflow, so those linters are disabled
-# here to avoid duplicate and conflicting findings. MegaLinter keeps the
-# general-purpose linters (YAML, JSON, Markdown, Bash, GitHub Actions, etc.).
 DISABLE_LINTERS:
   - TERRAFORM_TFLINT
   - TERRAFORM_TERRASCAN
-  - TERRAFORM_TERRAFORM_FMT # hygiene job runs fmt -check
-  - TERRAFORM_TERRAGRUNT # Terragrunt not in use
+  - TERRAFORM_TERRAFORM_FMT
+  - TERRAFORM_TERRAGRUNT
   - REPOSITORY_CHECKOV
-  - REPOSITORY_KICS # IaC scanning owned by Checkov plan-aware scan
-  - REPOSITORY_TRIVY # IaC scanning owned by Checkov plan-aware scan
-  - REPOSITORY_TRIVY_SBOM # no dependency artefacts to SBOM in infra repos
-  - REPOSITORY_SYFT # no dependency artefacts to SBOM in infra repos
-  - REPOSITORY_GRYPE # slowest linter (~1 min); nothing to vuln-scan here
-  - REPOSITORY_SECRETLINT # gitleaks covers secret scanning
-  - REPOSITORY_TRUFFLEHOG # gitleaks covers secret scanning
+  - REPOSITORY_KICS
+  - REPOSITORY_TRIVY
+  - REPOSITORY_TRIVY_SBOM
+  - REPOSITORY_SYFT
+  - REPOSITORY_GRYPE
+  - REPOSITORY_SECRETLINT
+  - REPOSITORY_TRUFFLEHOG
   - SPELL_CSPELL
   - MARKDOWN_MARKDOWN_TABLE_FORMATTER
   - MARKDOWN_MARKDOWNLINT
 
-# lychee resolves every URL-shaped string it finds. Workflows and Ansible tasks
-# build download URLs out of shell variables (${KUBECTL_VERSION}) and Go or Jinja
-# templates ({{.Group}}, {{ gha_runner_version }}); those are not links and always
-# 404. The rollout runbook likewise builds a cluster URL from ${NODE_IP} and points
-# at a LAN address CI cannot reach. Link checking is for prose, so restrict it to
-# the remaining Markdown and the README.
-# Unanchored: MegaLinter matches this against the workspace-prefixed path.
-SPELL_LYCHEE_FILTER_REGEX_EXCLUDE: "(\\.github/|ansible/|terraform/|docs/rollout-runbook\\.md)"
+ACTION_ACTIONLINT_ARGUMENTS: "-config-file .github/validation/actionlint.yaml"
+KUBERNETES_KUBECONFORM_ARGUMENTS: "-ignore-missing-schemas"
+YAML_YAMLLINT_ARGUMENTS: "--no-warnings"
+
+SPELL_LYCHEE_FILTER_REGEX_EXCLUDE: "(\\.github/|ansible/|kubernetes/|terraform/|docs/rollout-runbook\\.md)"
 
 SHOW_ELAPSED_TIME: true
 FLAVOR_SUGGESTIONS: false

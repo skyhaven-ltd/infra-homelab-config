@@ -1,6 +1,0 @@
-# `homelab` is the label of the self-hosted runner provisioned by terraform/runner
-# and registered by ansible/roles/gha_runner. Without this, actionlint (and the
-# MegaLinter ACTION_ACTIONLINT check) treats it as a typo for a hosted label.
-self-hosted-runner:
-  labels:
-    - homelab

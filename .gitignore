@@ -1,21 +1,16 @@
-# Legacy compose appdata (never tracked)
 appdata/
 
-# Terraform
 *.tfstate
 *.tfstate.*
 .terraform/
 .terraform.lock.hcl.backup
 crash.log
 
-# Ansible — inventories are Terraform-generated
 ansible/inventory/hosts.yml
 ansible/inventory/runner.yml
 
-# Secrets / creds — never in Git
 *.key
 *-kubeconfig
 
-# docs/ is ignored by the developer-machine global gitignore; keep it tracked here
 !docs/
 !docs/**

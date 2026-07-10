@@ -4,7 +4,6 @@ metadata:
   name: syncthing
   namespace: syncthing
 spec:
-  # ClusterIP for the web GUI (fronted by Ingress).
   selector:
     app: syncthing
   ports:
@@ -16,8 +15,6 @@ metadata:
   name: syncthing-sync
   namespace: syncthing
 spec:
-  # Raw sync protocol on the node IP. klipper binds only 22000 tcp/udp —
-  # no clash with 80/443, 53, 8090, 6881.
   type: LoadBalancer
   selector:
     app: syncthing

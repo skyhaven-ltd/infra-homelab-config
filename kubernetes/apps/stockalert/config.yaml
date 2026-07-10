@@ -1,27 +1,19 @@
-# Stock Alert configuration — settings and notification channels only.
-# The products to watch live in products.txt (one URL per line).
-#
-# Secrets injected from the environment with ${VAR}. See .env / docker-compose.yml.
-
 settings:
-  # Checks fall back to a real browser (FlareSolverr/Playwright) for walled
-  # sites, so keep the cadence gentle to avoid CPU thrash and bot-blocking.
   interval_seconds: 300
   request_timeout: 30.0
   products_file: products.txt
   database_path: data/stock.db
   log_level: INFO
   log_file: data/stock-alert.log
-  # FlareSolverr sidecar — solves Cloudflare/bot walls (Currys, AO, Argos, Very...).
   flaresolverr_url: http://flaresolverr:8191/v1
 
 notifiers:
   ntfy:
     enabled: true
-    server: ${NTFY_SERVER}      # http://ntfy:80 (bundled container)
+    server: ${NTFY_SERVER}
     topic: ${NTFY_TOPIC}
     token: ${NTFY_TOKEN}
-    priority: 5                 # max/urgent
+    priority: 5
     tags: ["rotating_light"]
 
   telegram:

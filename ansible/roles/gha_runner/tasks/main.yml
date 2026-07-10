@@ -1,12 +1,4 @@
 ---
-# GitHub Actions self-hosted runner on the LXC provisioned by terraform/runner.
-# Registration is persistent, not ephemeral: --ephemeral deregisters after one job
-# and re-registering needs a token-minting credential (GitHub App key or PAT) left
-# on the box permanently. That credential carries `administration: write` org-wide,
-# so it is broader than the runner registration it would protect. The residue risk
-# is instead closed by scope: repo-scoped runner, no pull_request job ever targets
-# it, and the `homelab` environment only releases to `main`.
-
 - name: Install runner packages
   ansible.builtin.apt:
     name: "{{ gha_runner_packages }}"
@@ -68,18 +60,14 @@
     group: "{{ gha_runner_group }}"
     creates: "{{ gha_runner_home }}/config.sh"
 
-# Pulls libicu and the other .NET runtime dependencies. Shipped with the runner,
-# so it always matches the runner version rather than a hand-maintained apt list.
 - name: Install runner OS dependencies
   ansible.builtin.command: ./bin/installdependencies.sh
   args:
     chdir: "{{ gha_runner_home }}"
     creates: "{{ gha_runner_home }}/.dependencies-installed"
   register: gha_runner_deps
-  changed_when: true # `creates` skips the task entirely once the marker exists
+  changed_when: true
 
-# Written only after the script succeeds, so a failed install cannot leave a
-# marker that makes every later run skip it.
 - name: Mark OS dependencies as installed
   ansible.builtin.file:
     path: "{{ gha_runner_home }}/.dependencies-installed"
@@ -105,8 +93,6 @@
       --jq .token)" make runner-configure
   when: not gha_runner_registered.stat.exists
 
-# --replace lets a rebuilt container reclaim its own runner name instead of
-# colliding with the stale registration left behind in GitHub.
 - name: Register the runner with GitHub
   ansible.builtin.command:
     argv:
@@ -127,18 +113,16 @@
   become: true
   become_user: "{{ gha_runner_user }}"
   when: not gha_runner_registered.stat.exists
-  changed_when: true # guarded by the `.runner` check above
-  no_log: true # the registration token must never reach the log
+  changed_when: true
+  no_log: true
 
 - name: Install the runner systemd service
   ansible.builtin.command: ./svc.sh install {{ gha_runner_user }}
   args:
     chdir: "{{ gha_runner_home }}"
     creates: "{{ gha_runner_home }}/.service"
-  changed_when: true # `creates` skips the task entirely once the unit exists
+  changed_when: true
 
-# svc.sh writes the generated unit name here, e.g.
-# actions.runner.skyhaven-ltd-infra-homelab-config.lnsvrgha01.service
 - name: Read the generated systemd unit name
   ansible.builtin.slurp:
     src: "{{ gha_runner_home }}/.service"
@@ -154,13 +138,10 @@
     state: directory
     mode: "0755"
 
-# A persistent runner must come back by itself after a crash or a host reboot;
-# without this the LXC boots and quietly has no runner attached.
 - name: Always restart the runner
   ansible.builtin.copy:
     dest: "/etc/systemd/system/{{ gha_runner_unit }}.d/10-restart.conf"
     content: |
-      # Managed by ansible role 'gha_runner'.
       [Service]
       Restart=always
       RestartSec=5

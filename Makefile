@@ -6,15 +6,11 @@ ANSIBLE_DIR  := ansible
 TF_CLUSTER_VARS := vars/homelab.tfvars
 TF_RUNNER_VARS  := vars/homelab.tfvars
 
-# Azure remote state. These mirror the values .github/workflows/k8s-deploy.yml
-# feeds the shared terraform-backend-init action; change them in both places.
-# Every root shares one container and is separated by its own state key.
 TF_BACKEND_RG        := rg-platform-prd-uks-01
 TF_BACKEND_SA        := stplatformprduks02
 TF_BACKEND_CONTAINER := infra-homelab-config
 TF_BACKEND_SUB       := cefc8742-e1dd-4b24-90a9-07e3d3c80d88
 
-# tf_init <root-dir> <state-key>. Requires an authenticated `az login`.
 define tf_init
 	terraform -chdir=$(1) init -input=false \
 	  -backend-config="resource_group_name=$(TF_BACKEND_RG)" \
@@ -40,9 +36,6 @@ configure:
 	cd $(ANSIBLE_DIR) && ansible-galaxy install -r requirements.yml && \
 	ansible-playbook -i inventory/hosts.yml site.yml
 
-# --- GitHub Actions runner (bootstrap root) ------------------------------------
-# Operator-applied only, from inside the network boundary. CI must never run
-# these: this root provisions the machine CI runs on. See docs/gha-runner.md.
 
 runner-init:
 	$(call tf_init,$(TF_RUNNER),runner.tfstate)
@@ -53,25 +46,16 @@ runner-plan: runner-init
 runner-apply: runner-init
 	terraform -chdir=$(TF_RUNNER) apply -var-file="$(TF_RUNNER_VARS)"
 
-# First run needs a short-lived registration token; later runs skip registration:
-#   GHA_RUNNER_TOKEN="$$(gh api --method POST \
-#     repos/skyhaven-ltd/infra-homelab-config/actions/runners/registration-token \
-#     --jq .token)" make runner-configure
 runner-configure:
 	cd $(ANSIBLE_DIR) && ansible-galaxy install -r requirements.yml && \
 	ansible-playbook -i inventory/runner.yml site.yml --tags gha_runner
 
-# disable Tailscale key expiry for the node (run AFTER configure; node must be joined).
-# needs TAILSCALE_API_KEY in env (never in Git) — see terraform/tailscale/_providers.tf.
 tailscale-apply:
 	$(call tf_init,$(TF_TAILSCALE),tailscale.tfstate)
 	terraform -chdir=$(TF_TAILSCALE) apply
 
-# installs Argo CD + app-of-apps root. Public repo => no repo secret needed.
-# Idempotent: re-runs are no-ops once argocd-server + root Application exist.
 bootstrap:
 	cd $(ANSIBLE_DIR) && ansible-playbook -i inventory/hosts.yml site.yml --tags argocd
 
-# usage: make seal FILE=secret.yaml OUT=kubernetes/apps/foo/sealedsecret.yaml
 seal:
 	kubeseal --controller-namespace sealed-secrets --format yaml < $(FILE) > $(OUT)

@@ -1,3 +1,2 @@
 ---
-# k3s server kubeconfig on the node (root-readable via become).
 argocd_kubeconfig: /etc/rancher/k3s/k3s.yaml

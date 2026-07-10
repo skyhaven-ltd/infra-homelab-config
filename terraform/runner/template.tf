@@ -1,8 +1,3 @@
-# Proxmox serves its template mirror over plain HTTP only (TLS is not offered on
-# download.proxmox.com), so the sha512 pin is what makes this download safe rather
-# than a nicety. Both values come from the PVE 8 appliance index:
-#   http://download.proxmox.com/images/aplinfo-pve-8.dat
-# Pinned per §1.16 — never pull a rolling "latest" template.
 resource "proxmox_download_file" "ubuntu_lxc" {
   content_type       = "vztmpl"
   datastore_id       = var.template_storage

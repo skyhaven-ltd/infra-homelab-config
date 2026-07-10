@@ -1,40 +1,18 @@
 ---
-# actions/runner release. Pinned per §1.16 — never install "latest". The checksum
-# is the published linux-x64 digest from the release notes; bump both together.
-# Recorded in docs/versions.md.
 gha_runner_version: "2.335.1"
 gha_runner_sha256: "4ef2f25285f0ae4477f1fe1e346db76d2f3ebf03824e2ddd1973a2819bf6c8cf"
 
-# Dedicated non-root service account. Deliberately NOT in sudo: a workflow job
-# should not be able to reconfigure the machine it runs on.
 gha_runner_user: ghrunner
 gha_runner_group: ghrunner
 gha_runner_home: /opt/actions-runner
 
-# Repo-scoped registration: only this repository can schedule jobs onto a machine
-# inside the home network. The `homelab` label is what k8s-deploy.yml targets;
-# `self-hosted` is added by the runner itself.
 gha_runner_repo_url: https://github.com/skyhaven-ltd/infra-homelab-config
 gha_runner_labels: homelab
 gha_runner_name: "{{ inventory_hostname }}"
 
-# Short-lived (1 hour) registration token, needed ONLY on first configure — the
-# runner persists its own credentials afterwards, so nothing long-lived is stored
-# on the box. Mint it immediately before running:
-#
-#   GHA_RUNNER_TOKEN="$(gh api --method POST \
-#     repos/skyhaven-ltd/infra-homelab-config/actions/runners/registration-token \
-#     --jq .token)" make runner-configure
-#
-# Empty on re-runs, where the configure step is skipped entirely.
 gha_runner_registration_token: "{{ lookup('env', 'GHA_RUNNER_TOKEN') | default('', true) }}"
 
-# Packages the runner and its jobs need. The runner ships its own Node.js, so it
-# is absent here. terraform and ansible are installed per-job by the workflow so
-# their versions live in Git, not in a hand-built container image.
 gha_runner_packages:
-  # setfacl, without which become_user from root to the unprivileged runner
-  # account fails to hand over Ansible's temp files.
   - acl
   - ca-certificates
   - curl
@@ -44,8 +22,6 @@ gha_runner_packages:
   - python3
   - python3-debian
   - python3-pip
-  # k8s-deploy.yml installs ansible-core into a venv: Ubuntu 24.04 marks its
-  # system Python externally-managed (PEP 668) and refuses `pip install --user`.
   - python3-venv
   - rsync
   - tar

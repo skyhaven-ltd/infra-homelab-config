@@ -7,5 +7,4 @@ spec:
   accessModes: [ReadWriteOnce]
   resources:
     requests:
-      # Old /config ~829M; headroom for metadata/thumbnail growth.
       storage: 5Gi

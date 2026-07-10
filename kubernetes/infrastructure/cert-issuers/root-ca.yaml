@@ -6,7 +6,6 @@ metadata:
 spec:
   isCA: true
   commonName: homelab-root-ca
-  # 10-year root; secret is the CA material consumed by the homelab-ca ClusterIssuer.
   duration: 87600h
   secretName: homelab-root-ca
   privateKey:

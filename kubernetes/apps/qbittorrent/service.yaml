@@ -4,7 +4,6 @@ metadata:
   name: qbittorrent
   namespace: qbittorrent
 spec:
-  # ClusterIP for the web UI (fronted by Ingress).
   selector:
     app: qbittorrent
   ports:
@@ -16,8 +15,6 @@ metadata:
   name: qbittorrent-bt
   namespace: qbittorrent
 spec:
-  # Raw BitTorrent port on the node IP. klipper binds only 6881 tcp/udp —
-  # no clash with 80/443 (ingress), 53 (pihole), 8090 (ntfy).
   type: LoadBalancer
   selector:
     app: qbittorrent

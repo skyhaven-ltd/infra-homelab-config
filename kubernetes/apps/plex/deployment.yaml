@@ -6,7 +6,7 @@ metadata:
 spec:
   replicas: 1
   strategy:
-    type: Recreate # RWO config volume + hostNetwork: never two pods at once
+    type: Recreate
   selector:
     matchLabels:
       app: plex
@@ -15,15 +15,10 @@ spec:
       labels:
         app: plex
     spec:
-      # network_mode: host -> hostNetwork (exposes 32400 on the node IP directly,
-      # no Service). ClusterFirstWithHostNet keeps in-cluster DNS working (§4).
       hostNetwork: true
       dnsPolicy: ClusterFirstWithHostNet
       containers:
         - name: plex
-          # Pinned by digest = old container's exact running :latest image (§1.11).
-          # No hardware transcode until cutover (Blocker 2 Option A) — software
-          # transcode on the new cluster; iGPU passthrough moves to VM 200 at Phase 12.
           image: lscr.io/linuxserver/plex@sha256:c9d8dc46147dd1c3bfe6e80b50da12a973598ec86cfe672244e5d040ab3e62df
           env:
             - { name: PUID, value: "1000" }
@@ -33,8 +28,6 @@ spec:
             - { name: pms, containerPort: 32400 }
           volumeMounts:
             - { name: config, mountPath: /config }
-            # Compose mounted /mnt/media/library:/media (rw). Byte-identical (§1.11)
-            # — Plex only reads it, but no :ro to avoid any behavioural deviation.
             - { name: media, mountPath: /media }
           readinessProbe:
             tcpSocket: { port: 32400 }
@@ -42,7 +35,6 @@ spec:
             periodSeconds: 20
           resources:
             requests: { cpu: 100m, memory: 256Mi }
-            # Software transcode is RAM-hungry; no CPU limit (§4).
             limits: { memory: 2Gi }
       volumes:
         - name: config
