@@ -33,8 +33,18 @@ spec:
             - secretRef:
                 name: stockalert-env
           volumeMounts:
-            - { name: config, mountPath: /app/config.yaml, subPath: config.yaml, readOnly: true }
-            - { name: config, mountPath: /app/products.txt, subPath: products.txt, readOnly: true }
+            - {
+                name: config,
+                mountPath: /app/config.yaml,
+                subPath: config.yaml,
+                readOnly: true,
+              }
+            - {
+                name: config,
+                mountPath: /app/products.txt,
+                subPath: products.txt,
+                readOnly: true,
+              }
             - { name: data, mountPath: /app/data }
           resources:
             requests: { cpu: 50m, memory: 128Mi }

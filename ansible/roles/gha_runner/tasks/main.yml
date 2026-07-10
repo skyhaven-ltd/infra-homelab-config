@@ -1,5 +1,4 @@
 ---
-
 - name: Install runner packages
   ansible.builtin.apt:
     name: "{{ gha_runner_packages }}"

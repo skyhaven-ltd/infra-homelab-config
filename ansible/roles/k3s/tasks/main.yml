@@ -1,5 +1,6 @@
 - name: k3s config directory
-  ansible.builtin.file: { path: /etc/rancher/k3s, state: directory, mode: "0755" }
+  ansible.builtin.file:
+    { path: /etc/rancher/k3s, state: directory, mode: "0755" }
 - name: k3s config
   ansible.builtin.copy:
     dest: /etc/rancher/k3s/config.yaml
@@ -27,7 +28,7 @@
   ansible.builtin.replace:
     path: "{{ playbook_dir }}/lnsvrk8s01-kubeconfig"
     regexp: 'https://127\.0\.0\.1:6443'
-    replace: 'https://{{ node_ip }}:6443'
+    replace: "https://{{ node_ip }}:6443"
   delegate_to: localhost
   become: false
   when: not ansible_check_mode

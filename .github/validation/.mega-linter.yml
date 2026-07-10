@@ -15,7 +15,11 @@ DISABLE_LINTERS:
   - MARKDOWN_MARKDOWN_TABLE_FORMATTER
   - MARKDOWN_MARKDOWNLINT
 
-SPELL_LYCHEE_FILTER_REGEX_EXCLUDE: "(\\.github/|ansible/|terraform/|docs/rollout-runbook\\.md)"
+ACTION_ACTIONLINT_ARGUMENTS: "-config-file .github/validation/actionlint.yaml"
+KUBERNETES_KUBECONFORM_ARGUMENTS: "-ignore-missing-schemas"
+YAML_YAMLLINT_ARGUMENTS: "--no-warnings"
+
+SPELL_LYCHEE_FILTER_REGEX_EXCLUDE: "(\\.github/|ansible/|kubernetes/|terraform/|docs/rollout-runbook\\.md)"
 
 SHOW_ELAPSED_TIME: true
 FLAVOR_SUGGESTIONS: false
