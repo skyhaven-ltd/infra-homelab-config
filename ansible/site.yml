@@ -1,5 +1,6 @@
 # Admin users + SSH access — every host (k8s node + Proxmox).
 - hosts: all
+  become: true
   roles:
     - { role: users, tags: [users] }
 
