@@ -30,3 +30,4 @@
     replace: 'https://{{ node_ip }}:6443'
   delegate_to: localhost
   become: false
+  when: not ansible_check_mode
