@@ -6,7 +6,7 @@ metadata:
 spec:
   replicas: 1
   strategy:
-    type: Recreate # RWO config volume
+    type: Recreate
   selector:
     matchLabels:
       app: qbittorrent
@@ -17,7 +17,6 @@ spec:
     spec:
       containers:
         - name: qbittorrent
-          # Pinned by digest = old container's exact running :latest image (§1.11).
           image: lscr.io/linuxserver/qbittorrent@sha256:5b09709bb0eff4edb551f5b30029952ab4d67aa0d5ca3526889124173bd78a9c
           env:
             - { name: PUID, value: "1000" }

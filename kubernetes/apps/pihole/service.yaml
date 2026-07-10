@@ -4,7 +4,7 @@ metadata:
   name: pihole-dns
   namespace: pihole
 spec:
-  type: LoadBalancer # klipper binds 53 tcp/udp on the node IP
+  type: LoadBalancer
   selector:
     app: pihole
   ports:

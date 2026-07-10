@@ -3,5 +3,4 @@ kind: Kustomization
 namespace: argocd
 resources:
   - namespace.yaml
-  # Argo CD pinned v3.4.4 (§1.16; recorded docs/versions.md). Never :latest / stable.
   - https://raw.githubusercontent.com/argoproj/argo-cd/v3.4.4/manifests/install.yaml

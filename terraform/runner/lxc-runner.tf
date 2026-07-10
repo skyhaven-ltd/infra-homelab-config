@@ -5,9 +5,6 @@ resource "proxmox_virtual_environment_container" "runner" {
   started       = true
   start_on_boot = true
 
-  # The runner must survive the k3s cluster being down, rebuilt, or upgraded —
-  # that is precisely when the deploy pipeline is needed. Hence an LXC on the
-  # Proxmox host rather than a pod inside the cluster it manages.
   unprivileged = true
 
   cpu {
@@ -24,9 +21,6 @@ resource "proxmox_virtual_environment_container" "runner" {
     size         = var.runner_disk_gb
   }
 
-  # Jobs run terraform, ansible, kubectl and gh directly — nothing nested. Leaving
-  # nesting off preserves the unprivileged container's isolation; turn it on only
-  # if a workflow ever needs Docker.
   features {
     nesting = false
   }
@@ -41,9 +35,6 @@ resource "proxmox_virtual_environment_container" "runner" {
       }
     }
 
-    # Static uplink resolvers, never the cluster's own pi-hole (§1.12): a cluster
-    # rebuild would otherwise take DNS down with it, stranding the runner that is
-    # meant to fix the cluster.
     dns {
       servers = ["1.1.1.1", "8.8.8.8"]
     }

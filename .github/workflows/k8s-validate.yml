@@ -1,9 +1,5 @@
 name: Validate
 
-# Runs on GitHub-hosted runners and never touches the private network, Azure, or
-# the cluster. Everything here is checkable from a clean checkout, which is why
-# it is safe to run on pull_request. Anything needing private access lives in
-# k8s-deploy.yml, which only ever runs on the self-hosted runner.
 
 on:
   pull_request:
@@ -55,9 +51,6 @@ jobs:
           ROOT: ${{ matrix.root }}
         run: terraform fmt -check -recursive "terraform/${ROOT}"
 
-      # -backend=false: the backend needs Azure credentials and the provider needs
-      # the private Proxmox API. Neither is reachable here, and neither is needed
-      # to prove the configuration parses and type-checks.
       - name: Terraform Init Without Backend
         env:
           ROOT: ${{ matrix.root }}
@@ -93,8 +86,6 @@ jobs:
 
           sudo install -m 0755 kustomize kubeconform /usr/local/bin/
 
-      # Argo CD renders these exact directories, so rendering them here is what
-      # catches a broken overlay before it reaches the cluster.
       - name: Render and validate every kustomization
         env:
           CRD_SCHEMA: "https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json"
@@ -112,8 +103,6 @@ jobs:
           done < <(find kubernetes -name kustomization.yaml -printf '%h\n' | sort)
           exit "${rc}"
 
-      # The Application CRs are not part of any kustomization, so they would
-      # otherwise go unchecked until Argo CD rejected them.
       - name: Validate Argo CD Applications
         env:
           CRD_SCHEMA: "https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json"
@@ -132,8 +121,6 @@ jobs:
         with:
           persist-credentials: false
 
-      # A venv, not `pip install --user`: the runner image's system Python is
-      # externally managed (PEP 668) and refuses user installs.
       - name: Install ansible-lint
         run: |
           set -euo pipefail
@@ -146,8 +133,6 @@ jobs:
         working-directory: ansible
         run: ansible-galaxy install -r requirements.yml
 
-      # Run from ansible/ so ansible.cfg supplies roles_path; see ansible/.ansible-lint
-      # for why the profile is `min`.
       - name: Lint
         working-directory: ansible
         run: ansible-lint site.yml

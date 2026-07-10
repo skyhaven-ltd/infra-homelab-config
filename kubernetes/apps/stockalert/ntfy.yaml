@@ -17,7 +17,7 @@ metadata:
 spec:
   replicas: 1
   strategy:
-    type: Recreate # RWO cache volume
+    type: Recreate
   selector:
     matchLabels:
       app: ntfy
@@ -28,14 +28,9 @@ spec:
     spec:
       containers:
         - name: ntfy
-          # Pinned by digest = old container's exact image (§1.11).
           image: binwiederhier/ntfy@sha256:cfbbb1bac9196cb711e29ef0ac4adaeb033be6235f1df857705dc39c14384a1d
           args: [serve]
           env:
-            # Byte-identical compose env. base-url stays 192.168.1.3:8090 — the
-            # post-cutover identity phones subscribe with (§1.14); until cutover
-            # the OLD ntfy at .3 keeps serving. /etc/ntfy was empty on the old
-            # host, so all config is via env (no server.yml mount).
             - { name: NTFY_BASE_URL, value: "http://192.168.1.3:8090" }
             - { name: NTFY_UPSTREAM_BASE_URL, value: "https://ntfy.sh" }
             - { name: NTFY_LISTEN_HTTP, value: ":80" }
@@ -57,8 +52,6 @@ metadata:
   name: ntfy
   namespace: stockalert
 spec:
-  # ClusterIP: in-cluster peers reach ntfy:80 (byte-identical NTFY_SERVER).
-  # No node-port bind, so no clash with ingress-nginx on :80.
   selector:
     app: ntfy
   ports:
@@ -70,8 +63,6 @@ metadata:
   name: ntfy-lb
   namespace: stockalert
 spec:
-  # Raw LAN port for phones (plain HTTP on 8090, not Ingress). klipper binds
-  # only 8090 on the node IP — 80 stays with ingress-nginx.
   type: LoadBalancer
   selector:
     app: ntfy

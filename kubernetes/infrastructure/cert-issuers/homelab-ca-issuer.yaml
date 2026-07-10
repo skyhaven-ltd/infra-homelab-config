@@ -4,6 +4,4 @@ metadata:
   name: homelab-ca
 spec:
   ca:
-    # Reads the CA cert/key from the homelab-root-ca secret in the cert-manager namespace
-    # (ClusterIssuer CA secrets resolve in the cluster resource namespace = cert-manager).
     secretName: homelab-root-ca

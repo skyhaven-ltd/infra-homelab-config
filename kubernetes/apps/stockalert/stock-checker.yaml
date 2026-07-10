@@ -17,7 +17,7 @@ metadata:
 spec:
   replicas: 1
   strategy:
-    type: Recreate # RWO data volume (SQLite)
+    type: Recreate
   selector:
     matchLabels:
       app: stock-checker
@@ -28,12 +28,7 @@ spec:
     spec:
       containers:
         - name: stock-checker
-          # Phase 7 CI build, pinned by digest (§1.11). main SHA f54ba2e.
           image: ghcr.io/skyhaven-ltd/app-stockalert-monitor@sha256:0c78c241b526e4191de8d76b8f02ae9fb8f17dfd1ea15551fb06a7e883881d1d
-          # Byte-identical .env (NTFY_SERVER=http://ntfy:80, NTFY_TOPIC, etc.).
-          # In-namespace peers resolve as ntfy:80 / flaresolverr:8191 — the
-          # compose service names are unchanged, so no value edits (§1.11).
-          # No dns: pin needed — CoreDNS resolves public names (Phase 4).
           envFrom:
             - secretRef:
                 name: stockalert-env

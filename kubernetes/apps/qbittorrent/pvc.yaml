@@ -7,5 +7,4 @@ spec:
   accessModes: [ReadWriteOnce]
   resources:
     requests:
-      # Old /config ~16M; nominal headroom.
       storage: 1Gi

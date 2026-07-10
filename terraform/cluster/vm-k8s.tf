@@ -15,10 +15,9 @@ resource "proxmox_virtual_environment_vm" "k8s" {
   }
 
   agent {
-    enabled = true # qemu-guest-agent installed by Ansible
+    enabled = true
   }
 
-  # OS disk — booted from the downloaded Ubuntu cloud image
   disk {
     datastore_id = var.vm_storage
     interface    = "scsi0"
@@ -27,7 +26,6 @@ resource "proxmox_virtual_environment_vm" "k8s" {
     discard      = "on"
   }
 
-  # appdata disk — all Kubernetes PV data (local-path). 60 GB per Blocker 1 (§0.3).
   disk {
     datastore_id = var.vm_storage
     interface    = "scsi1"
@@ -44,7 +42,7 @@ resource "proxmox_virtual_environment_vm" "k8s" {
     type = "l26"
   }
 
-  serial_device {} # cloud images want a serial console
+  serial_device {}
 
   initialization {
     datastore_id = var.vm_storage
@@ -57,7 +55,7 @@ resource "proxmox_virtual_environment_vm" "k8s" {
     }
 
     dns {
-      servers = ["1.1.1.1", "8.8.8.8"] # static; NEVER the cluster's own pi-hole (§1.12)
+      servers = ["1.1.1.1", "8.8.8.8"]
     }
 
     user_account {
@@ -67,6 +65,6 @@ resource "proxmox_virtual_environment_vm" "k8s" {
   }
 
   lifecycle {
-    ignore_changes = [disk[2]] # media disk attached out-of-band in Phase 9 as scsi2
+    ignore_changes = [disk[2]]
   }
 }

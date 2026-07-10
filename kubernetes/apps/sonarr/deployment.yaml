@@ -6,7 +6,7 @@ metadata:
 spec:
   replicas: 1
   strategy:
-    type: Recreate # RWO config volume
+    type: Recreate
   selector:
     matchLabels:
       app: sonarr
@@ -17,7 +17,6 @@ spec:
     spec:
       containers:
         - name: sonarr
-          # Pinned by digest = old container's exact running :latest image (§1.11).
           image: lscr.io/linuxserver/sonarr@sha256:02b4d538d351d6e35882a021c08e8600fe95d28860fb1dd724b597166e7221ca
           env:
             - { name: PUID, value: "1000" }
@@ -27,8 +26,6 @@ spec:
             - { name: http, containerPort: 8989 }
           volumeMounts:
             - { name: config, mountPath: /config }
-            # Compose /mnt/media:/data (rw) — arrs write imports/hardlinks here.
-            # Identical container path preserves *arr path mappings + hardlinks (§1.11).
             - { name: media, mountPath: /data }
           readinessProbe:
             httpGet: { path: /ping, port: 8989 }

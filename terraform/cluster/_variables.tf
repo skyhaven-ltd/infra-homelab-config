@@ -27,7 +27,7 @@ variable "iso_storage" {
 
 variable "k8s_vm_ip" {
   type        = string
-  default     = "192.168.1.4/24" # becomes .3 at cutover (Phase 11)
+  default     = "192.168.1.4/24"
   description = "CIDR address for the k3s VM"
 }
 
@@ -46,7 +46,7 @@ variable "bridge" {
 variable "k8s_memory_mb" {
   type        = number
   description = "Dedicated memory for the k3s VM, in MiB"
-  default     = 12288 # → 16384 in Phase 12 after old VM decommission
+  default     = 12288
 }
 
 variable "ssh_public_key" {

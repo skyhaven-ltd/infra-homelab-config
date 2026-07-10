@@ -7,7 +7,6 @@ spec:
   accessModes: [ReadWriteOnce]
   resources:
     requests:
-      # Old /config ~1.1M; nominal headroom.
       storage: 1Gi
 ---
 apiVersion: v1
@@ -19,5 +18,4 @@ spec:
   accessModes: [ReadWriteOnce]
   resources:
     requests:
-      # /metadata holds covers/cache; grows with library.
       storage: 5Gi

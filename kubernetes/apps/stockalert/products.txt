@@ -1,12 +1,3 @@
-# Products to monitor — one URL per line.
-#
-#   https://retailer.example/product-page
-#   https://retailer.example/product-page | Friendly name for notifications
-#
-# Lines starting with # are ignored. Any retailer works: known sites
-# (Currys, Amazon, Argos, AO, Very, B&Q, Screwfix, Toolstation,
-# Appliances Direct) get tuned parsers; everything else uses the generic
-# detector (JSON-LD availability + buy-button/out-of-stock phrases).
 
 https://www.currys.co.uk/products/bosch-cool-2000-portable-3in1-air-conditioner-and-dehumidifier-white-10304908
 https://www.currys.co.uk/products/daewoo-col1600ge-9000-btu-smart-air-conditioner-heater-and-dehumidifier-white-10260582

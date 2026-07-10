@@ -7,6 +7,4 @@ spec:
   accessModes: [ReadWriteOnce]
   resources:
     requests:
-      # ~1.5M seeded today (learning.db). local-path does not enforce capacity;
-      # nominal headroom.
       storage: 2Gi

@@ -11,7 +11,5 @@
   changed_when: false
   failed_when: false
 - name: Bring up tailscale (MagicDNS OFF on this node — see decision 1.13)
-  # installing the pkg creates tailscaled.state before login, so a `creates:` guard
-  # would false-skip this; gate on actual backend state instead (rc!=0 == not Running)
   ansible.builtin.command: tailscale up --authkey={{ tailscale_authkey }} --accept-dns=false --hostname=lnsvrk8s01
   when: ts_status.rc != 0
