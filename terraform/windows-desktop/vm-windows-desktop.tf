@@ -6,7 +6,7 @@ resource "proxmox_virtual_environment_vm" "windows_desktop" {
   on_boot     = true
   started     = true
   bios        = "ovmf"
-  machine     = "q35"
+  machine     = "pc-q35-9.0"
 
   cpu {
     cores = var.windows_cores
