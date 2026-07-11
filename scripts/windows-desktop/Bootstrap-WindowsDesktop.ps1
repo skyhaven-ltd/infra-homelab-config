@@ -19,11 +19,16 @@ if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administra
 
 $adapter = Get-NetAdapter -Name $InterfaceAlias
 $currentAddress = Get-NetIPAddress -InterfaceIndex $adapter.ifIndex -AddressFamily IPv4 -ErrorAction SilentlyContinue |
-    Where-Object IPAddress -eq $IpAddress
+    Where-Object { $_.IPAddress -eq $IpAddress -and $_.PrefixLength -eq $PrefixLength }
+$currentGateway = Get-NetRoute -InterfaceIndex $adapter.ifIndex -AddressFamily IPv4 -DestinationPrefix "0.0.0.0/0" -ErrorAction SilentlyContinue |
+    Where-Object NextHop -eq $Gateway
+$ipInterface = Get-NetIPInterface -InterfaceIndex $adapter.ifIndex -AddressFamily IPv4
 
-if (-not $currentAddress) {
+if (-not $currentAddress -or -not $currentGateway -or $ipInterface.Dhcp -ne "Disabled") {
+    Get-NetRoute -InterfaceIndex $adapter.ifIndex -AddressFamily IPv4 -DestinationPrefix "0.0.0.0/0" -ErrorAction SilentlyContinue |
+        Remove-NetRoute -Confirm:$false
     Get-NetIPAddress -InterfaceIndex $adapter.ifIndex -AddressFamily IPv4 -ErrorAction SilentlyContinue |
-        Where-Object PrefixOrigin -eq "Dhcp" |
+        Where-Object { $_.IPAddress -notlike "169.254.*" } |
         Remove-NetIPAddress -Confirm:$false
     Set-NetIPInterface -InterfaceIndex $adapter.ifIndex -Dhcp Disabled
     New-NetIPAddress -InterfaceIndex $adapter.ifIndex -IPAddress $IpAddress -PrefixLength $PrefixLength -DefaultGateway $Gateway
@@ -32,6 +37,9 @@ if (-not $currentAddress) {
 Set-DnsClientServerAddress -InterfaceIndex $adapter.ifIndex -ServerAddresses $DnsServers
 Set-ItemProperty -Path "HKLM:\System\CurrentControlSet\Control\Terminal Server" -Name fDenyTSConnections -Value 0
 Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+Get-NetFirewallRule -DisplayGroup "Remote Desktop" |
+    Get-NetFirewallAddressFilter |
+    Set-NetFirewallAddressFilter -RemoteAddress "100.64.0.0/10"
 
 $packages = @(
     @{ Id = "Git.Git"; Source = "winget" },
@@ -48,9 +56,13 @@ foreach ($package in $packages) {
     }
 }
 
+$env:Path = [Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [Environment]::GetEnvironmentVariable("Path", "User")
+
 if (-not (Test-Path -LiteralPath $DeveloperConfigPath)) {
     New-Item -ItemType Directory -Path (Split-Path -Parent $DeveloperConfigPath) -Force | Out-Null
     git clone $DeveloperConfigRepository $DeveloperConfigPath
+} else {
+    git -C $DeveloperConfigPath pull --ff-only
 }
 
 & "$DeveloperConfigPath\scripts\Install-DeveloperConfig.ps1" -Repo $DeveloperConfigPath -InstallScheduledTask
