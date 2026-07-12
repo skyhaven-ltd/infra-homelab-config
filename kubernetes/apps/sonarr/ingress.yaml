@@ -4,14 +4,14 @@ metadata:
   name: sonarr
   namespace: sonarr
   annotations:
-    cert-manager.io/cluster-issuer: homelab-ca
+    cert-manager.io/cluster-issuer: letsencrypt
 spec:
   ingressClassName: nginx
   tls:
-    - hosts: [sonarr.lab.home.arpa]
+    - hosts: [sonarr.lab.skyhaven.ltd]
       secretName: sonarr-tls
   rules:
-    - host: sonarr.lab.home.arpa
+    - host: sonarr.lab.skyhaven.ltd
       http:
         paths:
           - path: /

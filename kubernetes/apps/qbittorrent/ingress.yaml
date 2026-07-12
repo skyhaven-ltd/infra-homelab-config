@@ -4,14 +4,14 @@ metadata:
   name: qbittorrent
   namespace: qbittorrent
   annotations:
-    cert-manager.io/cluster-issuer: homelab-ca
+    cert-manager.io/cluster-issuer: letsencrypt
 spec:
   ingressClassName: nginx
   tls:
-    - hosts: [qbittorrent.lab.home.arpa]
+    - hosts: [qbittorrent.lab.skyhaven.ltd]
       secretName: qbittorrent-tls
   rules:
-    - host: qbittorrent.lab.home.arpa
+    - host: qbittorrent.lab.skyhaven.ltd
       http:
         paths:
           - path: /

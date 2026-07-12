@@ -4,14 +4,14 @@ metadata:
   name: radarr
   namespace: radarr
   annotations:
-    cert-manager.io/cluster-issuer: homelab-ca
+    cert-manager.io/cluster-issuer: letsencrypt
 spec:
   ingressClassName: nginx
   tls:
-    - hosts: [radarr.lab.home.arpa]
+    - hosts: [radarr.lab.skyhaven.ltd]
       secretName: radarr-tls
   rules:
-    - host: radarr.lab.home.arpa
+    - host: radarr.lab.skyhaven.ltd
       http:
         paths:
           - path: /

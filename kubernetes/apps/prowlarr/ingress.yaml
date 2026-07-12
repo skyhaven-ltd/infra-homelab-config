@@ -4,14 +4,14 @@ metadata:
   name: prowlarr
   namespace: prowlarr
   annotations:
-    cert-manager.io/cluster-issuer: homelab-ca
+    cert-manager.io/cluster-issuer: letsencrypt
 spec:
   ingressClassName: nginx
   tls:
-    - hosts: [prowlarr.lab.home.arpa]
+    - hosts: [prowlarr.lab.skyhaven.ltd]
       secretName: prowlarr-tls
   rules:
-    - host: prowlarr.lab.home.arpa
+    - host: prowlarr.lab.skyhaven.ltd
       http:
         paths:
           - path: /
