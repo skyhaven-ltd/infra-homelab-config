@@ -22,7 +22,7 @@ spec:
             - { name: TZ, value: "Etc/UTC" }
             - { name: FTLCONF_dns_listeningMode, value: "all" }
             - name: FTLCONF_misc_dnsmasq_lines
-              value: "address=/lab.home.arpa/192.168.1.3"
+              value: "address=/lab.home.arpa/192.168.1.3;address=/lab.skyhaven.ltd/192.168.1.3"
           ports:
             - { name: dns-tcp, containerPort: 53, protocol: TCP }
             - { name: dns-udp, containerPort: 53, protocol: UDP }

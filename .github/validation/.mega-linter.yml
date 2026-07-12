@@ -16,8 +16,12 @@ DISABLE_LINTERS:
   - MARKDOWN_MARKDOWNLINT
 
 ACTION_ACTIONLINT_ARGUMENTS: "-config-file .github/validation/actionlint.yaml"
+REPOSITORY_GITLEAKS_RULES_PATH: ".github/validation"
+REPOSITORY_GITLEAKS_CONFIG_FILE: ".gitleaks.toml"
 KUBERNETES_KUBECONFORM_ARGUMENTS: "-ignore-missing-schemas"
 YAML_YAMLLINT_ARGUMENTS: "--no-warnings"
+# SealedSecret ciphertext lines cannot wrap; exempt them from line-length
+YAML_YAMLLINT_FILTER_REGEX_EXCLUDE: "sealedsecret.*\\.yaml"
 
 SPELL_LYCHEE_FILTER_REGEX_EXCLUDE: "(\\.github/|ansible/|kubernetes/|terraform/|docs/rollout-runbook\\.md)"
 

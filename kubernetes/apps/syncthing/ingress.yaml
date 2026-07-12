@@ -4,14 +4,14 @@ metadata:
   name: syncthing
   namespace: syncthing
   annotations:
-    cert-manager.io/cluster-issuer: homelab-ca
+    cert-manager.io/cluster-issuer: letsencrypt
 spec:
   ingressClassName: nginx
   tls:
-    - hosts: [syncthing.lab.home.arpa]
+    - hosts: [syncthing.lab.skyhaven.ltd]
       secretName: syncthing-tls
   rules:
-    - host: syncthing.lab.home.arpa
+    - host: syncthing.lab.skyhaven.ltd
       http:
         paths:
           - path: /

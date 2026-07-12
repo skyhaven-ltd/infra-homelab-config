@@ -4,14 +4,14 @@ metadata:
   name: pihole
   namespace: pihole
   annotations:
-    cert-manager.io/cluster-issuer: homelab-ca
+    cert-manager.io/cluster-issuer: letsencrypt
 spec:
   ingressClassName: nginx
   tls:
-    - hosts: [pihole.lab.home.arpa]
+    - hosts: [pihole.lab.skyhaven.ltd]
       secretName: pihole-tls
   rules:
-    - host: pihole.lab.home.arpa
+    - host: pihole.lab.skyhaven.ltd
       http:
         paths:
           - path: /

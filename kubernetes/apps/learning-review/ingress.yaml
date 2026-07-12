@@ -4,14 +4,14 @@ metadata:
   name: learning-review
   namespace: learning-review
   annotations:
-    cert-manager.io/cluster-issuer: homelab-ca
+    cert-manager.io/cluster-issuer: letsencrypt
 spec:
   ingressClassName: nginx
   tls:
-    - hosts: [learning.lab.home.arpa]
+    - hosts: [learning.lab.skyhaven.ltd]
       secretName: learning-review-tls
   rules:
-    - host: learning.lab.home.arpa
+    - host: learning.lab.skyhaven.ltd
       http:
         paths:
           - path: /

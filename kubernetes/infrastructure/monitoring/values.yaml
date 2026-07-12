@@ -3,13 +3,16 @@ grafana:
     enabled: true
     ingressClassName: nginx
     annotations:
-      cert-manager.io/cluster-issuer: homelab-ca
+      cert-manager.io/cluster-issuer: letsencrypt
     hosts:
-      - grafana.lab.home.arpa
+      - grafana.lab.skyhaven.ltd
     tls:
       - secretName: grafana-tls
         hosts:
-          - grafana.lab.home.arpa
+          - grafana.lab.skyhaven.ltd
+  # RWO PVC deadlocks RollingUpdate: new pod can't mount while old holds claim
+  deploymentStrategy:
+    type: Recreate
   persistence:
     enabled: true
     storageClassName: local-path

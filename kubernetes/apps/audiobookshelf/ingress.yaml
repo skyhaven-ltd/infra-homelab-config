@@ -4,14 +4,14 @@ metadata:
   name: audiobookshelf
   namespace: audiobookshelf
   annotations:
-    cert-manager.io/cluster-issuer: homelab-ca
+    cert-manager.io/cluster-issuer: letsencrypt
 spec:
   ingressClassName: nginx
   tls:
-    - hosts: [abs.lab.home.arpa]
+    - hosts: [abs.lab.skyhaven.ltd]
       secretName: audiobookshelf-tls
   rules:
-    - host: abs.lab.home.arpa
+    - host: abs.lab.skyhaven.ltd
       http:
         paths:
           - path: /
