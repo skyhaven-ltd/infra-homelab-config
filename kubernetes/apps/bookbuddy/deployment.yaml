@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: app
-          image: ghcr.io/skyhaven-ltd/app-bookbuddy-web@sha256:d16d3f6fac592a840b5f103b0c3e24b3cb99c5a5529df79a36fd44981f079301
+          image: ghcr.io/skyhaven-ltd/app-bookbuddy-web@sha256:1360d04bc3b41068201b4f40ed1a65858f1092648f23660b15d75bdb4f7202a9
           env:
             - { name: DATABASE_URL, value: "sqlite:////data/bookbuddy.db" }
             - { name: UPLOAD_DIR, value: "/data/uploads" }
