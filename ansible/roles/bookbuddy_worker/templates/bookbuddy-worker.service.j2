@@ -1,0 +1,21 @@
+[Unit]
+Description=Process pending BookBuddy generation jobs
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User={{ bookbuddy_worker_user }}
+Group={{ bookbuddy_worker_group }}
+WorkingDirectory={{ bookbuddy_worker_root }}
+Environment=HOME={{ bookbuddy_worker_state_dir }}
+EnvironmentFile=/etc/bookbuddy-worker.env
+ExecStart=/usr/bin/python3 {{ bookbuddy_worker_root }}/scripts/process_generation_jobs.py --limit {{ bookbuddy_worker_job_limit }} --timeout-seconds {{ bookbuddy_worker_timeout_seconds }}
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths={{ bookbuddy_worker_state_dir }}
+
+[Install]
+WantedBy=multi-user.target

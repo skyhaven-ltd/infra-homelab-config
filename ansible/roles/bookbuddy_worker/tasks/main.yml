@@ -1,0 +1,124 @@
+- name: Validate BookBuddy worker deployment inputs
+  ansible.builtin.assert:
+    that:
+      - bookbuddy_worker_token | length > 0
+      - bookbuddy_worker_codex_auth_file | length > 0
+    fail_msg: >-
+      Set BOOKBUDDY_WORKER_TOKEN and CODEX_AUTH_FILE before applying the
+      bookbuddy_worker role.
+  no_log: true
+
+- name: Install BookBuddy worker runtime packages
+  ansible.builtin.apt:
+    name:
+      - nodejs
+      - npm
+      - python3
+    state: present
+    update_cache: true
+
+- name: Install pinned Codex CLI
+  community.general.npm:
+    name: "@openai/codex"
+    version: "{{ bookbuddy_worker_codex_version }}"
+    global: true
+    state: present
+
+- name: Resolve BookBuddy ingress without cluster-hosted DNS
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    regexp: "^[^#]+\\s+{{ bookbuddy_worker_hostname | regex_escape }}$"
+    line: "{{ bookbuddy_worker_ingress_ip }} {{ bookbuddy_worker_hostname }}"
+    owner: root
+    group: root
+    mode: "0644"
+    state: present
+
+- name: Create BookBuddy worker group
+  ansible.builtin.group:
+    name: "{{ bookbuddy_worker_group }}"
+    system: true
+    state: present
+
+- name: Create BookBuddy worker user
+  ansible.builtin.user:
+    name: "{{ bookbuddy_worker_user }}"
+    group: "{{ bookbuddy_worker_group }}"
+    home: "{{ bookbuddy_worker_state_dir }}"
+    create_home: true
+    shell: /usr/sbin/nologin
+    system: true
+    state: present
+
+- name: Create BookBuddy worker directories
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: "{{ bookbuddy_worker_user }}"
+    group: "{{ bookbuddy_worker_group }}"
+    mode: "{{ item.mode }}"
+  loop:
+    - { path: "{{ bookbuddy_worker_root }}/scripts", mode: "0755" }
+    - { path: "{{ bookbuddy_worker_state_dir }}/.codex", mode: "0700" }
+
+- name: Install BookBuddy worker script
+  ansible.builtin.copy:
+    src: process_generation_jobs.py
+    dest: "{{ bookbuddy_worker_root }}/scripts/process_generation_jobs.py"
+    owner: root
+    group: root
+    mode: "0755"
+  notify: restart bookbuddy worker timer
+
+- name: Install generated questions schema
+  ansible.builtin.copy:
+    src: generated_questions.schema.json
+    dest: "{{ bookbuddy_worker_root }}/scripts/generated_questions.schema.json"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: restart bookbuddy worker timer
+
+- name: Install Codex subscription authentication
+  ansible.builtin.copy:
+    src: "{{ bookbuddy_worker_codex_auth_file }}"
+    dest: "{{ bookbuddy_worker_state_dir }}/.codex/auth.json"
+    owner: "{{ bookbuddy_worker_user }}"
+    group: "{{ bookbuddy_worker_group }}"
+    mode: "0600"
+  no_log: true
+
+- name: Install BookBuddy worker environment
+  ansible.builtin.template:
+    src: bookbuddy-worker.env.j2
+    dest: /etc/bookbuddy-worker.env
+    owner: root
+    group: "{{ bookbuddy_worker_group }}"
+    mode: "0640"
+  no_log: true
+  notify: restart bookbuddy worker timer
+
+- name: Install BookBuddy worker service
+  ansible.builtin.template:
+    src: bookbuddy-worker.service.j2
+    dest: /etc/systemd/system/bookbuddy-worker.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: restart bookbuddy worker timer
+
+- name: Install BookBuddy worker timer
+  ansible.builtin.template:
+    src: bookbuddy-worker.timer.j2
+    dest: /etc/systemd/system/bookbuddy-worker.timer
+    owner: root
+    group: root
+    mode: "0644"
+  notify: restart bookbuddy worker timer
+
+- name: Enable and start BookBuddy worker timer
+  ansible.builtin.systemd:
+    name: bookbuddy-worker.timer
+    enabled: true
+    state: started
+    daemon_reload: true

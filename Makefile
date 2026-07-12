@@ -22,7 +22,7 @@ define tf_init
 	  -backend-config="subscription_id=$(TF_BACKEND_SUB)"
 endef
 
-.PHONY: infra-init infra-plan infra-apply configure tailscale-apply bootstrap seal \
+.PHONY: infra-init infra-plan infra-apply configure bookbuddy-configure tailscale-apply bootstrap seal \
         runner-init runner-plan runner-apply runner-configure windows-init windows-plan windows-apply
 
 infra-init:
@@ -37,6 +37,10 @@ infra-apply: infra-init
 configure:
 	cd $(ANSIBLE_DIR) && ansible-galaxy install -r requirements.yml && \
 	ansible-playbook -i inventory/hosts.yml site.yml
+
+bookbuddy-configure:
+	cd $(ANSIBLE_DIR) && ansible-galaxy install -r requirements.yml && \
+	ansible-playbook -i inventory/hosts.yml site.yml --tags bookbuddy_worker
 
 
 runner-init:
