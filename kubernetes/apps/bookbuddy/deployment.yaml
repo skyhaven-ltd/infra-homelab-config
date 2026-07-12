@@ -18,6 +18,18 @@ spec:
       containers:
         - name: app
           image: ghcr.io/skyhaven-ltd/app-bookbuddy-web@sha256:1360d04bc3b41068201b4f40ed1a65858f1092648f23660b15d75bdb4f7202a9
+          # TLS terminates at the ingress; without proxy headers uvicorn sees
+          # http and the app generates mixed-content absolute URLs.
+          command: ["uvicorn"]
+          args:
+            - app.main:app
+            - --host
+            - "0.0.0.0"
+            - --port
+            - "8080"
+            - --proxy-headers
+            - --forwarded-allow-ips
+            - "*"
           env:
             - { name: DATABASE_URL, value: "sqlite:////data/bookbuddy.db" }
             - { name: UPLOAD_DIR, value: "/data/uploads" }
