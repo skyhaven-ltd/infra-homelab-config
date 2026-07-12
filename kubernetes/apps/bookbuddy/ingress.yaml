@@ -1,0 +1,23 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: bookbuddy
+  namespace: bookbuddy
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts: [bookbuddy.lab.skyhaven.ltd]
+      secretName: bookbuddy-tls
+  rules:
+    - host: bookbuddy.lab.skyhaven.ltd
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: bookbuddy
+                port:
+                  number: 8080

@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bookbuddy
+  namespace: bookbuddy
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: bookbuddy
+  template:
+    metadata:
+      labels:
+        app: bookbuddy
+    spec:
+      containers:
+        - name: app
+          image: ghcr.io/skyhaven-ltd/app-bookbuddy-web@sha256:d16d3f6fac592a840b5f103b0c3e24b3cb99c5a5529df79a36fd44981f079301
+          env:
+            - { name: DATABASE_URL, value: "sqlite:////data/bookbuddy.db" }
+            - { name: UPLOAD_DIR, value: "/data/uploads" }
+          envFrom:
+            # Optional so the app runs before the secret is sealed; worker
+            # endpoints return 503 until WORKER_TOKEN exists.
+            - secretRef:
+                name: bookbuddy-env
+                optional: true
+          ports:
+            - { name: http, containerPort: 8080 }
+          volumeMounts:
+            - { name: bookbuddy-data, mountPath: /data }
+          livenessProbe:
+            httpGet: { path: /health, port: 8080 }
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet: { path: /health, port: 8080 }
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits: { memory: 512Mi }
+      volumes:
+        - name: bookbuddy-data
+          persistentVolumeClaim:
+            claimName: bookbuddy-data
