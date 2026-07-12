@@ -1,0 +1,7 @@
+- name: Restart BookBuddy worker timer
+  ansible.builtin.systemd:
+    name: bookbuddy-worker.timer
+    state: restarted
+    enabled: true
+    daemon_reload: true
+  listen: restart bookbuddy worker timer

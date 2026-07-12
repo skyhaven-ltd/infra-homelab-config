@@ -1,0 +1,45 @@
+{
+  "type": "object",
+  "properties": {
+    "questions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "recall",
+              "character",
+              "plot",
+              "theme",
+              "prediction",
+              "elaboration"
+            ]
+          },
+          "prompt": {
+            "type": "string"
+          },
+          "answer": {
+            "type": "string"
+          },
+          "source_quote": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "prompt",
+          "answer",
+          "source_quote"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "questions"
+  ],
+  "additionalProperties": false
+}
+

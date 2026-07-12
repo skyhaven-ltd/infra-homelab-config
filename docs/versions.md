@@ -3,6 +3,12 @@
 Per §1.16 of the migration plan: every pinned artifact and every discovered
 environment fact is recorded here. Never deploy `:latest`.
 
+## Pinned host tooling
+
+| Artifact | Version | Source | Verified |
+|---|---|---|---|
+| `@openai/codex` | `0.144.1` | npm registry | 2026-07-12 |
+
 ## Environment facts (discovered Phase 0, re-verified 2026-07-05)
 
 ### Proxmox host `lnproxlab01`

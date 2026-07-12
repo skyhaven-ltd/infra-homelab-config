@@ -10,6 +10,9 @@
     - { role: tailscale, tags: [tailscale] }
     - { role: k3s, tags: [k3s] }
     - { role: argocd_bootstrap, tags: [argocd] }
+    - role: bookbuddy_worker
+      tags: [bookbuddy_worker]
+      when: "'bookbuddy_worker' in ansible_run_tags"
 
 - hosts: gha_runner
   become: true

@@ -1,0 +1,13 @@
+bookbuddy_worker_user: bookbuddy-worker
+bookbuddy_worker_group: bookbuddy-worker
+bookbuddy_worker_root: /opt/bookbuddy-worker
+bookbuddy_worker_state_dir: /var/lib/bookbuddy-worker
+bookbuddy_worker_base_url: https://bookbuddy.lab.skyhaven.ltd
+bookbuddy_worker_hostname: bookbuddy.lab.skyhaven.ltd
+bookbuddy_worker_ingress_ip: "{{ node_ip }}"
+bookbuddy_worker_interval: "*:0/10"
+bookbuddy_worker_job_limit: 10
+bookbuddy_worker_timeout_seconds: 600
+bookbuddy_worker_codex_version: 0.144.1
+bookbuddy_worker_token: "{{ lookup('env', 'BOOKBUDDY_WORKER_TOKEN') }}"
+bookbuddy_worker_codex_auth_file: "{{ lookup('env', 'CODEX_AUTH_FILE') }}"
