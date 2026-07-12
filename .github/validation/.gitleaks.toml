@@ -4,5 +4,5 @@ useDefault = true
 [allowlist]
 description = "SealedSecret manifests hold encrypted ciphertext, safe to commit"
 paths = [
-  '''kubernetes/apps/.*/sealedsecret\.yaml$''',
+  '''kubernetes/.*sealedsecret\.yaml$''',
 ]
