@@ -26,6 +26,10 @@ spec:
       labels:
         app: stock-checker
     spec:
+      # App spawns headless Chrome per check; python runs as PID 1 and never
+      # reaps exited children. Shared PID namespace makes the pause container
+      # PID 1 so it reaps the zombies.
+      shareProcessNamespace: true
       containers:
         - name: stock-checker
           image: ghcr.io/skyhaven-ltd/app-stockalert-monitor@sha256:0c78c241b526e4191de8d76b8f02ae9fb8f17dfd1ea15551fb06a7e883881d1d
@@ -43,8 +47,11 @@ spec:
               readOnly: true
             - { name: data, mountPath: /app/data }
           resources:
-            requests: { cpu: 50m, memory: 128Mi }
-            limits: { memory: 512Mi }
+            requests: { cpu: 50m, memory: 256Mi }
+            # Chrome's working set does not fit in 512Mi; the cgroup evicts
+            # file-backed pages and re-reads them from disk on every launch,
+            # tripping NodeMemoryMajorPagesFaults.
+            limits: { memory: 1Gi }
       volumes:
         - name: config
           configMap:
