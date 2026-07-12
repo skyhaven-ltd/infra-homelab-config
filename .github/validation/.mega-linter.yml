@@ -16,6 +16,7 @@ DISABLE_LINTERS:
   - MARKDOWN_MARKDOWNLINT
 
 ACTION_ACTIONLINT_ARGUMENTS: "-config-file .github/validation/actionlint.yaml"
+REPOSITORY_GITLEAKS_ARGUMENTS: "--config .github/validation/.gitleaks.toml"
 KUBERNETES_KUBECONFORM_ARGUMENTS: "-ignore-missing-schemas"
 YAML_YAMLLINT_ARGUMENTS: "--no-warnings"
 
