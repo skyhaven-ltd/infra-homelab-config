@@ -1,0 +1,20 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: buildarr
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/skyhaven-ltd/infra-homelab-config.git
+    targetRevision: main
+    path: kubernetes/apps/buildarr
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: buildarr
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

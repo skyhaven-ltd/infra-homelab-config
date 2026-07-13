@@ -1,0 +1,44 @@
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: recyclarr
+  namespace: recyclarr
+spec:
+  schedule: "0 4 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 600
+      template:
+        spec:
+          restartPolicy: Never
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+          containers:
+            - name: recyclarr
+              image: ghcr.io/recyclarr/recyclarr@sha256:2aaa0205a93171b93a159e4665004ccee1a5aacd60359fb8d7683db0ae7e774b
+              args: ["sync"]
+              env:
+                - { name: RECYCLARR_APP_DATA, value: /config }
+                - { name: TZ, value: "Etc/UTC" }
+              envFrom:
+                - secretRef:
+                    name: recyclarr-secrets
+              volumeMounts:
+                - { name: appdata, mountPath: /config }
+                - { name: config, mountPath: /config/recyclarr.yml, subPath: recyclarr.yml, readOnly: true }
+              resources:
+                requests: { cpu: 50m, memory: 128Mi }
+                limits: { memory: 256Mi }
+          volumes:
+            - name: appdata
+              emptyDir: {}
+            - name: config
+              configMap:
+                name: recyclarr-config
