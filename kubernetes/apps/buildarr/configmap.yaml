@@ -35,6 +35,9 @@ data:
       protocol: "http"
       api_key: "${PROWLARR_API_KEY}"
       settings:
+        tags:
+          definitions:
+            - "flaresolverr"
         apps:
           sync_profiles:
             delete_unmanaged: false
@@ -87,6 +90,8 @@ data:
                 type: "flaresolverr"
                 host_url: "http://flaresolverr.prowlarr.svc.cluster.local:8191/"
                 request_timeout: 60
+                tags:
+                  - "flaresolverr"
           indexers:
             # delete_unmanaged false keeps hand-added indexers; set true to make
             # this file the sole source of truth for Prowlarr indexers.
