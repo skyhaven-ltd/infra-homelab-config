@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: buildarr
+  namespace: buildarr
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: buildarr
+  template:
+    metadata:
+      labels:
+        app: buildarr
+    spec:
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      initContainers:
+        # buildarr-prowlarr is not bundled in the base image and has no official
+        # image, so install the pinned plugin into a shared volume at startup.
+        - name: install-prowlarr-plugin
+          image: callum027/buildarr@sha256:57e2343fefe5d5701364b5e93b4985dbf08310d7b152f70556bdaba7e9475447
+          command:
+            - sh
+            - -c
+            - |
+              python3 -m ensurepip --upgrade >/dev/null 2>&1 || true
+              python3 -m pip install --target=/plugins --no-cache-dir buildarr-prowlarr==0.5.3
+          volumeMounts:
+            - { name: plugins, mountPath: /plugins }
+          resources:
+            requests: { cpu: 100m, memory: 128Mi }
+            limits: { memory: 512Mi }
+      containers:
+        - name: buildarr
+          image: callum027/buildarr@sha256:57e2343fefe5d5701364b5e93b4985dbf08310d7b152f70556bdaba7e9475447
+          command: ["sh", "/etc/buildarr/entrypoint.sh"]
+          env:
+            - { name: PYTHONPATH, value: /plugins }
+            - { name: TZ, value: "Etc/UTC" }
+          envFrom:
+            - secretRef:
+                name: buildarr-secrets
+          volumeMounts:
+            - { name: plugins, mountPath: /plugins, readOnly: true }
+            - { name: config, mountPath: /config }
+            - { name: tmpl, mountPath: /etc/buildarr }
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits: { memory: 256Mi }
+      volumes:
+        - name: plugins
+          emptyDir: {}
+        - name: config
+          emptyDir: {}
+        - name: tmpl
+          configMap:
+            name: buildarr-config

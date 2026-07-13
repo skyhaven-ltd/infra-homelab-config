@@ -9,6 +9,21 @@ environment fact is recorded here. Never deploy `:latest`.
 |---|---|---|---|
 | `@openai/codex` | `0.144.1` | npm registry | 2026-07-12 |
 
+## Pinned container images (*arr automation)
+
+| Image | Tag | Digest | Verified |
+|---|---|---|---|
+| `ghcr.io/recyclarr/recyclarr` | `7.3.0` | `sha256:2aaa0205a93171b93a159e4665004ccee1a5aacd60359fb8d7683db0ae7e774b` | 2026-07-13 |
+| `callum027/buildarr` | `0.7.8` | `sha256:57e2343fefe5d5701364b5e93b4985dbf08310d7b152f70556bdaba7e9475447` | 2026-07-13 |
+| `ghcr.io/flaresolverr/flaresolverr` | — | `sha256:139dfee1c6f89249c8d665d1333a42e8ec74ec0a86bc6bb1c8461e10d3a66a47` | 2026-07-13 |
+
+Pinned Python packages (installed at Buildarr container start — base image has no
+Prowlarr plugin, and no plugin-bundled image is published):
+
+| Package | Version | Source |
+|---|---|---|
+| `buildarr-prowlarr` | `0.5.3` | PyPI |
+
 ## Environment facts (discovered Phase 0, re-verified 2026-07-05)
 
 ### Proxmox host `lnproxlab01`
