@@ -1,10 +1,10 @@
 [Unit]
-Description=Run the BookBuddy generation worker every 10 minutes
+Description=Poll for BookBuddy generation jobs
 
 [Timer]
 OnCalendar={{ bookbuddy_worker_interval }}
 Persistent=true
-RandomizedDelaySec=30
+RandomizedDelaySec=5
 Unit=bookbuddy-worker.service
 
 [Install]

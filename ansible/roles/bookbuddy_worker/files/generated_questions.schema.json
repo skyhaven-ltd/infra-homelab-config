@@ -1,6 +1,9 @@
 {
   "type": "object",
   "properties": {
+    "recap": {
+      "type": "string"
+    },
     "questions": {
       "type": "array",
       "items": {
@@ -38,8 +41,8 @@
     }
   },
   "required": [
+    "recap",
     "questions"
   ],
   "additionalProperties": false
 }
-
