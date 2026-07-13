@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: qbittorrent
-          image: lscr.io/linuxserver/qbittorrent@sha256:5b09709bb0eff4edb551f5b30029952ab4d67aa0d5ca3526889124173bd78a9c
+          image: lscr.io/linuxserver/qbittorrent@sha256:352371a7242e8b4aa10958ca02076d1023758070519b89a10251475fb9f1a35a
           env:
             - { name: PUID, value: "1000" }
             - { name: PGID, value: "1000" }
