@@ -41,8 +41,10 @@ kubectl -n buildarr exec deploy/buildarr -- \
 - `delete_unmanaged: false` everywhere: Buildarr reconciles the named definitions
   but leaves hand-added indexers/apps alone. Flip to `true` on the `indexers` block
   to make this file the sole source of truth.
-- Included public indexers: 1337x, The Pirate Bay, TorrentGalaxy, LimeTorrents,
-  EZTV, YTS, Nyaa.si. Public indexer *definitions* are maintained by Prowlarr and
-  refreshed on Prowlarr updates — only keep the Prowlarr image current.
+- Managed public indexers: The Pirate Bay, LimeTorrents, Nyaa.si — each verified
+  to pass Prowlarr's create-test. Cloudflare/DDoS-Guard sites (1337x, TorrentGalaxy,
+  YTS) and legally-blocked ones (EZTV → HTTP 451) fail that test and abort the whole
+  apply, so add those by hand in the Prowlarr UI. Public indexer *definitions* are
+  maintained by Prowlarr and refreshed on Prowlarr updates — keep the image current.
 - Productionization follow-up: bake a custom image with the plugin preinstalled to
   drop the runtime `pip install` (needs PyPI reachability on pod start).

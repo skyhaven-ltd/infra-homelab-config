@@ -90,20 +90,15 @@ data:
           indexers:
             # delete_unmanaged false keeps hand-added indexers; set true to make
             # this file the sole source of truth for Prowlarr indexers.
+            #
+            # Buildarr aborts the whole apply on the first indexer Prowlarr rejects
+            # (it connectivity-tests each on create). Only manage indexers that pass
+            # that test. Cloudflare/DDoS-Guard sites (1337x, TorrentGalaxy, YTS) fail
+            # it even with FlareSolverr, so add those by hand in the Prowlarr UI.
             delete_unmanaged: false
             definitions:
-              "1337x":
-                type: "1337x"
-                enable: true
-                sync_profile: "Standard"
-                priority: 25
               "The Pirate Bay":
                 type: "thepiratebay"
-                enable: true
-                sync_profile: "Standard"
-                priority: 25
-              "TorrentGalaxy":
-                type: "torrentgalaxy"
                 enable: true
                 sync_profile: "Standard"
                 priority: 25
@@ -111,17 +106,7 @@ data:
                 type: "limetorrents"
                 enable: true
                 sync_profile: "Standard"
-                priority: 30
-              "EZTV":
-                type: "eztv"
-                enable: true
-                sync_profile: "Standard"
                 priority: 25
-              "YTS":
-                type: "yts"
-                enable: true
-                sync_profile: "Standard"
-                priority: 30
               "Nyaa.si":
                 type: "nyaasi"
                 enable: true
