@@ -41,6 +41,9 @@ kubectl -n buildarr exec deploy/buildarr -- \
 - `delete_unmanaged: false` everywhere: Buildarr reconciles the named definitions
   but leaves hand-added indexers/apps alone. Flip to `true` on the `indexers` block
   to make this file the sole source of truth.
+- The FlareSolverr proxy uses the `flaresolverr` tag. Assign the same tag to each
+  hand-added indexer that should use it. Prowlarr invokes FlareSolverr only when it
+  detects a supported challenge on an indexer with a matching tag.
 - Managed public indexers: The Pirate Bay, LimeTorrents, Nyaa.si — each verified
   to pass Prowlarr's create-test. Cloudflare/DDoS-Guard sites (1337x, TorrentGalaxy,
   YTS) and legally-blocked ones (EZTV → HTTP 451) fail that test and abort the whole
