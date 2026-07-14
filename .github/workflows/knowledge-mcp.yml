@@ -1,0 +1,94 @@
+---
+name: Knowledge MCP
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "services/knowledge-mcp/**"
+      - ".github/workflows/knowledge-mcp.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "services/knowledge-mcp/**"
+      - ".github/workflows/knowledge-mcp.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: knowledge-mcp-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  IMAGE: ghcr.io/${{ github.repository }}/knowledge-mcp:${{ github.sha }}
+  UV_VERSION: "0.11.21"
+
+jobs:
+  validate:
+    name: Validate and package
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+          cache-dependency-glob: services/knowledge-mcp/uv.lock
+
+      - name: Install Python
+        run: uv python install 3.13.14
+
+      - name: Sync locked dependencies
+        working-directory: services/knowledge-mcp
+        run: uv sync --locked
+
+      - name: Lint and format check
+        working-directory: services/knowledge-mcp
+        run: |
+          set -euo pipefail
+          uv run ruff format --check .
+          uv run ruff check .
+
+      - name: Test
+        working-directory: services/knowledge-mcp
+        run: uv run pytest --cov=knowledge_mcp --cov-report=term-missing
+
+      - name: Build Python distributions
+        working-directory: services/knowledge-mcp
+        run: uv build
+
+      - name: Build container
+        run: docker build --tag "${IMAGE}" services/knowledge-mcp
+
+  publish:
+    name: Publish immutable commit image
+    if: github.event_name == 'push'
+    needs: validate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+
+      - name: Build container
+        run: docker build --tag "${IMAGE}" services/knowledge-mcp
+
+      - name: Login and publish
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          printf '%s' "${GHCR_TOKEN}" | docker login ghcr.io --username "${GITHUB_ACTOR}" --password-stdin
+          docker push "${IMAGE}"
