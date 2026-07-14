@@ -7,6 +7,7 @@ on:
     paths:
       - "terraform/cluster/**"
       - "ansible/**"
+      - "services/bookbuddy-web/scripts/**"
       - ".github/workflows/k8s-deploy.yml"
   workflow_dispatch:
     inputs:
