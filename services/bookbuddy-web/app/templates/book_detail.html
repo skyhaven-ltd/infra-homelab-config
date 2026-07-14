@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}{{ book.title }} — BookBuddy{% endblock title %}
+{% block content %}
+  {% if error %}<p class="alert">{{ error }}</p>{% endif %}
+  {% if notice %}<p class="notice">{{ notice }}</p>{% endif %}
+
+  <section class="card">
+    <h1>{{ book.title }}</h1>
+    {% if book.author %}<p class="byline">{{ book.author }}</p>{% endif %}
+    {% set total = book.chapters | length %}
+    {% if total %}
+      <div class="progress">
+        <div
+          class="progress-fill"
+          style="width: {{ ((book.current_chapter_index + 1) / total * 100) | round(1) }}%"
+        ></div>
+      </div>
+      <p class="progress-label">
+        Chapter {{ book.current_chapter_index + 1 }} of {{ total }}
+      </p>
+    {% endif %}
+    <p>
+      <a class="button secondary" href="{{ url_for('confirm_delete_book', book_id=book.id) }}">Remove book</a>
+    </p>
+  </section>
+
+  <section class="card">
+    <h2>Contents</h2>
+    <ul class="chapter-rows">
+      {% for chapter in book.chapters %}
+        <li class="chapter-row {% if chapter.index == book.current_chapter_index %}current{% endif %}">
+          <div class="toc-line">
+            <span class="toc-num">{{ chapter.index + 1 }}</span>
+            <span class="toc-title">{{ chapter.title }}</span>
+            <span class="toc-dots"></span>
+            <span class="toc-meta">{{ chapter.word_count }} words</span>
+          </div>
+          {% if chapter.index == book.current_chapter_index
+                or job_status.get(chapter.id) %}
+            <div class="toc-badges">
+              {% if chapter.index == book.current_chapter_index %}
+                <span class="badge reading">reading</span>
+              {% endif %}
+              {% if job_status.get(chapter.id) in ("pending", "running") %}
+                <span class="badge">generation {{ job_status.get(chapter.id) }}</span>
+              {% elif job_status.get(chapter.id) == "failed" %}
+                <span class="badge failed">generation failed</span>
+              {% endif %}
+            </div>
+          {% endif %}
+          <div class="chapter-actions">
+            {% if chapter.index == book.current_chapter_index %}
+              <a class="button" href="{{ url_for('book_companion', book_id=book.id) }}">Continue</a>
+            {% else %}
+              <form action="{{ url_for('set_position', book_id=book.id) }}" method="post">
+                <input type="hidden" name="chapter_index" value="{{ chapter.index }}" />
+                <button type="submit" class="secondary">Read from here</button>
+              </form>
+            {% endif %}
+            {% if question_counts.get(chapter.id) %}
+              <span class="badge">{{ question_counts.get(chapter.id) }} memories ready</span>
+            {% endif %}
+          </div>
+        </li>
+      {% endfor %}
+    </ul>
+  </section>
+{% endblock content %}

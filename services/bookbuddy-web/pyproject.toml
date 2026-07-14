@@ -1,0 +1,19 @@
+[tool.djlint]
+profile = "jinja"
+# H031 (meta keywords) is obsolete SEO guidance
+ignore = "H031"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI's dependency injection uses calls in argument defaults by design.
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Form", "fastapi.Query"]

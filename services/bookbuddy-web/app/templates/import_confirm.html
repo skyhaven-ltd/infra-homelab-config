@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Confirm import — BookBuddy{% endblock title %}
+{% block content %}
+  <section class="card">
+    <h1>{{ parsed.title }}</h1>
+    {% if parsed.author %}<p class="byline">{{ parsed.author }}</p>{% endif %}
+    {% if error %}<p class="alert">{{ error }}</p>{% endif %}
+    <p>
+      Detected <strong>{{ parsed.chapters | length }}</strong> sections. Choose
+      the chapters you want BookBuddy to accompany you through. Leave maps,
+      indexes and other reference material unchecked.
+    </p>
+    <form action="{{ url_for('import_book') }}" method="post" class="form-actions">
+      <input type="hidden" name="token" value="{{ token }}" />
+      <fieldset class="reading-mode">
+        <legend>How should BookBuddy accompany this book?</legend>
+        <label>
+          <input type="radio" name="mode" value="learn" {% if mode == "learn" %}checked{% endif %} />
+          <span><strong>Learn</strong> — remember concepts and put them to use</span>
+        </label>
+        <label>
+          <input type="radio" name="mode" value="story" {% if mode == "story" %}checked{% endif %} />
+          <span><strong>Story</strong> — follow characters, events and mysteries</span>
+        </label>
+        <label>
+          <input type="radio" name="mode" value="explore" {% if mode == "explore" %}checked{% endif %} />
+          <span><strong>Explore</strong> — reflect on ideas, themes and connections</span>
+        </label>
+      </fieldset>
+      <ol class="chapter-list selectable-chapters">
+        {% for chapter in parsed.chapters %}
+          <li>
+            <label>
+              <input type="checkbox" name="chapter_indexes" value="{{ loop.index0 }}" checked />
+              <span>{{ chapter.title }}</span>
+              <span class="muted">({{ chapter.word_count }} words)</span>
+            </label>
+          </li>
+        {% endfor %}
+      </ol>
+      <button type="submit">Import book</button>
+      <a class="button secondary" href="{{ url_for('index') }}">Cancel</a>
+    </form>
+  </section>
+{% endblock content %}

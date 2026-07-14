@@ -1,0 +1,18 @@
+# Runtime data
+data/
+ntfy/
+*.db
+*.db-wal
+*.db-shm
+*.log
+
+# Secrets
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/

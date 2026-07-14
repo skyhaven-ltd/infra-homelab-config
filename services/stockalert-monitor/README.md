@@ -1,0 +1,3 @@
+# app-stockalert-monitor
+
+Self-hosted stock alert monitor that watches product URLs listed in `products.txt` and sends a high-priority push notification via ntfy (with optional Telegram) the moment an item transitions from out of stock to in stock. Retailer parsers are resolved automatically from each URL's domain — tuned plugins cover Currys, Amazon, Argos, AO and other UK retailers, while a generic detector using JSON-LD availability and indicator phrases handles any other shop. Runs as a Docker Compose stack alongside FlareSolverr, which solves Cloudflare/bot walls when plain HTTP fetching is blocked, escalating to a headless Playwright render when needed.
