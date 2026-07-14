@@ -528,9 +528,9 @@ Reasoning: there is one physical machine. "Multi-node" here would mean multiple 
 
 ### 1.5 Monorepo: yes — evolve `infra-homelab-config`
 
-**Decision:** A single monorepo containing Proxmox Terraform + Ansible + all Kubernetes manifests. Use the **existing `skyhaven-ltd/infra-homelab-config` repo** (it already holds the compose stack and is the natural successor). Application *source code* stays in its per-app repos (`app-learning-review`, `app-stockalert-monitor`), which build and push images via CI; the monorepo holds only their *deployment manifests*.
+**Decision (updated 2026-07-14):** Use the existing `skyhaven-ltd/infra-homelab-config` repository for Proxmox Terraform, Ansible, Kubernetes manifests, and selected personal application source under `services/`. BookBuddy and StockAlert now follow this layout; `app-learning-review` remains separate unless it is migrated explicitly later.
 
-Reasoning (direct answer): yes, a monorepo is advisable at this scale. Multi-repo GitOps (one repo per app, or infra/app split) exists to serve independent team ownership and blast-radius isolation — concerns that don't exist for a single operator. A monorepo gives one place to search, one Argo CD credential, one PR history that interleaves infra and app changes chronologically, and atomic commits that touch an app and its ingress together. The one boundary that *does* matter is code-vs-config: app repos own `Dockerfile` + source and publish images; the monorepo owns everything that describes the *cluster*. This prevents an app code change from being able to alter cluster infrastructure and vice versa.
+At this scale, directory ownership and path-filtered CI provide a sufficient code-versus-config boundary without separate repositories. The monorepo keeps application and deployment changes together while service workflows publish immutable images and Argo CD continues to deploy only the explicitly pinned image digests in `kubernetes/`.
 
 ### 1.6 Kubernetes distribution: k3s
 

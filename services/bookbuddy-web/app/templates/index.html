@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block content %}
+  {% if error %}<p class="alert">{{ error }}</p>{% endif %}
+
+  {% if due_count %}
+    <section class="card due-banner">
+      <div>
+        <span class="due-count">{{ due_count }}</span>
+        <span class="due-label">question{{ "s" if due_count != 1 }} due</span>
+      </div>
+      <a class="button" href="{{ url_for('review') }}">Start review</a>
+    </section>
+  {% endif %}
+
+  {% if books %}
+    <section class="card">
+      <h1>Continue reading</h1>
+      <ul class="book-list">
+        {% for book in books %}
+          {% if book.chapters %}
+            {% set chapter = book.chapters[book.current_chapter_index] %}
+            <li>
+              <a href="{{ url_for('book_companion', book_id=book.id) }}">
+                {{ book.title }}
+                <span class="muted"> — {{ chapter.title }}</span>
+                {% if chapter.companion and chapter.companion.quiz_question_index > 0 and not chapter.companion.completed_at %}
+                  <span class="badge">Quiz in progress</span>
+                {% endif %}
+              </a>
+            </li>
+          {% endif %}
+        {% endfor %}
+      </ul>
+    </section>
+  {% endif %}
+
+  <section class="card">
+    <h1>Your books</h1>
+    {% if books %}
+      <ul class="book-list">
+        {% for book in books %}
+          <li>
+            <a href="{{ url_for('book_detail', book_id=book.id) }}">
+              {{ book.title }}
+              {% if book.author %}<span class="muted"> — {{ book.author }}</span>{% endif %}
+            </a>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="empty">No books yet. Import an EPUB to get started.</p>
+    {% endif %}
+  </section>
+
+  <section class="card">
+    <h2>Import an EPUB</h2>
+    <form action="{{ url_for('upload_book') }}" method="post" enctype="multipart/form-data">
+      <input type="file" name="file" accept=".epub,application/epub+zip" required />
+      <button type="submit">Upload</button>
+    </form>
+    <p class="muted">
+      You'll confirm the detected chapter list before anything is saved.
+    </p>
+  </section>
+{% endblock content %}

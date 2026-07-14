@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Review — BookBuddy{% endblock title %}
+{% block content %}
+  <section class="card">
+    <h1>How did you do?</h1>
+    <fieldset class="question">
+      <legend><span class="badge">{{ question.type }}</span></legend>
+      <p class="prompt">{{ question.prompt }}</p>
+      <div class="answer-pair">
+        <p><strong>You said:</strong> {{ answer_text or "(no answer)" }}
+          <span class="muted">(confidence {{ confidence }})</span></p>
+        <p><strong>Answer:</strong> {{ question.answer }}</p>
+      </div>
+      {% if question.source_quote %}
+        <blockquote>{{ question.source_quote }}</blockquote>
+      {% endif %}
+    </fieldset>
+    <form action="{{ url_for('review_grade', question_id=question.id) }}" method="post" class="grade-row">
+      <input type="hidden" name="answer_text" value="{{ answer_text }}" />
+      <input type="hidden" name="confidence" value="{{ confidence }}" />
+      <input type="hidden" name="return_to" value="{{ return_to }}" />
+      <button type="submit" name="correct" value="yes">I was right</button>
+      <button type="submit" name="correct" value="nearly" class="secondary">Nearly</button>
+      <button type="submit" name="correct" value="no" class="secondary">I was wrong</button>
+    </form>
+  </section>
+{% endblock content %}

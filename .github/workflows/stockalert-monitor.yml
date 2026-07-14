@@ -1,0 +1,89 @@
+---
+name: StockAlert monitor
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "services/stockalert-monitor/**"
+      - ".github/workflows/stockalert-monitor.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "services/stockalert-monitor/**"
+      - ".github/workflows/stockalert-monitor.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stockalert-monitor-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  IMAGE: ghcr.io/${{ github.repository }}/stockalert-monitor
+  PYTHON_VERSION: "3.12"
+
+jobs:
+  validate:
+    name: Test and package
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+
+      - name: Setup Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: services/stockalert-monitor/requirements.txt
+
+      - name: Install dependencies
+        working-directory: services/stockalert-monitor
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check -r requirements.txt
+          python -m pip install --disable-pip-version-check pytest==9.0.3
+
+      - name: Test
+        working-directory: services/stockalert-monitor
+        run: python -m pytest
+
+      - name: Build container
+        run: docker build --tag "${IMAGE}:${GITHUB_SHA}" services/stockalert-monitor
+
+  publish:
+    name: Publish container
+    if: github.event_name == 'push'
+    needs: validate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+
+      - name: Build container
+        run: |
+          set -euo pipefail
+          docker build \
+            --tag "${IMAGE}:${GITHUB_SHA}" \
+            --tag "${IMAGE}:latest" \
+            services/stockalert-monitor
+
+      - name: Login and publish
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          printf '%s' "${GHCR_TOKEN}" | docker login ghcr.io --username "${GITHUB_ACTOR}" --password-stdin
+          docker push "${IMAGE}:${GITHUB_SHA}"
+          docker push "${IMAGE}:latest"

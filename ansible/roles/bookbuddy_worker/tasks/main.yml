@@ -63,7 +63,7 @@
 
 - name: Install BookBuddy worker script
   ansible.builtin.copy:
-    src: process_generation_jobs.py
+    src: "{{ playbook_dir }}/../services/bookbuddy-web/scripts/process_generation_jobs.py"
     dest: "{{ bookbuddy_worker_root }}/scripts/process_generation_jobs.py"
     owner: root
     group: root
@@ -72,7 +72,7 @@
 
 - name: Install generated questions schema
   ansible.builtin.copy:
-    src: generated_questions.schema.json
+    src: "{{ playbook_dir }}/../services/bookbuddy-web/scripts/generated_questions.schema.json"
     dest: "{{ bookbuddy_worker_root }}/scripts/generated_questions.schema.json"
     owner: root
     group: root

@@ -18,7 +18,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import subprocess
+import subprocess  # nosec B404
 import sys
 import tempfile
 import urllib.error
@@ -60,7 +60,8 @@ def api_request(
         },
     )
     try:
-        with urllib.request.urlopen(request, timeout=30) as response:
+        # The base URL is trusted operator configuration, not remote input.
+        with urllib.request.urlopen(request, timeout=30) as response:  # nosec B310
             body = response.read().decode("utf-8")
     except urllib.error.HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")
@@ -98,7 +99,8 @@ def run_codex(
             str(output_path),
             "-",
         ]
-        completed = subprocess.run(
+        # Every argument is passed as an argv element and shell execution is disabled.
+        completed = subprocess.run(  # nosec B603
             command,
             input=prompt,
             text=True,

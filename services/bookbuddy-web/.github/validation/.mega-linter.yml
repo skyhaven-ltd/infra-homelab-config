@@ -1,0 +1,32 @@
+# Ruff owns Python linting and formatting; overlapping Python linters are
+# disabled so findings come from one tool with one service-local config.
+DISABLE_LINTERS:
+  - PYTHON_PYLINT
+  - PYTHON_FLAKE8
+  - PYTHON_ISORT
+  - PYTHON_BLACK
+  - PYTHON_MYPY
+  - PYTHON_PYRIGHT
+  - REPOSITORY_CHECKOV
+  - REPOSITORY_KICS
+  - REPOSITORY_TRIVY
+  - REPOSITORY_TRIVY_SBOM
+  - REPOSITORY_SYFT
+  - REPOSITORY_GRYPE
+  - REPOSITORY_GITLEAKS
+  - REPOSITORY_SECRETLINT
+  - REPOSITORY_TRUFFLEHOG
+  - SPELL_CSPELL
+  - SPELL_LYCHEE
+  - MARKDOWN_MARKDOWN_TABLE_FORMATTER
+  - MARKDOWN_MARKDOWNLINT
+  - COPYPASTE_JSCPD
+
+FILTER_REGEX_INCLUDE: services/bookbuddy-web/.*
+PYTHON_RUFF_CONFIG_FILE: services/bookbuddy-web/pyproject.toml
+PYTHON_RUFF_FORMAT_CONFIG_FILE: services/bookbuddy-web/pyproject.toml
+PYTHON_BANDIT_ARGUMENTS: "--skip B101"
+HTML_HTMLHINT_CONFIG_FILE: services/bookbuddy-web/.github/validation/.htmlhintrc
+
+SHOW_ELAPSED_TIME: true
+FLAVOR_SUGGESTIONS: false

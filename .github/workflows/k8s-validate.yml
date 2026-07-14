@@ -4,9 +4,12 @@ on:
   pull_request:
     branches:
       - main
-    paths-ignore:
-      - "**/*.md"
-      - "docs/**"
+    paths:
+      - ".github/workflows/k8s-validate.yml"
+      - "ansible/**"
+      - "kubernetes/**"
+      - "services/bookbuddy-web/scripts/**"
+      - "terraform/**"
 
 permissions:
   contents: read

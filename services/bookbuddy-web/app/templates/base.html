@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#f4eee1" />
+    <meta
+      name="description"
+      content="BookBuddy — a Make It Stick reading companion"
+    />
+    <title>{% block title %}BookBuddy{% endblock title %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..700;1,9..144,400..700&family=Newsreader:ital,opsz,wght@0,6..72,400..600;1,6..72,400..600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="{{ url_for('static', path='app.css') }}" />
+  </head>
+  <body>
+    <header class="app-header">
+      <a class="app-title" href="{{ url_for('index') }}">BookBuddy</a>
+      <nav class="app-nav">
+        <a href="{{ url_for('index') }}">Books</a>
+        <a href="{{ url_for('review') }}">Review</a>
+      </nav>
+    </header>
+    <main class="app-main">
+      {% block content %}{% endblock content %}
+    </main>
+  </body>
+</html>

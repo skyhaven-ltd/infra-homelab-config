@@ -1,0 +1,752 @@
+/* BookBuddy — letterpress/editorial theme.
+   Warm paper, ink text, oxblood accent. Fraunces for display,
+   Newsreader for body, monospace for typesetting marks (badges). */
+
+:root {
+  --paper: #f4eee1;
+  --card: #fdfaf1;
+  --ink: #2a2118;
+  --ink-soft: #8a7a66;
+  --line: #ddd2bc;
+  --line-soft: #e9e0cd;
+  --accent: #8c3220;
+  --accent-deep: #6c2415;
+  --accent-tint: #f5e6df;
+  --moss: #54633c;
+  --moss-tint: #edefe0;
+  --gold: #a07d33;
+  --display: "Fraunces", "Iowan Old Style", georgia, serif;
+  --body: "Newsreader", "Iowan Old Style", georgia, serif;
+  --mono: ui-monospace, "Cascadia Mono", "SF Mono", menlo, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  font-family: var(--body);
+  font-size: 1.0625rem;
+  line-height: 1.55;
+  color: var(--ink);
+  background:
+    radial-gradient(120% 60% at 50% 0%, rgb(255 253 244 / 90%), transparent 60%),
+    var(--paper);
+}
+
+/* Fine paper grain over everything */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0.5;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 0.35 0 0 0 0 0.3 0 0 0 0 0.22 0 0 0 0.05 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* ---------- Masthead ---------- */
+
+.app-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  max-width: 42rem;
+  margin: 0 auto;
+  padding: 1.1rem 1.25rem 0.8rem;
+  border-bottom: 3px double var(--line);
+}
+
+.app-title {
+  font-family: var(--display);
+  font-style: italic;
+  font-weight: 600;
+  font-size: 1.45rem;
+  color: var(--ink);
+  text-decoration: none;
+  letter-spacing: 0.01em;
+}
+
+.app-title::after {
+  content: " \2767"; /* rotated fleuron */
+  color: var(--accent);
+  font-style: normal;
+  font-size: 1rem;
+}
+
+.app-nav {
+  display: flex;
+  gap: 1.25rem;
+}
+
+.app-nav a {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  text-decoration: none;
+  padding-bottom: 0.15rem;
+  border-bottom: 1px solid transparent;
+}
+
+.app-nav a:where(:hover) {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.app-main {
+  position: relative;
+  z-index: 2;
+  max-width: 42rem;
+  margin: 0 auto;
+  padding: 1.25rem 1.25rem 4rem;
+}
+
+/* ---------- Cards ---------- */
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 1.25rem 1.4rem 1.35rem;
+  margin-bottom: 1.25rem;
+  box-shadow:
+    0 1px 0 rgb(42 33 24 / 4%),
+    0 6px 18px -12px rgb(42 33 24 / 25%);
+  animation: rise 0.45s ease both;
+}
+
+.card:nth-of-type(2) {
+  animation-delay: 0.07s;
+}
+
+.card:nth-of-type(3) {
+  animation-delay: 0.14s;
+}
+
+.card:nth-of-type(4) {
+  animation-delay: 0.21s;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card {
+    animation: none;
+  }
+}
+
+h1,
+h2 {
+  font-family: var(--display);
+  font-weight: 600;
+  line-height: 1.2;
+  margin: 0 0 0.6rem;
+}
+
+h1 {
+  font-size: clamp(1.5rem, 5vw, 1.9rem);
+  letter-spacing: -0.01em;
+}
+
+h2 {
+  font-size: 1.15rem;
+}
+
+/* Short oxblood rule under card headings */
+.card > h1::after,
+.card > h2::after {
+  content: "";
+  display: block;
+  width: 2.25rem;
+  height: 2px;
+  margin-top: 0.55rem;
+  background: var(--accent);
+}
+
+.byline {
+  margin: -0.2rem 0 0.8rem;
+  font-style: italic;
+  color: var(--ink-soft);
+}
+
+.muted {
+  color: var(--ink-soft);
+}
+
+/* ---------- Notices ---------- */
+
+.alert,
+.notice {
+  border-radius: 4px;
+  padding: 0.6rem 0.9rem;
+  margin: 0 0 1rem;
+  font-size: 0.95rem;
+  animation: rise 0.35s ease both;
+}
+
+.alert {
+  background: var(--accent-tint);
+  border: 1px solid #dcb4a5;
+  border-left: 3px solid var(--accent);
+  color: var(--accent-deep);
+}
+
+.notice {
+  background: var(--moss-tint);
+  border: 1px solid #c8cfab;
+  border-left: 3px solid var(--moss);
+  color: #3c4a2a;
+}
+
+/* ---------- Buttons ---------- */
+
+button,
+.button {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  background: var(--accent);
+  color: #fdf6ee;
+  border: 1px solid var(--accent-deep);
+  border-radius: 3px;
+  padding: 0.6rem 1rem;
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.12s ease;
+}
+
+button:hover,
+.button:hover {
+  background: var(--accent-deep);
+  transform: translateY(-1px);
+  box-shadow: 0 3px 10px -4px rgb(108 36 21 / 60%);
+}
+
+button:active,
+.button:active {
+  transform: none;
+  box-shadow: none;
+}
+
+button.secondary,
+.button.secondary {
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid var(--line);
+}
+
+button.secondary:hover,
+.button.secondary:hover {
+  background: var(--line-soft);
+  box-shadow: none;
+}
+
+/* ---------- Review-due banner ---------- */
+
+.due-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  background: linear-gradient(135deg, var(--accent), var(--accent-deep));
+  border: 1px solid var(--accent-deep);
+  color: #f8ede4;
+}
+
+.due-banner h2 {
+  color: #fff;
+  margin: 0;
+}
+
+.due-banner .card-heading-rule,
+.due-banner h2::after {
+  display: none;
+}
+
+.due-count {
+  font-family: var(--display);
+  font-size: 2.4rem;
+  font-weight: 700;
+  line-height: 1;
+  display: block;
+}
+
+.due-label {
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  opacity: 0.85;
+}
+
+.due-banner .button {
+  background: #f8ede4;
+  color: var(--accent-deep);
+  flex-shrink: 0;
+}
+
+/* ---------- Badges (typesetting marks) ---------- */
+
+.badge {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--gold);
+  border: 1px solid currentcolor;
+  border-radius: 2px;
+  padding: 0.05rem 0.4rem;
+  vertical-align: middle;
+}
+
+.badge.reading {
+  color: var(--accent);
+  background: var(--accent-tint);
+}
+
+.badge.failed {
+  color: var(--accent-deep);
+  background: var(--accent-tint);
+}
+
+/* ---------- Book shelf (index) ---------- */
+
+.book-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.book-list li {
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.book-list li:where(:last-child) {
+  border-bottom: none;
+}
+
+.book-list a {
+  display: block;
+  padding: 0.7rem 0.25rem;
+  color: var(--ink);
+  text-decoration: none;
+  font-family: var(--display);
+  font-size: 1.1rem;
+  transition: padding-left 0.15s ease, color 0.15s ease;
+}
+
+.book-list a:hover {
+  color: var(--accent);
+  padding-left: 0.6rem;
+}
+
+.book-list .muted {
+  font-family: var(--body);
+  font-size: 0.95rem;
+  font-style: italic;
+}
+
+/* ---------- Table of contents (book detail) ---------- */
+
+.chapter-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.chapter-row {
+  padding: 0.8rem 0.5rem 0.85rem;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.chapter-row:last-child {
+  border-bottom: none;
+}
+
+.chapter-row.current {
+  background: linear-gradient(90deg, var(--accent-tint), transparent 70%);
+  border-left: 3px solid var(--accent);
+  margin-left: -3px;
+}
+
+.toc-line {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+}
+
+.toc-num {
+  font-family: var(--display);
+  font-weight: 700;
+  color: var(--accent);
+  min-width: 1.4rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.toc-title {
+  font-family: var(--display);
+  font-size: 1.02rem;
+}
+
+.toc-dots {
+  flex: 1;
+  min-width: 1.25rem;
+  border-bottom: 2px dotted var(--line);
+  transform: translateY(-4px);
+}
+
+.toc-meta {
+  font-family: var(--mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.06em;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.toc-badges {
+  margin: 0 0 0.45rem 1.9rem;
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.chapter-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-left: 1.9rem;
+}
+
+.chapter-actions form {
+  display: inline;
+}
+
+/* Reading progress ribbon */
+.progress {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--line-soft);
+  overflow: hidden;
+  margin: 0.75rem 0 0.25rem;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--gold), var(--accent));
+  border-radius: 3px;
+}
+
+.progress-label {
+  font-family: var(--mono);
+  font-size: 0.64rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+/* ---------- Import confirmation ---------- */
+
+.chapter-list {
+  margin: 0.5rem 0 1.25rem;
+  padding-left: 1.5rem;
+}
+
+.chapter-list li {
+  padding: 0.25rem 0;
+  border-bottom: 1px dotted var(--line-soft);
+  font-family: var(--display);
+  font-size: 0.98rem;
+}
+
+.chapter-list .muted {
+  font-family: var(--mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.06em;
+}
+
+.selectable-chapters {
+  list-style: none;
+  padding-left: 0;
+  max-height: 24rem;
+  overflow-y: auto;
+  border-block: 1px solid var(--line);
+}
+
+.selectable-chapters li {
+  padding: 0;
+}
+
+.selectable-chapters label,
+.reading-mode label {
+  display: flex;
+  align-items: baseline;
+  gap: 0.65rem;
+  padding: 0.55rem 0.35rem;
+  cursor: pointer;
+}
+
+.selectable-chapters input,
+.reading-mode input {
+  flex: 0 0 auto;
+  accent-color: var(--accent);
+}
+
+.reading-mode {
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 0.65rem 0.8rem;
+  margin: 0.75rem 0 1rem;
+}
+
+.reading-mode legend {
+  font-family: var(--display);
+  font-weight: 600;
+  padding: 0 0.35rem;
+}
+
+.form-actions {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.form-actions > .chapter-list,
+.form-actions > fieldset {
+  flex-basis: 100%;
+  width: 100%;
+}
+
+.thought-card summary {
+  cursor: pointer;
+  font-family: var(--display);
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.thought-list {
+  margin: 0.5rem 0 0;
+  padding-left: 1.25rem;
+}
+
+.thought-list li {
+  padding: 0.25rem 0;
+}
+
+/* ---------- Questions (index cards) ---------- */
+
+fieldset.question {
+  border: 1px solid var(--line);
+  border-top: 3px solid var(--accent);
+  border-radius: 3px;
+  background: #fffef8;
+  margin: 0 0 1.1rem;
+  padding: 0.85rem 1.05rem 1rem;
+  box-shadow: 0 2px 8px -6px rgb(42 33 24 / 30%);
+}
+
+fieldset.question legend {
+  padding: 0 0.35rem;
+}
+
+.prompt {
+  font-family: var(--display);
+  font-weight: 500;
+  font-size: 1.08rem;
+  line-height: 1.4;
+  margin: 0.35rem 0 0.75rem;
+}
+
+.answer-pair p {
+  margin: 0.35rem 0;
+}
+
+blockquote {
+  position: relative;
+  border-left: 3px solid var(--accent);
+  margin: 0.75rem 0 0.5rem;
+  padding: 0.15rem 0.25rem 0.15rem 1rem;
+  color: var(--ink-soft);
+  font-style: italic;
+}
+
+blockquote::before {
+  content: "\201C";
+  font-family: var(--display);
+  font-size: 1.6rem;
+  color: var(--accent);
+  line-height: 0;
+  vertical-align: -0.35rem;
+  margin-right: 0.15rem;
+}
+
+/* ---------- Form fields ---------- */
+
+textarea,
+input[type="file"] {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: #fff;
+  padding: 0.6rem 0.7rem;
+  font: inherit;
+  color: var(--ink);
+  margin-bottom: 0.65rem;
+}
+
+input[type="file"] {
+  border-style: dashed;
+  background: transparent;
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  padding: 0.9rem 0.7rem;
+}
+
+textarea:focus,
+input[type="file"]:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  border-color: var(--accent);
+}
+
+/* ---------- Confidence scale (segmented) ---------- */
+
+.confidence {
+  margin: 0 0 0.85rem;
+}
+
+.confidence-label {
+  display: block;
+  font-family: var(--mono);
+  font-size: 0.64rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  margin-bottom: 0.35rem;
+}
+
+.confidence-scale {
+  display: flex;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.confidence-scale label {
+  flex: 1;
+  text-align: center;
+  cursor: pointer;
+  border-right: 1px solid var(--line-soft);
+}
+
+.confidence-scale label:last-child {
+  border-right: none;
+}
+
+.confidence-scale input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.confidence-scale span {
+  display: block;
+  padding: 0.5rem 0;
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  color: var(--ink-soft);
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.confidence-scale input:checked + span {
+  background: var(--ink);
+  color: var(--paper);
+  font-weight: 700;
+}
+
+.confidence-scale input:focus-visible + span {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.confidence-ends {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  margin-top: 0.25rem;
+}
+
+/* ---------- Grading ---------- */
+
+label.check {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.6rem 0 0.15rem;
+  cursor: pointer;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--moss);
+}
+
+label.check input {
+  width: 1.1rem;
+  height: 1.1rem;
+  accent-color: var(--moss);
+}
+
+.grade-row {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.grade-row button {
+  flex: 1;
+}
+
+/* ---------- Empty states ---------- */
+
+.empty {
+  text-align: center;
+  color: var(--ink-soft);
+  font-style: italic;
+  padding: 1.25rem 0 0.75rem;
+}
+
+.empty::before {
+  content: "\2766"; /* fleuron */
+  display: block;
+  font-style: normal;
+  font-size: 1.5rem;
+  color: var(--line);
+  margin-bottom: 0.5rem;
+}

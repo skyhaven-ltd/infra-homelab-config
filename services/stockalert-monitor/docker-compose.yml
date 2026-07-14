@@ -1,0 +1,57 @@
+# Explicit public DNS on every service: the host runs Tailscale MagicDNS
+# (100.100.100.100), which Docker's embedded resolver forwards to and which
+# SERVFAILs public lookups from containers. Without this, Chrome inside
+# FlareSolverr dies with ERR_NAME_NOT_RESOLVED on every retailer request.
+x-dns: &public-dns
+  dns:
+    - 1.1.1.1
+    - 8.8.8.8
+
+services:
+  stock-checker:
+    build: .
+    container_name: stock-checker
+    restart: unless-stopped
+    <<: *public-dns
+    env_file:
+      - .env
+    volumes:
+      - ./config.yaml:/app/config.yaml:ro
+      - ./products.txt:/app/products.txt:ro
+      - ./data:/app/data
+    depends_on:
+      - ntfy
+      - flaresolverr
+
+  # Solves Cloudflare/bot challenges for walled retailers (AO, Currys, Argos,
+  # Very) using a real undetected browser. Internal only — no host port.
+  flaresolverr:
+    image: ghcr.io/flaresolverr/flaresolverr:latest
+    container_name: flaresolverr
+    restart: unless-stopped
+    <<: *public-dns
+    environment:
+      - LOG_LEVEL=info
+      - TZ=Europe/London
+
+  # Self-hosted ntfy server. Point NTFY_SERVER at http://ntfy:80 for
+  # container-to-container delivery, and subscribe your phone to
+  # http://<host-ip>:8090/<topic>.
+  ntfy:
+    image: binwiederhier/ntfy:latest
+    container_name: ntfy
+    command: serve
+    restart: unless-stopped
+    <<: *public-dns
+    environment:
+      # base-url must be the URL phones subscribe with: iOS instant delivery
+      # sends a poll request via ntfy.sh (upstream) -> Apple push wakes the
+      # app -> app fetches the message from base-url. localhost would break it.
+      - NTFY_BASE_URL=http://192.168.1.3:8090
+      - NTFY_UPSTREAM_BASE_URL=https://ntfy.sh
+      - NTFY_LISTEN_HTTP=:80
+    volumes:
+      - ./ntfy/cache:/var/cache/ntfy
+      - ./ntfy/etc:/etc/ntfy
+    ports:
+      - "8090:80"

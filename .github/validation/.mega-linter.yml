@@ -14,16 +14,18 @@ DISABLE_LINTERS:
   - SPELL_CSPELL
   - MARKDOWN_MARKDOWN_TABLE_FORMATTER
   - MARKDOWN_MARKDOWNLINT
+  - COPYPASTE_JSCPD
 
 ACTION_ACTIONLINT_ARGUMENTS: "-config-file .github/validation/actionlint.yaml"
 REPOSITORY_GITLEAKS_RULES_PATH: ".github/validation"
 REPOSITORY_GITLEAKS_CONFIG_FILE: ".gitleaks.toml"
 KUBERNETES_KUBECONFORM_ARGUMENTS: "-ignore-missing-schemas"
 YAML_YAMLLINT_ARGUMENTS: "--no-warnings"
+HTML_HTMLHINT_CONFIG_FILE: services/bookbuddy-web/.github/validation/.htmlhintrc
 # SealedSecret ciphertext lines cannot wrap; exempt them from line-length
 YAML_YAMLLINT_FILTER_REGEX_EXCLUDE: "sealedsecret.*\\.yaml"
 
-SPELL_LYCHEE_FILTER_REGEX_EXCLUDE: "(\\.github/|ansible/|kubernetes/|terraform/|docs/rollout-runbook\\.md)"
+SPELL_LYCHEE_FILTER_REGEX_EXCLUDE: "(\\.github/|ansible/|kubernetes/|terraform/|services/|docs/rollout-runbook\\.md)"
 
 SHOW_ELAPSED_TIME: true
 FLAVOR_SUGGESTIONS: false

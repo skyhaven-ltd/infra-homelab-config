@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}Continue {{ book.title }} — BookBuddy{% endblock title %}
+{% block content %}
+  {% if due_count %}
+    <section class="card due-banner">
+      <div>
+        <h2>Before we continue</h2>
+        <span class="due-label">Warm up with {{ due_count }} memor{{ "y" if due_count == 1 else "ies" }}</span>
+      </div>
+      <a class="button" href="{{ url_for('review') }}?return_to=/books/{{ book.id }}/companion">Start</a>
+    </section>
+  {% endif %}
+  {% if previous_recap %}
+    <section class="card previously-on">
+      <h2>Previously on {{ book.title }}</h2>
+      <p>{{ previous_recap }}</p>
+    </section>
+  {% endif %}
+  {% if previous_prediction and previous_chapter %}
+    <section class="card prediction-followup">
+      <h2>Your prediction, revisited</h2>
+      <blockquote>{{ previous_prediction }}</blockquote>
+      <p><strong>What unfolded:</strong> {{ previous_recap }}</p>
+      <form action="{{ url_for('save_prediction_reflection', chapter_id=previous_chapter.id) }}" method="post">
+        <label for="prediction-reflection">What did you get right, or which clue changed your mind?</label>
+        <textarea id="prediction-reflection" name="reflection" rows="3" required>{{ previous_reflection }}</textarea>
+        <button type="submit">Save reflection</button>
+      </form>
+    </section>
+  {% endif %}
+  {% if chapter and not chapter_completed %}
+    <section class="card prediction-card">
+      <h2>{% if prediction %}Your prediction{% else %}What do you think comes next?{% endif %}</h2>
+      <form action="{{ url_for('save_chapter_prediction', chapter_id=chapter.id) }}" method="post">
+        <textarea name="prediction" rows="3"
+                  placeholder="Leave a thought for your future self">{{ prediction }}</textarea>
+        <button type="submit">{% if prediction %}Update prediction{% else %}Save prediction{% endif %}</button>
+      </form>
+    </section>
+    <section class="card thought-card">
+      <details {% if thoughts %}open{% endif %}>
+        <summary>Capture a thought</summary>
+        <p class="muted">A question, connection or detail you want to remember.</p>
+        <form action="{{ url_for('save_reading_thought', chapter_id=chapter.id) }}" method="post">
+          <textarea name="thought" rows="2" required
+                    placeholder="What caught your attention?"></textarea>
+          <button type="submit">Keep this thought</button>
+        </form>
+        {% if thoughts %}
+          <h2>Thoughts from this chapter</h2>
+          <ul class="thought-list">
+            {% for thought in thoughts %}<li>{{ thought.text }}</li>{% endfor %}
+          </ul>
+        {% endif %}
+      </details>
+    </section>
+  {% endif %}
+  <section class="card">
+    <p class="muted">Continue {{ book.title }}</p>
+    {% if chapter %}
+      {% if chapter_completed %}
+        <h1>You finished {{ book.title }}</h1>
+        <p>Your recaps, predictions and memories are here whenever you want to return.</p>
+      {% else %}
+        <h1>{{ chapter.title }}</h1>
+      {% endif %}
+      {% if not chapter_completed %}
+        {% if questions_ready %}
+          <p>BookBuddy is here when you reach the end of the chapter.</p>
+          <a class="button" href="{{ url_for('chapter_quiz', chapter_id=chapter.id) }}">I've finished reading</a>
+        {% elif preparation_status in ("pending", "running") %}
+          <p>BookBuddy is preparing your end-of-chapter questions while you read.</p>
+        {% else %}
+          <p>Your chapter companion still needs to be prepared.</p>
+          <form action="{{ url_for('generate_chapter_questions', chapter_id=chapter.id) }}" method="post">
+            <button type="submit">Prepare chapter</button>
+          </form>
+        {% endif %}
+      {% endif %}
+      <a class="button secondary" href="{{ url_for('book_detail', book_id=book.id) }}">View contents</a>
+    {% else %}
+      <h1>No chapters imported</h1>
+    {% endif %}
+  </section>
+{% endblock content %}

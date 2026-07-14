@@ -1,0 +1,20 @@
+# Products to monitor — one URL per line.
+#
+#   https://retailer.example/product-page
+#   https://retailer.example/product-page | Friendly name for notifications
+#
+# Lines starting with # are ignored. Any retailer works: known sites
+# (Currys, Amazon, Argos, AO, Very, B&Q, Screwfix, Toolstation,
+# Appliances Direct) get tuned parsers; everything else uses the generic
+# detector (JSON-LD availability + buy-button/out-of-stock phrases).
+
+https://www.currys.co.uk/products/bosch-cool-2000-portable-3in1-air-conditioner-and-dehumidifier-white-10304908
+https://www.currys.co.uk/products/daewoo-col1600ge-9000-btu-smart-air-conditioner-heater-and-dehumidifier-white-10260582
+https://www.currys.co.uk/products/delonghi-pinguino-ap130i-gentlejet-13000-btu-portable-air-conditioner-fan-and-dehumidifier-white-10300416
+https://www.currys.co.uk/products/delonghi-pinguino-ap98-gentlejet-11500-btu-portable-air-conditioner-fan-and-dehumidifier-white-10300393
+https://www.currys.co.uk/products/delonghi-pinguino-es72-8300-btu-air-conditioner-and-dehumidifier-white-10259980
+https://www.currys.co.uk/products/delonghi-pinguino-ex100-10000-btu-portable-air-conditioner-and-dehumidifier-white-10300973
+https://www.currys.co.uk/products/igenix-7000-btu-3in1-portable-air-conditioner-and-dehumidifier-white-10301516
+https://www.currys.co.uk/products/igenix-9000-btu-3in1-portable-air-conditioner-and-dehumidifier-white-10301517
+https://www.currys.co.uk/products/logik-lac07c25-portable-air-conditioner-and-dehumidifier-white-10270705
+https://www.currys.co.uk/products/logik-lac09c26-portable-air-conditioner-and-dehumidifier-white-10294164

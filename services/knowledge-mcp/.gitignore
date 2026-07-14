@@ -1,0 +1,7 @@
+.coverage
+.data/
+.pytest_cache/
+.ruff_cache/
+.venv/
+dist/
+
