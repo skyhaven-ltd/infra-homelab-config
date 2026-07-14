@@ -14,6 +14,9 @@ target-version = "py312"
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
 
+[tool.ruff.lint.isort]
+known-first-party = ["app", "tests"]
+
 [tool.ruff.lint.flake8-bugbear]
 # FastAPI's dependency injection uses calls in argument defaults by design.
 extend-immutable-calls = ["fastapi.Depends", "fastapi.Form", "fastapi.Query"]

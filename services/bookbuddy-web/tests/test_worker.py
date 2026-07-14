@@ -8,7 +8,8 @@ from app.database import SessionLocal
 from app.models import Book, GenerationJob, Question
 from tests.test_flows import _import_book
 
-TOKEN = "test-worker-token"
+# Deliberately non-secret authentication fixture.
+TOKEN = "test-worker-token"  # nosec B105
 AUTH = {"Authorization": f"Bearer {TOKEN}"}
 
 VALID_OUTPUT = json.dumps(
