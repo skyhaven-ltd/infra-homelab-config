@@ -1,10 +1,10 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: learning-data
-  namespace: learning-review
+  name: knowledge-mcp-data
+  namespace: knowledge-mcp
 spec:
   accessModes: [ReadWriteOnce]
   resources:
     requests:
-      storage: 2Gi
+      storage: 1Gi

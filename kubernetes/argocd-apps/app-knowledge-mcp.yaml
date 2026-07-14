@@ -1,17 +1,17 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: learning-review
+  name: knowledge-mcp
   namespace: argocd
 spec:
   project: default
   source:
     repoURL: https://github.com/skyhaven-ltd/infra-homelab-config.git
     targetRevision: main
-    path: kubernetes/apps/learning-review
+    path: kubernetes/apps/knowledge-mcp
   destination:
     server: https://kubernetes.default.svc
-    namespace: learning-review
+    namespace: knowledge-mcp
   syncPolicy:
     automated:
       prune: true

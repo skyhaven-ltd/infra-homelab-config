@@ -48,8 +48,20 @@ commit SHA:
 ghcr.io/skyhaven-ltd/infra-homelab-config/knowledge-mcp:<commit-sha>
 ```
 
-The Kubernetes workload is intentionally not activated until the first image is
-published and its digest can be pinned in the deployment manifest.
+The Kubernetes workload is deployed through Argo CD from
+`kubernetes/apps/knowledge-mcp`. It uses the published image pinned by digest,
+stores its SQLite database on a persistent volume, and is exposed at
+`https://knowledge.lab.skyhaven.ltd/mcp`.
+
+Verify the unauthenticated health endpoint after deployment:
+
+```powershell
+Invoke-RestMethod https://knowledge.lab.skyhaven.ltd/health
+```
+
+The MCP endpoint requires the bearer token held in the `knowledge-mcp-env`
+SealedSecret. Set the same token as `KNOWLEDGE_MCP_TOKEN` in the client process;
+do not persist it in client configuration or Git.
 
 ## Tools
 

@@ -1,12 +1,10 @@
 TF_CLUSTER   := terraform/cluster
 TF_RUNNER    := terraform/runner
 TF_TAILSCALE := terraform/tailscale
-TF_WINDOWS   := terraform/windows-desktop
 ANSIBLE_DIR  := ansible
 
 TF_CLUSTER_VARS := vars/homelab.tfvars
 TF_RUNNER_VARS  := vars/homelab.tfvars
-TF_WINDOWS_VARS := vars/homelab.tfvars
 
 TF_BACKEND_RG        := rg-platform-prd-uks-01
 TF_BACKEND_SA        := stplatformprduks02
@@ -23,7 +21,7 @@ define tf_init
 endef
 
 .PHONY: infra-init infra-plan infra-apply configure bookbuddy-configure tailscale-apply bootstrap seal \
-        runner-init runner-plan runner-apply runner-configure windows-init windows-plan windows-apply
+        runner-init runner-plan runner-apply runner-configure
 
 infra-init:
 	$(call tf_init,$(TF_CLUSTER),cluster.tfstate)
@@ -55,15 +53,6 @@ runner-apply: runner-init
 runner-configure:
 	cd $(ANSIBLE_DIR) && ansible-galaxy install -r requirements.yml && \
 	ansible-playbook -i inventory/runner.yml site.yml --tags gha_runner
-
-windows-init:
-	$(call tf_init,$(TF_WINDOWS),windows-desktop.tfstate)
-
-windows-plan: windows-init
-	terraform -chdir=$(TF_WINDOWS) plan -var-file="$(TF_WINDOWS_VARS)"
-
-windows-apply: windows-init
-	terraform -chdir=$(TF_WINDOWS) apply -var-file="$(TF_WINDOWS_VARS)"
 
 tailscale-apply:
 	$(call tf_init,$(TF_TAILSCALE),tailscale.tfstate)
