@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: app
-          image: ghcr.io/skyhaven-ltd/app-bookbuddy-web@sha256:7dcfb74733620996d36a1566808705ab42338dbcef7cc5918d34d212cca1b7f2
+          image: ghcr.io/skyhaven-ltd/infra-homelab-config/bookbuddy-web@sha256:30d2394c1afed88d09527b19b70d82cc78136434a7a53c708c8b6c7df5d7c210
           # TLS terminates at the ingress; without proxy headers uvicorn sees
           # http and the app generates mixed-content absolute URLs.
           command: ["uvicorn"]
