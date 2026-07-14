@@ -1,0 +1,74 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: knowledge-mcp
+  namespace: knowledge-mcp
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: knowledge-mcp
+  template:
+    metadata:
+      labels:
+        app: knowledge-mcp
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: app
+          image: ghcr.io/skyhaven-ltd/infra-homelab-config/knowledge-mcp@sha256:7aeea5d898c646bdd1b6c8ceada586826d936d2c5f412fa6357dc6ce9e7a6621
+          env:
+            - { name: KNOWLEDGE_MCP_DATABASE_PATH, value: "/data/knowledge.db" }
+            - { name: KNOWLEDGE_MCP_ALLOWED_HOSTS, value: "knowledge.lab.skyhaven.ltd" }
+          envFrom:
+            - secretRef:
+                name: knowledge-mcp-env
+          ports:
+            - { name: http, containerPort: 8080 }
+          volumeMounts:
+            - { name: data, mountPath: /data }
+            - { name: tmp, mountPath: /tmp }
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+              httpHeaders:
+                - { name: Host, value: knowledge.lab.skyhaven.ltd }
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+              httpHeaders:
+                - { name: Host, value: knowledge.lab.skyhaven.ltd }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            readOnlyRootFilesystem: true
+          resources:
+            requests: { cpu: 25m, memory: 64Mi }
+            limits: { memory: 256Mi }
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: knowledge-mcp-data
+        - name: tmp
+          emptyDir: {}
