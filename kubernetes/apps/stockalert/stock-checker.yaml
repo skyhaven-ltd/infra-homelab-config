@@ -32,7 +32,7 @@ spec:
       shareProcessNamespace: true
       containers:
         - name: stock-checker
-          image: ghcr.io/skyhaven-ltd/infra-homelab-config/stockalert-monitor@sha256:1ac21001291269144513ae1dd89a4725a0ebc4b8b4923bb439c2f472968d2a3c
+          image: ghcr.io/skyhaven-ltd/infra-homelab-config/stockalert-monitor@sha256:0ae3bbd940877b343244ff076e08ca7998f1971fb08f178fbaba0b25f0dcf7ef
           envFrom:
             - secretRef:
                 name: stockalert-env
