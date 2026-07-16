@@ -8,7 +8,7 @@ on:
       - "terraform/cluster/**"
       - "ansible/**"
       - "services/bookbuddy-web/scripts/**"
-      - ".github/workflows/k8s-deploy.yml"
+      - ".github/workflows/platform-deploy.yml"
   workflow_dispatch:
     inputs:
       terraform_action:

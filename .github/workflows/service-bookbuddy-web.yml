@@ -7,13 +7,13 @@ on:
       - main
     paths:
       - "services/bookbuddy-web/**"
-      - ".github/workflows/bookbuddy-web.yml"
+      - ".github/workflows/service-bookbuddy-web.yml"
   push:
     branches:
       - main
     paths:
       - "services/bookbuddy-web/**"
-      - ".github/workflows/bookbuddy-web.yml"
+      - ".github/workflows/service-bookbuddy-web.yml"
 
 permissions:
   contents: read

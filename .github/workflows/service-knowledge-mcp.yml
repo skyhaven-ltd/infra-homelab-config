@@ -7,13 +7,13 @@ on:
       - main
     paths:
       - "services/knowledge-mcp/**"
-      - ".github/workflows/knowledge-mcp.yml"
+      - ".github/workflows/service-knowledge-mcp.yml"
   push:
     branches:
       - main
     paths:
       - "services/knowledge-mcp/**"
-      - ".github/workflows/knowledge-mcp.yml"
+      - ".github/workflows/service-knowledge-mcp.yml"
 
 permissions:
   contents: read

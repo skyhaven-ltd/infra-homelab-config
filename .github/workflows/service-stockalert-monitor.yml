@@ -7,13 +7,13 @@ on:
       - main
     paths:
       - "services/stockalert-monitor/**"
-      - ".github/workflows/stockalert-monitor.yml"
+      - ".github/workflows/service-stockalert-monitor.yml"
   push:
     branches:
       - main
     paths:
       - "services/stockalert-monitor/**"
-      - ".github/workflows/stockalert-monitor.yml"
+      - ".github/workflows/service-stockalert-monitor.yml"
 
 permissions:
   contents: read

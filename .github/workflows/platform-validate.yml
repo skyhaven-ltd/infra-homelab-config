@@ -5,7 +5,7 @@ on:
     branches:
       - main
     paths:
-      - ".github/workflows/k8s-validate.yml"
+      - ".github/workflows/platform-validate.yml"
       - "ansible/**"
       - "kubernetes/**"
       - "services/bookbuddy-web/scripts/**"
