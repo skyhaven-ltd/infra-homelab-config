@@ -28,7 +28,7 @@ env:
 
 jobs:
   validate:
-    name: Validate and package
+    name: Validate and Package
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -36,7 +36,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Setup uv
+      - name: Setup UV
         uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
         with:
           version: ${{ env.UV_VERSION }}
@@ -46,11 +46,11 @@ jobs:
       - name: Install Python
         run: uv python install 3.13.14
 
-      - name: Sync locked dependencies
+      - name: Sync Locked Dependencies
         working-directory: services/knowledge-mcp
         run: uv sync --locked
 
-      - name: Lint and format check
+      - name: Lint and Format Check
         working-directory: services/knowledge-mcp
         run: |
           set -euo pipefail
@@ -61,15 +61,15 @@ jobs:
         working-directory: services/knowledge-mcp
         run: uv run pytest --cov=knowledge_mcp --cov-report=term-missing
 
-      - name: Build Python distributions
+      - name: Build Python Distributions
         working-directory: services/knowledge-mcp
         run: uv build
 
-      - name: Build container
+      - name: Build Container
         run: docker build --tag "${IMAGE}" services/knowledge-mcp
 
   publish:
-    name: Publish immutable commit image
+    name: Publish Immutable Commit Image
     if: github.event_name == 'push'
     needs: validate
     runs-on: ubuntu-latest
@@ -82,10 +82,10 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Build container
+      - name: Build Container
         run: docker build --tag "${IMAGE}" services/knowledge-mcp
 
-      - name: Login and publish
+      - name: Login and Publish
         env:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |

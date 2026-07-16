@@ -27,8 +27,6 @@ PYTHON_RUFF_FORMAT_CONFIG_FILE: services/bookbuddy-web/pyproject.toml
 PYTHON_BANDIT_ARGUMENTS: "--skip B101"
 HTML_HTMLHINT_CONFIG_FILE: services/bookbuddy-web/.github/validation/.htmlhintrc
 
-# The repo-wide lint workflow skips bookbuddy-only PRs, so secret scanning
-# must run here, with the shared repo-root rules.
 REPOSITORY_GITLEAKS_RULES_PATH: ".github/validation"
 REPOSITORY_GITLEAKS_CONFIG_FILE: ".gitleaks.toml"
 

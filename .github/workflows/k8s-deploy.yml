@@ -35,7 +35,7 @@ env:
 
 jobs:
   deploy:
-    name: Deploy homelab (${{ inputs.terraform_action || 'plan' }})
+    name: Deploy Homelab (${{ inputs.terraform_action || 'plan' }})
     runs-on: [self-hosted, homelab]
     environment: homelab
     timeout-minutes: 45
@@ -66,13 +66,13 @@ jobs:
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_PLATFORM_SUBSCRIPTION_ID }}
 
-      - name: Ensure state container
+      - name: Ensure State Container
         uses: skyhaven-ltd/pipeline-engineering-github-actions/actions/ensure-tfstate-container@6cfa143b42ff464e4101d69c09945db9fac369e5
         with:
           storage_account_name: stplatformprduks02
           login: "false"
 
-      - name: Fetch secrets from Key Vault
+      - name: Fetch Secrets from Key Vault
         uses: skyhaven-ltd/pipeline-engineering-github-actions/actions/keyvault-secrets@6cfa143b42ff464e4101d69c09945db9fac369e5
         with:
           keyvault_name: kv-platform-prd-uks-02
@@ -107,14 +107,14 @@ jobs:
             "ansible-core==${ANSIBLE_CORE_VERSION}"
           echo "${RUNNER_TEMP}/venv/bin" >> "${GITHUB_PATH}"
 
-      - name: Write the deploy SSH key
+      - name: Write the Deploy SSH Key
         if: env.TF_ACTION == 'apply'
         run: |
           set -euo pipefail
           umask 077
           printf '%s\n' "${ANSIBLE_SSH_PRIVATE_KEY}" > "${RUNNER_TEMP}/homelab_deploy"
 
-      - name: Ansible check run
+      - name: Ansible Check Run
         if: env.TF_ACTION == 'apply'
         working-directory: ansible
         env:
@@ -124,14 +124,14 @@ jobs:
           ansible-galaxy install -r requirements.yml
           ansible-playbook -i inventory/hosts.yml site.yml --check --diff
 
-      - name: Ansible apply
+      - name: Ansible Apply
         if: env.TF_ACTION == 'apply'
         working-directory: ansible
         env:
           ANSIBLE_PRIVATE_KEY_FILE: ${{ runner.temp }}/homelab_deploy
         run: ansible-playbook -i inventory/hosts.yml site.yml
 
-      - name: Install kubectl
+      - name: Install Kubectl
         if: env.TF_ACTION == 'apply'
         run: |
           set -euo pipefail
@@ -142,7 +142,7 @@ jobs:
           install -m 0755 kubectl "${RUNNER_TEMP}/bin/kubectl"
           echo "${RUNNER_TEMP}/bin" >> "${GITHUB_PATH}"
 
-      - name: Verify Argo CD applications are synced and healthy
+      - name: Verify Argo CD Applications Are Synced and Healthy
         if: env.TF_ACTION == 'apply'
         run: |
           set -euo pipefail
@@ -180,11 +180,11 @@ jobs:
             sleep 15
           done
 
-      - name: Remove job secrets from disk
+      - name: Remove Job Secrets from Disk
         if: always()
         run: rm -f "${RUNNER_TEMP}/homelab_deploy" "${RUNNER_TEMP}/argocd-kubeconfig"
 
-      - name: Break state lease
+      - name: Break State Lease
         if: always()
         uses: skyhaven-ltd/pipeline-engineering-github-actions/actions/break-tfstate-lease@6cfa143b42ff464e4101d69c09945db9fac369e5
         with:

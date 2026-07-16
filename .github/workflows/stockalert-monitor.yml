@@ -1,5 +1,5 @@
 ---
-name: StockAlert monitor
+name: StockAlert Monitor
 
 on:
   pull_request:
@@ -28,7 +28,7 @@ env:
 
 jobs:
   validate:
-    name: Test and package
+    name: Test and Package
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -43,7 +43,7 @@ jobs:
           cache: pip
           cache-dependency-path: services/stockalert-monitor/requirements.txt
 
-      - name: Install dependencies
+      - name: Install Dependencies
         working-directory: services/stockalert-monitor
         run: |
           set -euo pipefail
@@ -54,11 +54,11 @@ jobs:
         working-directory: services/stockalert-monitor
         run: python -m pytest
 
-      - name: Build container
+      - name: Build Container
         run: docker build --tag "${IMAGE}:${GITHUB_SHA}" services/stockalert-monitor
 
   publish:
-    name: Publish container
+    name: Publish Container
     if: github.event_name == 'push'
     needs: validate
     runs-on: ubuntu-latest
@@ -71,7 +71,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Build container
+      - name: Build Container
         run: |
           set -euo pipefail
           docker build \
@@ -79,7 +79,7 @@ jobs:
             --tag "${IMAGE}:latest" \
             services/stockalert-monitor
 
-      - name: Login and publish
+      - name: Login and Publish
         env:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
