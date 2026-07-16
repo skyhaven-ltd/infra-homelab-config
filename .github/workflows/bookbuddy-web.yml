@@ -29,6 +29,8 @@ env:
 jobs:
   lint:
     name: Lint
+    # The PR already linted this content; don't repeat it on the merge push.
+    if: github.event_name == 'pull_request'
     uses: skyhaven-ltd/pipeline-engineering-github-actions/.github/workflows/reusable-lint.yml@6cfa143b42ff464e4101d69c09945db9fac369e5
     with:
       flavor: python

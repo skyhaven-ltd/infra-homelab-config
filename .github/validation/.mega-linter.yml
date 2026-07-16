@@ -16,12 +16,15 @@ DISABLE_LINTERS:
   - MARKDOWN_MARKDOWNLINT
   - COPYPASTE_JSCPD
 
+# BookBuddy files are linted by the service's own workflow with its own config;
+# excluding them here keeps mixed PRs to one lint per file.
+FILTER_REGEX_EXCLUDE: "services/bookbuddy-web/.*"
+
 ACTION_ACTIONLINT_ARGUMENTS: "-config-file .github/validation/actionlint.yaml"
 REPOSITORY_GITLEAKS_RULES_PATH: ".github/validation"
 REPOSITORY_GITLEAKS_CONFIG_FILE: ".gitleaks.toml"
 KUBERNETES_KUBECONFORM_ARGUMENTS: "-ignore-missing-schemas"
 YAML_YAMLLINT_ARGUMENTS: "--no-warnings"
-HTML_HTMLHINT_CONFIG_FILE: services/bookbuddy-web/.github/validation/.htmlhintrc
 # SealedSecret ciphertext lines cannot wrap; exempt them from line-length
 YAML_YAMLLINT_FILTER_REGEX_EXCLUDE: "sealedsecret.*\\.yaml"
 

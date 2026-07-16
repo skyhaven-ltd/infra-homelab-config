@@ -4,6 +4,9 @@ on:
   pull_request:
     branches:
       - main
+    # BookBuddy lints itself (bookbuddy-web.yml); this run owns everything else.
+    paths-ignore:
+      - "services/bookbuddy-web/**"
 
 permissions:
   contents: read
