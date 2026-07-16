@@ -636,6 +636,14 @@ label.check input {
   flex: 1;
 }
 
+/* Grade labels don't fit three-across on a phone; stack them as full-width
+   thumb targets instead. */
+@media (max-width: 480px) {
+  .grade-row {
+    flex-direction: column;
+  }
+}
+
 /* ---------- Empty states ---------- */
 
 .empty {
