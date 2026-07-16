@@ -15,7 +15,6 @@ from app.models import (
     Chapter,
     ChapterCompanion,
     GenerationJob,
-    ReadingThought,
     utcnow,
 )
 from app.services import jobs
@@ -92,37 +91,6 @@ def record_quiz_progress(db: Session, chapter: Chapter, next_index: int) -> None
 
 def is_completed(chapter: Chapter) -> bool:
     return bool(chapter.companion and chapter.companion.completed_at)
-
-
-def save_prediction(db: Session, chapter: Chapter, prediction: str) -> ChapterCompanion:
-    """Remember what the reader expects before this chapter unfolds."""
-    companion = _state_for(db, chapter)
-    companion.prediction = prediction.strip()
-    db.commit()
-    return companion
-
-
-def save_prediction_reflection(
-    db: Session, chapter: Chapter, reflection: str
-) -> ChapterCompanion:
-    reflection = reflection.strip()
-    if not reflection:
-        raise ValueError("Prediction reflection must not be blank")
-    companion = _state_for(db, chapter)
-    companion.prediction_reflection = reflection
-    db.commit()
-    return companion
-
-
-def save_thought(db: Session, chapter: Chapter, text: str) -> ReadingThought:
-    """Capture a reader thought without interrupting the reading lifecycle."""
-    text = text.strip()
-    if not text:
-        raise ValueError("Reading thought must not be blank")
-    thought = ReadingThought(chapter_id=chapter.id, text=text)
-    db.add(thought)
-    db.commit()
-    return thought
 
 
 def backfill_legacy_progress(db: Session) -> None:

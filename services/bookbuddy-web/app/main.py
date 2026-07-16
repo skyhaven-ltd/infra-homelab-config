@@ -34,6 +34,10 @@ settings = get_settings()
 BASE_DIR = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
+# A review session is a short warm-up, not a backlog-clearing chore; it ends
+# after this many questions even when more are due.
+REVIEW_SESSION_SIZE = 5
+
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
@@ -88,11 +92,11 @@ def index(
     request: Request, db: Session = Depends(get_session), error: str = ""
 ) -> HTMLResponse:
     books = db.execute(select(Book).order_by(Book.created_at.desc())).scalars().all()
-    due_count = len(scheduler_service.due_questions(db, limit=100))
+    has_due = bool(scheduler_service.due_questions(db, limit=1))
     return templates.TemplateResponse(
         request,
         "index.html",
-        {"books": books, "due_count": due_count, "error": error},
+        {"books": books, "has_due": has_due, "error": error},
     )
 
 
@@ -112,7 +116,7 @@ async def upload_book(
             "index.html",
             {
                 "books": db.execute(select(Book)).scalars().all(),
-                "due_count": 0,
+                "has_due": False,
                 "error": "Could not parse that file as an EPUB.",
             },
             status_code=422,
@@ -233,16 +237,6 @@ def book_companion(
     previous_recap = (
         companion_service.recap_for(previous_chapter) if previous_completed else ""
     )
-    previous_prediction = (
-        previous_chapter.companion.prediction
-        if previous_completed and previous_chapter and previous_chapter.companion
-        else ""
-    )
-    previous_reflection = (
-        previous_chapter.companion.prediction_reflection
-        if previous_prediction and previous_chapter and previous_chapter.companion
-        else ""
-    )
     questions_ready = bool(
         chapter and any(question.active for question in chapter.questions)
     )
@@ -251,7 +245,7 @@ def book_companion(
         if chapter
         else None
     )
-    due_count = len(scheduler_service.due_questions(db, limit=100))
+    has_due = bool(scheduler_service.due_questions(db, limit=1))
     return templates.TemplateResponse(
         request,
         "companion.html",
@@ -259,66 +253,14 @@ def book_companion(
             "book": book,
             "chapter": chapter,
             "previous_recap": previous_recap,
-            "previous_chapter": previous_chapter if previous_completed else None,
-            "previous_prediction": previous_prediction,
-            "previous_reflection": previous_reflection,
-            "prediction": chapter.companion.prediction
-            if chapter and chapter.companion
-            else "",
-            "thoughts": chapter.thoughts if chapter else [],
             "chapter_completed": companion_service.is_completed(chapter)
             if chapter
             else False,
-            "due_count": due_count,
+            "has_due": has_due,
             "questions_ready": questions_ready,
             "preparation_status": latest_job.status if latest_job else "",
         },
     )
-
-
-@app.post("/chapters/{chapter_id}/prediction")
-def save_chapter_prediction(
-    chapter_id: int,
-    prediction: str = Form(""),
-    db: Session = Depends(get_session),
-) -> RedirectResponse:
-    chapter = _get_chapter(db, chapter_id)
-    if chapter.index != chapter.book.current_chapter_index:
-        raise HTTPException(status_code=409, detail="Chapter is not current")
-    companion_service.save_prediction(db, chapter, prediction)
-    return RedirectResponse(f"/books/{chapter.book_id}/companion", status_code=303)
-
-
-@app.post("/chapters/{chapter_id}/prediction-reflection")
-def save_prediction_reflection(
-    chapter_id: int,
-    reflection: str = Form(..., min_length=1),
-    db: Session = Depends(get_session),
-) -> RedirectResponse:
-    chapter = _get_chapter(db, chapter_id)
-    if not companion_service.is_completed(chapter):
-        raise HTTPException(status_code=409, detail="Chapter is not complete")
-    try:
-        companion_service.save_prediction_reflection(db, chapter, reflection)
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-    return RedirectResponse(f"/books/{chapter.book_id}/companion", status_code=303)
-
-
-@app.post("/chapters/{chapter_id}/thoughts")
-def save_reading_thought(
-    chapter_id: int,
-    thought: str = Form(..., min_length=1),
-    db: Session = Depends(get_session),
-) -> RedirectResponse:
-    chapter = _get_chapter(db, chapter_id)
-    if chapter.index != chapter.book.current_chapter_index:
-        raise HTTPException(status_code=409, detail="Chapter is not current")
-    try:
-        companion_service.save_thought(db, chapter, thought)
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-    return RedirectResponse(f"/books/{chapter.book_id}/companion", status_code=303)
 
 
 @app.get("/books/{book_id}/delete", response_class=HTMLResponse)
@@ -423,7 +365,6 @@ def chapter_quiz(
             "question": question,
             "question_index": question_index,
             "question_count": len(questions),
-            "prediction": chapter.companion.prediction if chapter.companion else "",
         },
     )
 
@@ -434,7 +375,6 @@ def chapter_quiz_submit(
     chapter_id: int,
     question_id: int = Form(...),
     answer_text: str = Form(""),
-    confidence: int = Form(3),
     db: Session = Depends(get_session),
 ) -> HTMLResponse:
     chapter = _get_chapter(db, chapter_id)
@@ -450,7 +390,6 @@ def chapter_quiz_submit(
             "chapter": chapter,
             "question": question,
             "answer_text": answer_text,
-            "confidence": max(1, min(confidence, 5)),
             "question_index": question_index,
             "question_count": len(questions),
         },
@@ -462,7 +401,6 @@ def chapter_quiz_grade(
     chapter_id: int,
     question_id: int = Form(...),
     answer_text: str = Form(""),
-    confidence: int = Form(3),
     correct: str = Form(...),
     db: Session = Depends(get_session),
 ) -> RedirectResponse:
@@ -473,19 +411,17 @@ def chapter_quiz_grade(
         raise HTTPException(status_code=404, detail="Question not found")
     if correct not in {"yes", "nearly", "no"}:
         raise HTTPException(status_code=400, detail="Invalid grade")
-    confidence = max(1, min(confidence, 5))
-    was_correct = correct in {"yes", "nearly"}
-    if correct == "nearly":
-        confidence = min(confidence, 2)
     db.add(
         Attempt(
             question_id=question.id,
             answer_text=answer_text,
-            confidence=confidence,
-            correct=was_correct,
+            # The confidence picker was removed; the column is NOT NULL in
+            # existing databases, so record the old neutral midpoint.
+            confidence=3,
+            correct=correct in {"yes", "nearly"},
         )
     )
-    scheduler_service.apply_review(db, question, was_correct, confidence)
+    scheduler_service.apply_review(db, question, correct)
     db.commit()
     next_index = questions.index(question) + 1
     companion_service.record_quiz_progress(db, chapter, next_index)
@@ -498,20 +434,25 @@ def chapter_quiz_grade(
     return RedirectResponse(f"/books/{chapter.book_id}/companion", status_code=303)
 
 
+def _session_remaining(value: int) -> int:
+    return max(1, min(value, REVIEW_SESSION_SIZE))
+
+
 @app.get("/review", response_class=HTMLResponse)
 def review(
     request: Request,
     return_to: str = "",
+    remaining: int = REVIEW_SESSION_SIZE,
     db: Session = Depends(get_session),
 ) -> HTMLResponse:
-    due = scheduler_service.due_questions(db)
+    due = scheduler_service.due_questions(db, limit=1)
     return_to = _companion_return_path(return_to)
     return templates.TemplateResponse(
         request,
         "review.html",
         {
             "question": due[0] if due else None,
-            "due_count": len(due),
+            "remaining": _session_remaining(remaining),
             "return_to": return_to,
         },
     )
@@ -522,8 +463,8 @@ def review_reveal(
     request: Request,
     question_id: int,
     answer_text: str = Form(""),
-    confidence: int = Form(3),
     return_to: str = Form(""),
+    remaining: int = Form(REVIEW_SESSION_SIZE),
     db: Session = Depends(get_session),
 ) -> HTMLResponse:
     question = db.get(Question, question_id)
@@ -535,8 +476,8 @@ def review_reveal(
         {
             "question": question,
             "answer_text": answer_text,
-            "confidence": confidence,
             "return_to": _companion_return_path(return_to),
+            "remaining": _session_remaining(remaining),
         },
     )
 
@@ -545,9 +486,9 @@ def review_reveal(
 def review_grade(
     question_id: int,
     answer_text: str = Form(""),
-    confidence: int = Form(3),
     correct: str = Form(...),
     return_to: str = Form(""),
+    remaining: int = Form(REVIEW_SESSION_SIZE),
     db: Session = Depends(get_session),
 ) -> RedirectResponse:
     question = db.get(Question, question_id)
@@ -555,25 +496,25 @@ def review_grade(
         raise HTTPException(status_code=404, detail="Question not found")
     if correct not in {"yes", "nearly", "no"}:
         raise HTTPException(status_code=400, detail="Invalid grade")
-    was_correct = correct in {"yes", "nearly"}
-    if correct == "nearly":
-        confidence = min(confidence, 2)
     db.add(
         Attempt(
             question_id=question.id,
             answer_text=answer_text,
-            confidence=confidence,
-            correct=was_correct,
+            # The confidence picker was removed; the column is NOT NULL in
+            # existing databases, so record the old neutral midpoint.
+            confidence=3,
+            correct=correct in {"yes", "nearly"},
         )
     )
-    scheduler_service.apply_review(db, question, was_correct, confidence)
+    scheduler_service.apply_review(db, question, correct)
     db.commit()
     return_to = _companion_return_path(return_to)
-    if return_to and not scheduler_service.due_questions(db, limit=1):
-        return RedirectResponse(return_to, status_code=303)
-    destination = "/review"
+    remaining = _session_remaining(remaining) - 1
+    if remaining == 0 or not scheduler_service.due_questions(db, limit=1):
+        return RedirectResponse(return_to or "/", status_code=303)
+    destination = f"/review?remaining={remaining}"
     if return_to:
-        destination = f"{destination}?return_to={return_to}"
+        destination = f"{destination}&return_to={return_to}"
     return RedirectResponse(destination, status_code=303)
 
 

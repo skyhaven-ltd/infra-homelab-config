@@ -11,14 +11,7 @@
         "properties": {
           "type": {
             "type": "string",
-            "enum": [
-              "recall",
-              "character",
-              "plot",
-              "theme",
-              "prediction",
-              "elaboration"
-            ]
+            "enum": ["recall", "character", "plot", "theme", "elaboration"]
           },
           "prompt": {
             "type": "string"
@@ -30,19 +23,11 @@
             "type": "string"
           }
         },
-        "required": [
-          "type",
-          "prompt",
-          "answer",
-          "source_quote"
-        ],
+        "required": ["type", "prompt", "answer", "source_quote"],
         "additionalProperties": false
       }
     }
   },
-  "required": [
-    "recap",
-    "questions"
-  ],
+  "required": ["recap", "questions"],
   "additionalProperties": false
 }

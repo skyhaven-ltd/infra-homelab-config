@@ -1,9 +1,9 @@
 """SM-2 spaced-repetition scheduling.
 
-Quality (0-5) is derived from self-graded correctness plus the confidence the
-reader gave *before* seeing the answer, so calibration feeds the schedule:
-a confident wrong answer is punished harder than an unsure one, and an unsure
-correct answer earns a shorter interval than a confident one.
+Quality (0-5) comes from the reader's three-way self-grade after seeing the
+answer. Once a question has been recalled successfully RETIREMENT_RECALLS
+times it retires, so the review pool shrinks as books are finished instead of
+accumulating into an off-putting backlog.
 """
 
 from __future__ import annotations
@@ -16,18 +16,20 @@ from sqlalchemy.orm import Session
 from app.models import Question, ReviewState, utcnow
 
 MIN_EASE = 1.3
+RETIREMENT_RECALLS = 3
+# Retirement pushes due_at past any realistic horizon instead of adding a
+# "retired" column: init_db only ever create_alls, so a new column would not
+# appear on existing SQLite databases.
+RETIREMENT_INTERVAL_DAYS = 36500.0
+
+GRADE_QUALITY = {"yes": 5, "nearly": 3, "no": 1}
 
 
-def quality_from(correct: bool, confidence: int) -> int:
-    confidence = max(1, min(5, confidence))
-    if correct:
-        return {1: 3, 2: 3, 3: 4, 4: 5, 5: 5}[confidence]
-    return {1: 2, 2: 2, 3: 1, 4: 0, 5: 0}[confidence]
+def quality_from_grade(grade: str) -> int:
+    return GRADE_QUALITY[grade]
 
 
-def apply_review(
-    db: Session, question: Question, correct: bool, confidence: int
-) -> ReviewState:
+def apply_review(db: Session, question: Question, grade: str) -> ReviewState:
     state = db.execute(
         select(ReviewState).where(ReviewState.question_id == question.id)
     ).scalar_one_or_none()
@@ -45,7 +47,7 @@ def apply_review(
         # same question in this session sees this row instead of duplicating it.
         db.flush()
 
-    quality = quality_from(correct, confidence)
+    quality = quality_from_grade(grade)
     now = utcnow()
 
     if quality < 3:
@@ -59,6 +61,8 @@ def apply_review(
         else:
             state.interval_days = round(state.interval_days * state.ease_factor, 1)
         state.repetitions += 1
+        if state.repetitions >= RETIREMENT_RECALLS:
+            state.interval_days = RETIREMENT_INTERVAL_DAYS
 
     ease = state.ease_factor + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02))
     state.ease_factor = max(MIN_EASE, round(ease, 2))

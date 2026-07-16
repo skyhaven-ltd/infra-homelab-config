@@ -281,14 +281,6 @@ button.secondary:hover,
   display: none;
 }
 
-.due-count {
-  font-family: var(--display);
-  font-size: 2.4rem;
-  font-weight: 700;
-  line-height: 1;
-  display: block;
-}
-
 .due-label {
   font-family: var(--mono);
   font-size: 0.65rem;
@@ -537,22 +529,6 @@ button.secondary:hover,
   width: 100%;
 }
 
-.thought-card summary {
-  cursor: pointer;
-  font-family: var(--display);
-  font-size: 1.1rem;
-  font-weight: 600;
-}
-
-.thought-list {
-  margin: 0.5rem 0 0;
-  padding-left: 1.25rem;
-}
-
-.thought-list li {
-  padding: 0.25rem 0;
-}
-
 /* ---------- Questions (index cards) ---------- */
 
 fieldset.question {
@@ -630,79 +606,6 @@ input[type="file"]:focus {
   border-color: var(--accent);
 }
 
-/* ---------- Confidence scale (segmented) ---------- */
-
-.confidence {
-  margin: 0 0 0.85rem;
-}
-
-.confidence-label {
-  display: block;
-  font-family: var(--mono);
-  font-size: 0.64rem;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--ink-soft);
-  margin-bottom: 0.35rem;
-}
-
-.confidence-scale {
-  display: flex;
-  border: 1px solid var(--line);
-  border-radius: 3px;
-  overflow: hidden;
-  background: #fff;
-}
-
-.confidence-scale label {
-  flex: 1;
-  text-align: center;
-  cursor: pointer;
-  border-right: 1px solid var(--line-soft);
-}
-
-.confidence-scale label:last-child {
-  border-right: none;
-}
-
-.confidence-scale input {
-  position: absolute;
-  opacity: 0;
-  width: 0;
-  height: 0;
-}
-
-.confidence-scale span {
-  display: block;
-  padding: 0.5rem 0;
-  font-family: var(--mono);
-  font-size: 0.8rem;
-  color: var(--ink-soft);
-  transition: background 0.12s ease, color 0.12s ease;
-}
-
-.confidence-scale input:checked + span {
-  background: var(--ink);
-  color: var(--paper);
-  font-weight: 700;
-}
-
-.confidence-scale input:focus-visible + span {
-  outline: 2px solid var(--accent);
-  outline-offset: -2px;
-}
-
-.confidence-ends {
-  display: flex;
-  justify-content: space-between;
-  font-family: var(--mono);
-  font-size: 0.6rem;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--ink-soft);
-  margin-top: 0.25rem;
-}
-
 /* ---------- Grading ---------- */
 
 label.check {
@@ -731,6 +634,14 @@ label.check input {
 
 .grade-row button {
   flex: 1;
+}
+
+/* Grade labels don't fit three-across on a phone; stack them as full-width
+   thumb targets instead. */
+@media (width <= 480px) {
+  .grade-row {
+    flex-direction: column;
+  }
 }
 
 /* ---------- Empty states ---------- */

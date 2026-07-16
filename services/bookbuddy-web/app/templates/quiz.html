@@ -3,11 +3,6 @@
 {% block content %}
   <section class="card">
     <h1>{{ chapter.title }}</h1>
-    {% if prediction %}
-      <blockquote>
-        <strong>Before reading, you predicted:</strong> {{ prediction }}
-      </blockquote>
-    {% endif %}
     {% if question %}
       <p class="muted">
         Question {{ question_index + 1 }} of {{ question_count }} · Answer from memory before revealing the text.
@@ -19,22 +14,6 @@
           <p class="prompt">{{ question.prompt }}</p>
           <textarea name="answer_text" rows="5" autofocus
                     placeholder="Write what you remember"></textarea>
-          <div class="confidence">
-            <span class="confidence-label">Confidence</span>
-            <div class="confidence-scale">
-              {% for level in range(1, 6) %}
-                <label>
-                  <input type="radio" name="confidence" value="{{ level }}"
-                         {% if level == 3 %}checked{% endif %} />
-                  <span>{{ level }}</span>
-                </label>
-              {% endfor %}
-            </div>
-            <div class="confidence-ends">
-              <span>guessing</span>
-              <span>certain</span>
-            </div>
-          </div>
         </fieldset>
         <button type="submit">Reveal answer</button>
       </form>

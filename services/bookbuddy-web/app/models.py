@@ -70,6 +70,8 @@ class ChapterCompanion(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     chapter_id: Mapped[int] = mapped_column(ForeignKey("chapters.id"), unique=True)
     recap: Mapped[str] = mapped_column(Text, default="")
+    # Legacy prediction ritual: the columns stay mapped so existing rows keep
+    # their data, but nothing writes them any more.
     prediction: Mapped[str] = mapped_column(Text, default="")
     prediction_reflection: Mapped[str] = mapped_column(Text, default="")
     quiz_question_index: Mapped[int] = mapped_column(Integer, default=0)
@@ -79,6 +81,9 @@ class ChapterCompanion(Base):
 
 
 class ReadingThought(Base):
+    """Legacy capture-a-thought feature: kept mapped so existing rows survive
+    and chapter deletion still cascades over them."""
+
     __tablename__ = "reading_thoughts"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -117,7 +122,9 @@ class Attempt(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     question_id: Mapped[int] = mapped_column(ForeignKey("questions.id"))
     answer_text: Mapped[str] = mapped_column(Text, default="")
-    confidence: Mapped[int] = mapped_column(Integer)  # 1 (guessing) .. 5 (certain)
+    # Legacy 1 (guessing) .. 5 (certain) self-rating; new attempts record the
+    # neutral midpoint since the picker was removed from the UI.
+    confidence: Mapped[int] = mapped_column(Integer)
     correct: Mapped[bool] = mapped_column()
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 

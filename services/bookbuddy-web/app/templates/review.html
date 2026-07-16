@@ -1,11 +1,10 @@
 {% extends "base.html" %}
-{% block title %}Review — BookBuddy{% endblock title %}
+{% block title %}Warm-up — BookBuddy{% endblock title %}
 {% block content %}
   <section class="card">
-    <h1>Review</h1>
+    <h1>Warm-up</h1>
     {% if question %}
       <p class="muted">
-        {{ due_count }} due —
         {{ question.chapter.book.title }} · {{ question.chapter.title }}
       </p>
       <fieldset class="question">
@@ -13,34 +12,17 @@
         <p class="prompt">{{ question.prompt }}</p>
         <form action="{{ url_for('review_reveal', question_id=question.id) }}" method="post">
           <input type="hidden" name="return_to" value="{{ return_to }}" />
+          <input type="hidden" name="remaining" value="{{ remaining }}" />
           <textarea name="answer_text" rows="3"
                     placeholder="Your answer from memory"></textarea>
-          <div class="confidence">
-            <span class="confidence-label">Confidence</span>
-            <div class="confidence-scale">
-              {% for level in range(1, 6) %}
-                <label>
-                  {% if level == 3 %}
-                    <input type="radio" name="confidence"
-                           value="{{ level }}" checked />
-                  {% else %}
-                    <input type="radio" name="confidence"
-                           value="{{ level }}" />
-                  {% endif %}
-                  <span>{{ level }}</span>
-                </label>
-              {% endfor %}
-            </div>
-            <div class="confidence-ends">
-              <span>guessing</span>
-              <span>certain</span>
-            </div>
-          </div>
           <button type="submit">Show answer</button>
         </form>
       </fieldset>
+      {% if return_to %}
+        <p><a href="{{ return_to }}">Skip straight to the chapter</a></p>
+      {% endif %}
     {% else %}
-      <p class="empty">Nothing due. Come back later — or read another chapter.</p>
+      <p class="empty">Nothing to warm up. Come back later — or read another chapter.</p>
       {% if return_to %}<a class="button" href="{{ return_to }}">Continue reading</a>{% endif %}
     {% endif %}
   </section>
