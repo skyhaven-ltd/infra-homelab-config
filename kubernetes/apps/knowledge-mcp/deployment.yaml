@@ -26,7 +26,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: app
-          image: ghcr.io/skyhaven-ltd/infra-homelab-config/knowledge-mcp@sha256:7aeea5d898c646bdd1b6c8ceada586826d936d2c5f412fa6357dc6ce9e7a6621
+          image: ghcr.io/skyhaven-ltd/infra-homelab-config/knowledge-mcp@sha256:210b89ec37527d4593ccb4ac04d1397fbe3151a40fcbc9959cef9ad4a7205645
           env:
             - { name: KNOWLEDGE_MCP_DATABASE_PATH, value: "/data/knowledge.db" }
             - { name: KNOWLEDGE_MCP_ALLOWED_HOSTS, value: "knowledge.lab.skyhaven.ltd" }

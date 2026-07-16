@@ -17,9 +17,7 @@ spec:
     spec:
       containers:
         - name: app
-          image: ghcr.io/skyhaven-ltd/infra-homelab-config/bookbuddy-web@sha256:30d2394c1afed88d09527b19b70d82cc78136434a7a53c708c8b6c7df5d7c210
-          # TLS terminates at the ingress; without proxy headers uvicorn sees
-          # http and the app generates mixed-content absolute URLs.
+          image: ghcr.io/skyhaven-ltd/infra-homelab-config/bookbuddy-web@sha256:c15df11ef9ea6d58d0b877b0044d929eb36a9bbf45890dffb9f38c65fae23319
           command: ["uvicorn"]
           args:
             - app.main:app
@@ -34,8 +32,6 @@ spec:
             - { name: DATABASE_URL, value: "sqlite:////data/bookbuddy.db" }
             - { name: UPLOAD_DIR, value: "/data/uploads" }
           envFrom:
-            # Optional so the app runs before the secret is sealed; worker
-            # endpoints return 503 until WORKER_TOKEN exists.
             - secretRef:
                 name: bookbuddy-env
                 optional: true
