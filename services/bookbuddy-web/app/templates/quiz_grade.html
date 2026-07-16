@@ -11,8 +11,7 @@
         <legend><span class="badge">{{ question.type }}</span></legend>
         <p class="prompt">{{ question.prompt }}</p>
         <div class="answer-pair">
-          <p><strong>You wrote:</strong> {{ answer_text or "(no answer)" }}
-            <span class="muted">(confidence {{ confidence }})</span></p>
+          <p><strong>You wrote:</strong> {{ answer_text or "(no answer)" }}</p>
           <p><strong>BookBuddy:</strong> {{ question.answer }}</p>
         </div>
         {% if question.source_quote %}
@@ -21,7 +20,6 @@
       </fieldset>
       <input type="hidden" name="question_id" value="{{ question.id }}" />
       <input type="hidden" name="answer_text" value="{{ answer_text }}" />
-      <input type="hidden" name="confidence" value="{{ confidence }}" />
       <div class="grade-row">
         <button type="submit" name="correct" value="yes">I got it</button>
         <button type="submit" name="correct" value="nearly" class="secondary">Nearly</button>

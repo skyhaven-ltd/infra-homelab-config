@@ -146,7 +146,6 @@ def test_quiz_grade_records_attempts_and_schedules(client, epub_path):
         data={
             "question_id": str(question_id),
             "answer_text": "Stuff",
-            "confidence": "4",
         },
     )
     assert response.status_code == 200
@@ -157,7 +156,6 @@ def test_quiz_grade_records_attempts_and_schedules(client, epub_path):
         data={
             "question_id": str(question_id),
             "answer_text": "Stuff",
-            "confidence": "4",
             "correct": "yes",
         },
         follow_redirects=False,
@@ -207,7 +205,6 @@ def test_chapter_quiz_presents_one_typed_question_at_a_time(client, epub_path):
         data={
             "question_id": str(first_id),
             "answer_text": "My first answer",
-            "confidence": "4",
         },
     )
     assert "First answer." in reveal.text
@@ -218,7 +215,6 @@ def test_chapter_quiz_presents_one_typed_question_at_a_time(client, epub_path):
         data={
             "question_id": str(first_id),
             "answer_text": "My first answer",
-            "confidence": "4",
             "correct": "yes",
         },
         follow_redirects=False,
@@ -231,56 +227,6 @@ def test_chapter_quiz_presents_one_typed_question_at_a_time(client, epub_path):
     assert "Second prompt?" in next_question.text
     assert "First prompt?" not in next_question.text
     assert "Quiz in progress" in client.get("/").text
-
-
-def test_reader_can_save_a_prediction_for_the_current_chapter(client, epub_path):
-    book_id = _import_book(client, epub_path)
-    with SessionLocal() as db:
-        chapter_id = db.get(Book, book_id).chapters[0].id
-
-    saved = client.post(
-        f"/chapters/{chapter_id}/prediction",
-        data={"prediction": "The guide is hiding something important."},
-        follow_redirects=False,
-    )
-    assert saved.status_code == 303
-    assert saved.headers["location"] == f"/books/{book_id}/companion"
-
-    companion = client.get(saved.headers["location"])
-    assert "Your prediction" in companion.text
-    assert "The guide is hiding something important." in companion.text
-
-    quiz = client.get(f"/chapters/{chapter_id}/quiz")
-    assert "Before reading, you predicted" in quiz.text
-    assert "The guide is hiding something important." in quiz.text
-
-
-def test_reader_can_capture_a_thought_without_leaving_the_chapter(client, epub_path):
-    book_id = _import_book(client, epub_path)
-    with SessionLocal() as db:
-        chapter_id = db.get(Book, book_id).chapters[0].id
-
-    saved = client.post(
-        f"/chapters/{chapter_id}/thoughts",
-        data={"thought": "This rule contradicts the example from the introduction."},
-        follow_redirects=False,
-    )
-    assert saved.status_code == 303
-    assert saved.headers["location"] == f"/books/{book_id}/companion"
-
-    companion = client.get(saved.headers["location"])
-    assert "Thoughts from this chapter" in companion.text
-    assert "This rule contradicts the example" in companion.text
-
-
-def test_reader_cannot_save_a_blank_thought(client, epub_path):
-    book_id = _import_book(client, epub_path)
-    with SessionLocal() as db:
-        chapter_id = db.get(Book, book_id).chapters[0].id
-
-    response = client.post(f"/chapters/{chapter_id}/thoughts", data={"thought": "   "})
-
-    assert response.status_code == 422
 
 
 def test_existing_questions_provide_a_fallback_previously_on(client, epub_path):
@@ -303,7 +249,6 @@ def test_existing_questions_provide_a_fallback_previously_on(client, epub_path):
         data={
             "question_id": str(question_id),
             "answer_text": "Through the gate.",
-            "confidence": "4",
             "correct": "yes",
         },
     )
@@ -358,7 +303,6 @@ def test_finishing_the_final_chapter_completes_the_book(client, epub_path):
         data={
             "question_id": str(question_id),
             "answer_text": "The closing idea.",
-            "confidence": "4",
             "correct": "yes",
         },
         follow_redirects=False,
@@ -384,8 +328,7 @@ def test_companion_offers_due_memories_before_reading(client, epub_path):
         db.commit()
 
     companion = client.get(f"/books/{book_id}/companion")
-    assert "Before we continue" in companion.text
-    assert "Warm up with 1 memory" in companion.text
+    assert "Warm up first?" in companion.text
     return_to = f"/books/{book_id}/companion"
     assert f"return_to={return_to}" in companion.text
 
@@ -395,7 +338,6 @@ def test_companion_offers_due_memories_before_reading(client, epub_path):
         f"/review/{question_id}",
         data={
             "answer_text": "This memory.",
-            "confidence": "4",
             "return_to": return_to,
         },
     )
@@ -404,13 +346,44 @@ def test_companion_offers_due_memories_before_reading(client, epub_path):
         f"/review/{question_id}/grade",
         data={
             "answer_text": "This memory.",
-            "confidence": "4",
             "correct": "yes",
             "return_to": return_to,
         },
         follow_redirects=False,
     )
     assert graded.headers["location"] == return_to
+
+
+def test_review_session_ends_after_five_questions(client, epub_path):
+    book_id = _import_book(client, epub_path)
+    with SessionLocal() as db:
+        chapter = db.get(Book, book_id).chapters[0]
+        for index in range(6):
+            question = Question(
+                chapter_id=chapter.id,
+                type="recall",
+                prompt=f"Warm-up {index}?",
+                answer=f"Answer {index}.",
+            )
+            db.add(question)
+            db.flush()
+            db.add(ReviewState(question_id=question.id, due_at=utcnow()))
+        db.commit()
+
+    location = "/review"
+    for _ in range(5):
+        review = client.get(location)
+        question_id = review.text.split("/review/")[1].split('"')[0]
+        remaining = review.text.split('name="remaining" value="')[1].split('"')[0]
+        graded = client.post(
+            f"/review/{question_id}/grade",
+            data={"answer_text": "", "correct": "yes", "remaining": remaining},
+            follow_redirects=False,
+        )
+        location = graded.headers["location"]
+
+    # A sixth question is still due, but the warm-up session is over.
+    assert location == "/"
 
 
 def test_review_flow_grades_due_question(client, epub_path):
@@ -433,13 +406,13 @@ def test_review_flow_grades_due_question(client, epub_path):
 
     response = client.post(
         f"/review/{question_id}",
-        data={"answer_text": "Grit", "confidence": "2"},
+        data={"answer_text": "Grit"},
     )
     assert "Perseverance." in response.text
 
     response = client.post(
         f"/review/{question_id}/grade",
-        data={"answer_text": "Grit", "confidence": "2", "correct": "yes"},
+        data={"answer_text": "Grit", "correct": "yes"},
         follow_redirects=False,
     )
     assert response.status_code == 303
@@ -447,7 +420,7 @@ def test_review_flow_grades_due_question(client, epub_path):
     with SessionLocal() as db:
         stored = db.get(Question, question_id)
         assert stored.review is not None
-        assert stored.attempts[0].confidence == 2
+        assert stored.attempts[0].correct is True
 
 
 def test_generate_route_without_api_key_queues_for_worker(client, epub_path):

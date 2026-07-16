@@ -204,10 +204,6 @@ def test_completed_chapter_recap_greets_reader_at_the_next_chapter(
         json={"raw_output": VALID_OUTPUT},
     )
     assert completed.status_code == 200
-    client.post(
-        f"/chapters/{chapter_id}/prediction",
-        data={"prediction": "The conflict will force the group apart."},
-    )
 
     quiz = client.get(f"/chapters/{chapter_id}/quiz")
     question_id = quiz.text.split('name="question_id" value="')[1].split('"')[0]
@@ -216,7 +212,6 @@ def test_completed_chapter_recap_greets_reader_at_the_next_chapter(
         data={
             "question_id": question_id,
             "answer_text": "Because of the conflict.",
-            "confidence": "3",
         },
     )
     graded = client.post(
@@ -224,7 +219,6 @@ def test_completed_chapter_recap_greets_reader_at_the_next_chapter(
         data={
             "question_id": question_id,
             "answer_text": "Because of the conflict.",
-            "confidence": "3",
             "correct": "yes",
         },
         follow_redirects=False,
@@ -234,16 +228,6 @@ def test_completed_chapter_recap_greets_reader_at_the_next_chapter(
     assert "<h1>Chapter 2</h1>" in companion.text
     assert "Previously on Test Book" in companion.text
     assert "The chapter established the central conflict" in companion.text
-    assert "Your prediction, revisited" in companion.text
-    assert "The conflict will force the group apart." in companion.text
-
-    reflected = client.post(
-        f"/chapters/{chapter_id}/prediction-reflection",
-        data={"reflection": "I noticed the consequence but missed who caused it."},
-        follow_redirects=False,
-    )
-    companion = client.get(reflected.headers["location"])
-    assert "I noticed the consequence but missed who caused it." in companion.text
 
 
 def test_complete_with_invalid_output_fails_job(client, epub_path, worker_settings):

@@ -24,7 +24,6 @@ QUESTION_TYPES = [
     "character",
     "plot",
     "theme",
-    "prediction",
     "elaboration",
 ]
 
@@ -71,16 +70,17 @@ the chapter, so questions must be answerable from this chapter alone.
 Rules:
 - Base every question ONLY on the chapter text provided. You are given the
   titles of earlier chapters as context, but you have not seen later chapters
-  and must not speculate about them, except in 'prediction' questions.
+  and must not speculate about them.
 - For fiction, cover character motivation ('character'), plot causality
   ('plot'), and theme or world-building rules ('theme') — not just factual
   recall ('recall').
 - Include one 'elaboration' question connecting the material to earlier
-  chapters or the reader's own knowledge. The reader records predictions in a
-  separate companion step, so do not turn that ritual into a quiz question.
+  chapters or the reader's own knowledge.
+- The reader's time is precious: ask only about the chapter's most
+  consequential material, never padding to reach a count.
 - Every question needs a short verbatim supporting quote from the chapter in
-  'source_quote' (for 'prediction'/'elaboration', quote the passage that
-  motivates the question).
+  'source_quote' (for 'elaboration', quote the passage that motivates the
+  question).
 - Write clear, specific prompts a reader can answer in one to three sentences.
 - Also write 'recap': a warm, concise "Previously on" summary of this chapter
   for the reader to see before starting the following chapter. Include the
@@ -130,7 +130,7 @@ def _build_user_prompt(
 
 
 def build_worker_prompt(
-    book_title: str, chapter: Chapter, prior_titles: list[str], count: int = 8
+    book_title: str, chapter: Chapter, prior_titles: list[str], count: int = 5
 ) -> str:
     """Single self-contained prompt for CLI workers (codex exec / claude -p),
     which have no separate system-prompt channel."""
@@ -184,7 +184,7 @@ def generate_material(
     chapter: Chapter,
     prior_titles: list[str],
     book_title: str,
-    count: int = 8,
+    count: int = 5,
     client: anthropic.Anthropic | None = None,
 ) -> GeneratedMaterial:
     settings = get_settings()
@@ -252,7 +252,7 @@ def generate_questions(
     chapter: Chapter,
     prior_titles: list[str],
     book_title: str,
-    count: int = 8,
+    count: int = 5,
     client: anthropic.Anthropic | None = None,
 ) -> list[GeneratedQuestion]:
     """Compatibility interface for callers that only need questions."""

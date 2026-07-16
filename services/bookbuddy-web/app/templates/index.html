@@ -2,13 +2,13 @@
 {% block content %}
   {% if error %}<p class="alert">{{ error }}</p>{% endif %}
 
-  {% if due_count %}
+  {% if has_due %}
     <section class="card due-banner">
       <div>
-        <span class="due-count">{{ due_count }}</span>
-        <span class="due-label">question{{ "s" if due_count != 1 }} due</span>
+        <h2>A quick warm-up is ready</h2>
+        <span class="due-label">A few memories from your reading</span>
       </div>
-      <a class="button" href="{{ url_for('review') }}">Start review</a>
+      <a class="button" href="{{ url_for('review') }}">Start</a>
     </section>
   {% endif %}
 
