@@ -63,6 +63,15 @@ The MCP endpoint requires the bearer token held in the `knowledge-mcp-env`
 SealedSecret. Set the same token as `KNOWLEDGE_MCP_TOKEN` in the client process;
 do not persist it in client configuration or Git.
 
+## Scope convention
+
+Clients shard memories with exact scope strings so recall matches across
+agents and machines: `global` for cross-repository knowledge,
+`repo:<repository-directory-name>` for repository-specific knowledge, and
+`machine:<hostname>` for machine-local environment facts. The convention is
+enforced through `infra-developer-config/system/SYSTEM.md` and documented in
+`infra-developer-config/docs/knowledge-mcp.md`.
+
 ## Tools
 
 - `memory_recall`: bounded full-text search returning compact summaries.
