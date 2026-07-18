@@ -24,6 +24,15 @@
     global: true
     state: present
 
+- name: Preserve static host mappings across cloud-init runs
+  ansible.builtin.copy:
+    dest: /etc/cloud/cloud.cfg.d/99-preserve-etc-hosts.cfg
+    content: |
+      manage_etc_hosts: false
+    owner: root
+    group: root
+    mode: "0644"
+
 - name: Resolve BookBuddy ingress without cluster-hosted DNS
   ansible.builtin.lineinfile:
     path: /etc/hosts
