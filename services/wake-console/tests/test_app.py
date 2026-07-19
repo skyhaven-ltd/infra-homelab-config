@@ -117,6 +117,17 @@ class WebTests(unittest.TestCase):
         self.assertEqual(response.status, 200)
         self.assertEqual(body, b'{"status":"ok"}')
 
+    def test_page_preserves_origin_for_same_origin_form_posts(self) -> None:
+        response, _ = self.request(
+            "GET",
+            "/",
+            Host="wake.lab.skyhaven.ltd",
+            **{"X-Forwarded-Proto": "https"},
+        )
+
+        self.assertEqual(response.status, 200)
+        self.assertEqual(response.getheader("Referrer-Policy"), "same-origin")
+
     def test_same_origin_form_can_wake_fixed_target(self) -> None:
         headers = {
             "Host": "wake.lab.skyhaven.ltd",
