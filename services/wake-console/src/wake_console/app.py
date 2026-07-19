@@ -271,7 +271,7 @@ def create_handler(config: Config, controller: WakeController) -> type[BaseHTTPR
                 "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; "
                 "base-uri 'none'; frame-ancestors 'none'",
             )
-            self.send_header("Referrer-Policy", "no-referrer")
+            self.send_header("Referrer-Policy", "same-origin")
             self.send_header("Strict-Transport-Security", "max-age=31536000")
             self.send_header("X-Content-Type-Options", "nosniff")
             if cookie:
