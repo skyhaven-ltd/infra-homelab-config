@@ -1,0 +1,28 @@
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: wake-console
+  namespace: wake-console
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/limit-burst-multiplier: "1"
+    nginx.ingress.kubernetes.io/limit-rps: "2"
+    nginx.ingress.kubernetes.io/whitelist-source-range: "192.168.1.0/24"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts: [wake.lab.skyhaven.ltd]
+      secretName: wake-console-tls
+  rules:
+    - host: wake.lab.skyhaven.ltd
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: wake-console
+                port:
+                  number: 8088

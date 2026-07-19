@@ -1,0 +1,79 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wake-console
+  namespace: wake-console
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: wake-console
+  template:
+    metadata:
+      labels:
+        app: wake-console
+    spec:
+      # WoWLAN requires a layer-2 broadcast on the physical home LAN. The K3s
+      # node is on that LAN; pod networking is not.
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: app
+          image: ghcr.io/skyhaven-ltd/infra-homelab-config/wake-console:latest
+          imagePullPolicy: Always
+          env:
+            - name: WAKE_TARGET_NAME
+              value: "WNWSLAB01"
+            - name: WAKE_TARGET_MAC
+              value: "F4-3B-D8-7E-B6-0C"
+            - name: WAKE_BROADCAST_ADDRESS
+              value: "192.168.1.255"
+            - name: WAKE_BROADCAST_PORT
+              value: "9"
+            - name: WAKE_ALLOWED_HOST
+              value: "wake.lab.skyhaven.ltd"
+            - name: WAKE_ALLOWED_ORIGIN
+              value: "https://wake.lab.skyhaven.ltd"
+            - name: WAKE_LISTEN_PORT
+              value: "8088"
+          ports:
+            - name: http
+              containerPort: 8088
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8088
+            initialDelaySeconds: 5
+            periodSeconds: 30
+            timeoutSeconds: 3
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8088
+            initialDelaySeconds: 2
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            readOnlyRootFilesystem: true
+          resources:
+            requests:
+              cpu: 5m
+              memory: 24Mi
+            limits:
+              memory: 64Mi

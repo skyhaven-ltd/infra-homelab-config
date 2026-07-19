@@ -1,3 +1,7 @@
 controller:
   service:
     type: LoadBalancer
+    # Preserve the client IP so per-Ingress LAN allowlists are enforceable.
+    # This cluster has one node, so Local cannot route to a node without an
+    # ingress controller endpoint.
+    externalTrafficPolicy: Local
