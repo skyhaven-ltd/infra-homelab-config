@@ -1,0 +1,21 @@
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: wake-console
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/skyhaven-ltd/infra-homelab-config.git
+    targetRevision: main
+    path: kubernetes/apps/wake-console
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: wake-console
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
