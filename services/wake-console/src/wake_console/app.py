@@ -26,6 +26,7 @@ class Config:
     broadcast_port: int
     allowed_host: str
     allowed_origin: str
+    unicast_address: str | None = None
     listen_address: str = "0.0.0.0"
     listen_port: int = 8088
     packet_count: int = 3
@@ -48,6 +49,8 @@ class Config:
             raise ValueError(message)
 
         broadcast_address = str(ipaddress.IPv4Address(values["WAKE_BROADCAST_ADDRESS"]))
+        unicast_raw = values.get("WAKE_UNICAST_ADDRESS")
+        unicast_address = str(ipaddress.IPv4Address(unicast_raw)) if unicast_raw else None
         allowed_host = values["WAKE_ALLOWED_HOST"].strip().lower().rstrip(".")
         allowed_origin = values["WAKE_ALLOWED_ORIGIN"].strip().lower().rstrip("/")
         if not allowed_origin.startswith("https://"):
@@ -57,6 +60,7 @@ class Config:
             target_name=values["WAKE_TARGET_NAME"].strip(),
             target_mac=parse_mac(values["WAKE_TARGET_MAC"]),
             broadcast_address=broadcast_address,
+            unicast_address=unicast_address,
             broadcast_port=int(values.get("WAKE_BROADCAST_PORT", "9")),
             allowed_host=allowed_host,
             allowed_origin=allowed_origin,
@@ -89,11 +93,19 @@ def build_magic_packet(mac: bytes) -> bytes:
 
 def send_magic_packets(config: Config) -> None:
     packet = build_magic_packet(config.target_mac)
-    destination = (config.broadcast_address, config.broadcast_port)
+    # Broadcast covers the window immediately after sleep. A unicast copy to the
+    # target's own IP survives WPA3 group-key (GTK) rekeys: broadcast frames are
+    # decrypted with the group key, which a sleeping Wi-Fi NIC can miss rotating,
+    # whereas unicast uses the pairwise key it keeps. ARP offload lets the
+    # sleeping adapter answer the ARP for its address so the unicast is delivered.
+    destinations = [(config.broadcast_address, config.broadcast_port)]
+    if config.unicast_address is not None:
+        destinations.append((config.unicast_address, config.broadcast_port))
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udp_socket:
         udp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
         for packet_number in range(config.packet_count):
-            udp_socket.sendto(packet, destination)
+            for destination in destinations:
+                udp_socket.sendto(packet, destination)
             if packet_number + 1 < config.packet_count:
                 time.sleep(config.packet_interval_seconds)
 
