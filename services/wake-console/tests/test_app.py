@@ -72,6 +72,33 @@ class MagicPacketTests(unittest.TestCase):
         )
         self.assertEqual(sleep.call_count, 2)
 
+    @patch("wake_console.app.time.sleep")
+    @patch("wake_console.app.socket.socket")
+    def test_sender_also_unicasts_to_target_when_configured(
+        self, socket_factory: MagicMock, sleep: MagicMock
+    ) -> None:
+        udp_socket = socket_factory.return_value.__enter__.return_value
+        config = Config(
+            target_name="WNWSLAB01",
+            target_mac=parse_mac("F4-3B-D8-7E-B6-0C"),
+            broadcast_address="192.168.1.255",
+            broadcast_port=9,
+            allowed_host="wake.lab.skyhaven.ltd",
+            allowed_origin="https://wake.lab.skyhaven.ltd",
+            unicast_address="192.168.1.168",
+        )
+
+        send_magic_packets(config)
+
+        expected_packet = build_magic_packet(bytes.fromhex("f43bd87eb60c"))
+        broadcast = unittest.mock.call(expected_packet, ("192.168.1.255", 9))
+        unicast = unittest.mock.call(expected_packet, ("192.168.1.168", 9))
+        self.assertEqual(
+            udp_socket.sendto.call_args_list,
+            [broadcast, unicast, broadcast, unicast, broadcast, unicast],
+        )
+        self.assertEqual(sleep.call_count, 2)
+
 
 class WakeControllerTests(unittest.TestCase):
     def test_controller_rate_limits_repeated_wakes(self) -> None:

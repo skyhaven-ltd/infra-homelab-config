@@ -38,6 +38,11 @@ spec:
               value: "F4-3B-D8-7E-B6-0C"
             - name: WAKE_BROADCAST_ADDRESS
               value: "192.168.1.255"
+            # Unicast copy to the target's own IP survives WPA3 GTK rekeys that
+            # break broadcast WoWLAN after ~1 hour. Requires a DHCP reservation
+            # so this address stays pinned to the AX201 MAC above.
+            - name: WAKE_UNICAST_ADDRESS
+              value: "192.168.1.168"
             - name: WAKE_BROADCAST_PORT
               value: "9"
             - name: WAKE_ALLOWED_HOST

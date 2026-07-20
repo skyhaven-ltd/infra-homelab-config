@@ -10,6 +10,13 @@ that LAN and the private Tailscale `100.64.0.0/10` range. The application is
 protected with HTTPS, host and origin validation, a same-site CSRF token, and
 an application rate limit.
 
+When `WAKE_UNICAST_ADDRESS` is set, each magic packet is also sent unicast to
+the target's own IP. Broadcast frames are decrypted with the Wi-Fi group key,
+which a sleeping WPA3 adapter can miss when the AP rotates it (a GTK rekey),
+so broadcast-only wakes stop working after roughly an hour of sleep. The
+unicast copy uses the pairwise key the adapter keeps, so it keeps waking the
+host. Pin the unicast address with a DHCP reservation for the target's MAC.
+
 Run the tests from this directory:
 
 ```powershell
