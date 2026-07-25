@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: app
-          image: ghcr.io/skyhaven-ltd/infra-homelab-config/bookbuddy-web@sha256:c15df11ef9ea6d58d0b877b0044d929eb36a9bbf45890dffb9f38c65fae23319
+          image: ghcr.io/skyhaven-ltd/infra-homelab-config/bookbuddy-web@sha256:91ff268d268467a0288589437cba64368b45ec9c54ba6c3fae8fce228dc1e979
           command: ["uvicorn"]
           args:
             - app.main:app
