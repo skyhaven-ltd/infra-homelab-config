@@ -30,17 +30,30 @@ _UNDETERMINED_WARN_THRESHOLD = 5
 
 
 class StockChecker:
-    def __init__(self, config: AppConfig, db: Database, notifier: Notifier,
-                 client: httpx.Client):
+    def __init__(
+        self, config: AppConfig, db: Database, notifier: Notifier, client: httpx.Client
+    ):
         self.config = config
         self.db = db
         self.notifier = notifier
         self.client = client
         self._undetermined_streak: dict[str, int] = {}
+        # Compatibility for callers still constructing AppConfig in memory.
+        for product in config.products:
+            retailer = (
+                get_retailer(product.retailer)
+                if product.retailer
+                else resolve_retailer(product.url)
+            )
+            self.db.ensure(product.url, retailer.key, product.name)
 
     def check_all(self) -> None:
-        log.info("check cycle start (%d product(s))", len(self.config.products))
-        for product in self.config.products:
+        products = [
+            ProductConfig(url=item.url, name=item.name, retailer=item.retailer)
+            for item in self.db.active()
+        ]
+        log.info("check cycle start (%d product(s))", len(products))
+        for product in products:
             try:
                 self.check_one(product)
             except Exception as exc:  # never let one product kill the cycle
@@ -49,7 +62,8 @@ class StockChecker:
 
     def check_one(self, product: ProductConfig) -> None:
         retailer_cls = (
-            get_retailer(product.retailer) if product.retailer
+            get_retailer(product.retailer)
+            if product.retailer
             else resolve_retailer(product.url)
         )
         retailer = retailer_cls(
@@ -58,7 +72,6 @@ class StockChecker:
             user_agent=self.config.user_agent,
             flaresolverr_url=self.config.flaresolverr_url,
         )
-        self.db.ensure(product.url, retailer_cls.key)
         previous = self.db.get(product.url)
         was_in_stock = bool(previous.in_stock) if previous else False
 
@@ -85,7 +98,9 @@ class StockChecker:
                 log.warning(
                     "%s has been undetermined for %d consecutive checks — "
                     "not currently monitored (last error: %s)",
-                    product.url, streak, result.error,
+                    product.url,
+                    streak,
+                    result.error,
                 )
             # Keep last-known stock state; only refresh timestamp/price/name.
             self.db.update_state(

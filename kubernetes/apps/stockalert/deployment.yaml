@@ -1,0 +1,120 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: stock-checker
+  namespace: stockalert
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: stock-checker
+  template:
+    metadata:
+      labels:
+        app: stock-checker
+    spec:
+      # App spawns headless Chrome per check; python runs as PID 1 and never
+      # reaps exited children. Shared PID namespace makes the pause container
+      # PID 1 so it reaps the zombies.
+      shareProcessNamespace: true
+      containers:
+        - name: stock-checker
+          image: ghcr.io/skyhaven-ltd/infra-homelab-config/stockalert-monitor@sha256:0ae3bbd940877b343244ff076e08ca7998f1971fb08f178fbaba0b25f0dcf7ef
+          envFrom:
+            - secretRef:
+                name: stockalert-env
+          volumeMounts:
+            - name: config
+              mountPath: /app/config.yaml
+              subPath: config.yaml
+              readOnly: true
+            - { name: data, mountPath: /app/data }
+          ports:
+            - { name: http, containerPort: 8080 }
+          readinessProbe:
+            httpGet: { path: /health, port: 8080 }
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /health, port: 8080 }
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests: { cpu: 50m, memory: 256Mi }
+            # Chrome's working set does not fit in 512Mi; the cgroup evicts
+            # file-backed pages and re-reads them from disk on every launch,
+            # tripping NodeMemoryMajorPagesFaults.
+            limits: { memory: 1Gi }
+      volumes:
+        - name: config
+          configMap:
+            name: stockalert-config
+        - name: data
+          persistentVolumeClaim:
+            claimName: stockalert-data
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ntfy
+  namespace: stockalert
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: ntfy
+  template:
+    metadata:
+      labels:
+        app: ntfy
+    spec:
+      containers:
+        - name: ntfy
+          image: binwiederhier/ntfy@sha256:cfbbb1bac9196cb711e29ef0ac4adaeb033be6235f1df857705dc39c14384a1d
+          args: [serve]
+          env:
+            - { name: NTFY_BASE_URL, value: "http://192.168.1.3:8090" }
+            - { name: NTFY_UPSTREAM_BASE_URL, value: "https://ntfy.sh" }
+            - { name: NTFY_LISTEN_HTTP, value: ":80" }
+          ports:
+            - { name: http, containerPort: 80 }
+          volumeMounts:
+            - { name: cache, mountPath: /var/cache/ntfy }
+          resources:
+            requests: { cpu: 25m, memory: 32Mi }
+            limits: { memory: 128Mi }
+      volumes:
+        - name: cache
+          persistentVolumeClaim:
+            claimName: ntfy-cache
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: flaresolverr
+  namespace: stockalert
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: flaresolverr
+  template:
+    metadata:
+      labels:
+        app: flaresolverr
+    spec:
+      containers:
+        - name: flaresolverr
+          image: ghcr.io/flaresolverr/flaresolverr@sha256:139dfee1c6f89249c8d665d1333a42e8ec74ec0a86bc6bb1c8461e10d3a66a47
+          env:
+            - { name: LOG_LEVEL, value: "info" }
+            - { name: TZ, value: "Europe/London" }
+          ports:
+            - { name: http, containerPort: 8191 }
+          resources:
+            requests: { cpu: 100m, memory: 512Mi }
+            limits: { memory: 2Gi }

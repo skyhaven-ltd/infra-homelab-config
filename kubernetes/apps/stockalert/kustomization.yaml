@@ -3,11 +3,11 @@ kind: Kustomization
 namespace: stockalert
 resources:
   - sealedsecret.yaml
-  - ntfy.yaml
-  - flaresolverr.yaml
-  - stock-checker.yaml
+  - pvc.yaml
+  - deployment.yaml
+  - service.yaml
+  - ingress.yaml
 configMapGenerator:
   - name: stockalert-config
     files:
       - config.yaml
-      - products.txt

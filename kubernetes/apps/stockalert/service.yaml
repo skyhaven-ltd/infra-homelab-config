@@ -1,0 +1,44 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: stockalert
+  namespace: stockalert
+spec:
+  selector:
+    app: stock-checker
+  ports:
+    - { name: http, port: 8080, targetPort: 8080 }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ntfy
+  namespace: stockalert
+spec:
+  selector:
+    app: ntfy
+  ports:
+    - { name: http, port: 80, targetPort: 80 }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ntfy-lb
+  namespace: stockalert
+spec:
+  type: LoadBalancer
+  selector:
+    app: ntfy
+  ports:
+    - { name: http, port: 8090, targetPort: 80 }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: flaresolverr
+  namespace: stockalert
+spec:
+  selector:
+    app: flaresolverr
+  ports:
+    - { name: http, port: 8191, targetPort: 8191 }

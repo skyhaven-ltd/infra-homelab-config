@@ -1,5 +1,5 @@
 # Stock Alert configuration — settings and notification channels only.
-# The products to watch live in products.txt (one URL per line).
+# Products are managed through the web UI and stored in SQLite.
 #
 # Secrets injected from the environment with ${VAR}. See .env / docker-compose.yml.
 
@@ -8,7 +8,6 @@ settings:
   # sites, so keep the cadence gentle to avoid CPU thrash and bot-blocking.
   interval_seconds: 300
   request_timeout: 30.0
-  products_file: products.txt
   database_path: data/stock.db
   log_level: INFO
   log_file: data/stock-alert.log

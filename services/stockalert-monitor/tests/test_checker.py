@@ -92,3 +92,17 @@ def test_re_alert_after_going_out_and_back(tmp_path):
     _set(StockResult(in_stock=True))
     checker.check_all()
     assert len(notifier.alerts) == 2
+
+
+def test_checker_reads_products_added_to_database(tmp_path):
+    config = AppConfig(database_path=str(tmp_path / "dynamic.db"))
+    db = Database(config.database_path)
+    notifier = _FakeNotifier()
+    checker = StockChecker(config, db, notifier, httpx.Client())
+    db.add("http://x/dynamic", "_test", "Dynamic product")
+
+    _set(StockResult(in_stock=True, price="£10"))
+    checker.check_all()
+
+    assert db.get("http://x/dynamic").last_checked is not None
+    assert notifier.alerts[0].name == "Dynamic product"
