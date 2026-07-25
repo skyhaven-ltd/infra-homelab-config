@@ -1,38 +1,49 @@
 {% extends "base.html" %}
-{% block title %}Quiz: {{ chapter.title }} — BookBuddy{% endblock title %}
+{% block title %}
+    Quiz: {{ chapter.title }} — BookBuddy
+{% endblock title %}
 {% block content %}
-  <section class="card">
-    <h1>{{ chapter.title }}</h1>
-    {% if question %}
-      <p class="muted">
-        Question {{ question_index + 1 }} of {{ question_count }} · Answer from memory before revealing the text.
-      </p>
-      <form action="{{ url_for('chapter_quiz_submit', chapter_id=chapter.id) }}" method="post">
-        <input type="hidden" name="question_id" value="{{ question.id }}" />
-        <fieldset class="question">
-          <legend><span class="badge">{{ question.type }}</span></legend>
-          <p class="prompt">{{ question.prompt }}</p>
-          <textarea name="answer_text" rows="5" autofocus
-                    placeholder="Write what you remember"></textarea>
-          {% if question.choices %}
-            <details class="memory-cue">
-              <summary>Need a cue?</summary>
-              <p class="muted">Try recalling first, then choose the closest answer if you are stuck.</p>
-              <div class="choice-list">
-                {% for choice in question.choices %}
-                  <label><input type="radio" name="cue_answer" value="{{ choice }}" /> {{ choice }}</label>
-                {% endfor %}
-              </div>
-            </details>
-          {% endif %}
-        </fieldset>
-        <button type="submit">Reveal answer</button>
-      </form>
-    {% else %}
-      <p class="empty">Your questions are not ready yet.</p>
-      <form action="{{ url_for('generate_chapter_questions', chapter_id=chapter.id) }}" method="post">
-        <button type="submit">Prepare chapter</button>
-      </form>
-    {% endif %}
-  </section>
+    <section class="card">
+        <h1>{{ chapter.title }}</h1>
+        {% if question %}
+            <p class="muted">
+                Question {{ question_index + 1 }} of {{ question_count }} · Answer from memory before revealing the text.
+            </p>
+            <form action="{{ url_for('chapter_quiz_submit', chapter_id=chapter.id) }}"
+                  method="post">
+                <input type="hidden" name="question_id" value="{{ question.id }}" />
+                <fieldset class="question">
+                    <legend>
+                        <span class="badge">{{ question.type }}</span>
+                    </legend>
+                    <p class="prompt">{{ question.prompt }}</p>
+                    <textarea name="answer_text"
+                              rows="5"
+                              autofocus
+                              placeholder="Write what you remember"></textarea>
+                    {% if question.choices %}
+                        <details class="memory-cue">
+                            <summary>Need a cue?</summary>
+                            <p class="muted">Try recalling first, then choose the closest answer if you are stuck.</p>
+                            <div class="choice-list">
+                                {% for choice in question.choices %}
+                                    <label>
+                                        <input type="radio" name="cue_answer" value="{{ choice }}" />
+                                        {{ choice }}
+                                    </label>
+                                {% endfor %}
+                            </div>
+                        </details>
+                    {% endif %}
+                </fieldset>
+                <button type="submit">Reveal answer</button>
+            </form>
+        {% else %}
+            <p class="empty">Your questions are not ready yet.</p>
+            <form action="{{ url_for('generate_chapter_questions', chapter_id=chapter.id) }}"
+                  method="post">
+                <button type="submit">Prepare chapter</button>
+            </form>
+        {% endif %}
+    </section>
 {% endblock content %}

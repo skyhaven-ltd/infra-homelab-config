@@ -1,73 +1,78 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Stockalert</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}" />
-  </head>
-  <body>
-    <main>
-      <header>
-        <p class="eyebrow">Sky Haven</p>
-        <h1>Stockalert</h1>
-        <p>Manage the products checked for stock changes.</p>
-      </header>
-
-      <section class="card">
-        <h2>Add a product</h2>
-        {% if error %}<p class="error">{{ error }}</p>{% endif %}
-        <form action="{{ url_for('add_product') }}" method="post" class="add-form">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
-          <label>
-            Product URL
-            <input type="url" name="url" required placeholder="https://shop.example/product" />
-          </label>
-          <label>
-            Friendly name <span>(optional)</span>
-            <input type="text" name="name" maxlength="200" placeholder="Kitchen fan" />
-          </label>
-          <button type="submit">Add product</button>
-        </form>
-      </section>
-
-      <section class="card">
-        <div class="section-heading">
-          <h2>Monitored products</h2>
-          <span class="count">{{ products|length }}</span>
-        </div>
-        {% if products %}
-          <div class="products">
-            {% for product in products %}
-              <article>
-                <div class="product-copy">
-                  <div class="title-row">
-                    <h3>{{ product.name or product.url }}</h3>
-                    {% if product.last_checked is none %}
-                      <span class="status unknown">Waiting</span>
-                    {% elif product.in_stock %}
-                      <span class="status in-stock">In stock</span>
-                    {% else %}
-                      <span class="status out-of-stock">Out of stock</span>
-                    {% endif %}
-                  </div>
-                  {% if product.name %}<a href="{{ product.url }}">{{ product.url }}</a>{% endif %}
-                  <p class="meta">
-                    {{ product.retailer }} · {{ product.last_checked|timestamp }}
-                    {% if product.price %} · {{ product.price }}{% endif %}
-                  </p>
-                </div>
-                <form action="{{ url_for('delete_product', product_id=product.id) }}" method="post">
-                  <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
-                  <button type="submit" class="remove" aria-label="Remove {{ product.name or product.url }}">Remove</button>
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="description" content="Manage products monitored by Stockalert." />
+        <title>Stockalert</title>
+        <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}" />
+    </head>
+    <body>
+        <main>
+            <header>
+                <p class="eyebrow">Sky Haven</p>
+                <h1>Stockalert</h1>
+                <p>Manage the products checked for stock changes.</p>
+            </header>
+            <section class="card">
+                <h2>Add a product</h2>
+                {% if error %}<p class="error">{{ error }}</p>{% endif %}
+                <form action="{{ url_for('add_product') }}" method="post" class="add-form">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+                    <label>
+                        Product URL
+                        <input type="url"
+                               name="url"
+                               required
+                               placeholder="https://shop.example/product" />
+                    </label>
+                    <label>
+                        Friendly name <span>(optional)</span>
+                        <input type="text" name="name" maxlength="200" placeholder="Kitchen fan" />
+                    </label>
+                    <button type="submit">Add product</button>
                 </form>
-              </article>
-            {% endfor %}
-          </div>
-        {% else %}
-          <p class="empty">No products yet. Add a URL above to start monitoring it.</p>
-        {% endif %}
-      </section>
-    </main>
-  </body>
+            </section>
+            <section class="card">
+                <div class="section-heading">
+                    <h2>Monitored products</h2>
+                    <span class="count">{{ products|length }}</span>
+                </div>
+                {% if products %}
+                    <div class="products">
+                        {% for product in products %}
+                            <article>
+                                <div class="product-copy">
+                                    <div class="title-row">
+                                        <h3>{{ product.name or product.url }}</h3>
+                                        {% if product.last_checked is none %}
+                                            <span class="status unknown">Waiting</span>
+                                        {% elif product.in_stock %}
+                                            <span class="status in-stock">In stock</span>
+                                        {% else %}
+                                            <span class="status out-of-stock">Out of stock</span>
+                                        {% endif %}
+                                    </div>
+                                    {% if product.name %}<a href="{{ product.url }}">{{ product.url }}</a>{% endif %}
+                                    <p class="meta">
+                                        {{ product.retailer }} · {{ product.last_checked|timestamp }}
+                                        {% if product.price %}· {{ product.price }}{% endif %}
+                                    </p>
+                                </div>
+                                <form action="{{ url_for('delete_product', product_id=product.id) }}"
+                                      method="post">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+                                    <button type="submit"
+                                            class="remove"
+                                            aria-label="Remove {{ product.name or product.url }}">Remove</button>
+                                </form>
+                            </article>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <p class="empty">No products yet. Add a URL above to start monitoring it.</p>
+                {% endif %}
+            </section>
+        </main>
+    </body>
 </html>

@@ -17,10 +17,10 @@ settings:
 notifiers:
   ntfy:
     enabled: true
-    server: ${NTFY_SERVER}      # http://ntfy:80 (bundled container)
+    server: ${NTFY_SERVER} # http://ntfy:80 (bundled container)
     topic: ${NTFY_TOPIC}
     token: ${NTFY_TOKEN}
-    priority: 5                 # max/urgent
+    priority: 5 # max/urgent
     tags: ["rotating_light"]
 
   telegram:
