@@ -14,6 +14,17 @@
           <p class="prompt">{{ question.prompt }}</p>
           <textarea name="answer_text" rows="5" autofocus
                     placeholder="Write what you remember"></textarea>
+          {% if question.choices %}
+            <details class="memory-cue">
+              <summary>Need a cue?</summary>
+              <p class="muted">Try recalling first, then choose the closest answer if you are stuck.</p>
+              <div class="choice-list">
+                {% for choice in question.choices %}
+                  <label><input type="radio" name="cue_answer" value="{{ choice }}" /> {{ choice }}</label>
+                {% endfor %}
+              </div>
+            </details>
+          {% endif %}
         </fieldset>
         <button type="submit">Reveal answer</button>
       </form>

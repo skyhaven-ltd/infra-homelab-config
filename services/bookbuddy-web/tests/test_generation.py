@@ -49,6 +49,7 @@ def test_generate_questions_parses_model_output(db_session):
                 "prompt": "Why did X happen?",
                 "answer": "Because Y.",
                 "source_quote": "Once upon...",
+                "choices": ["Because X.", "Because Y.", "Because Z.", "By chance."],
             }
         ],
     }
@@ -81,6 +82,7 @@ def test_generate_questions_rejects_blank_source_quote(db_session):
                     "prompt": "What happened?",
                     "answer": "An event.",
                     "source_quote": "   ",
+                    "choices": ["An event.", "Nothing.", "A dream.", "A mistake."],
                 }
             ],
         }

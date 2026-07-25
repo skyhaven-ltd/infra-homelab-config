@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
 
 from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text
@@ -103,6 +104,7 @@ class Question(Base):
     prompt: Mapped[str] = mapped_column(Text)
     answer: Mapped[str] = mapped_column(Text)
     source_quote: Mapped[str] = mapped_column(Text, default="")
+    choices_json: Mapped[str] = mapped_column(Text, default="[]")
     batch_version: Mapped[int] = mapped_column(Integer, default=1)
     active: Mapped[bool] = mapped_column(default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
@@ -114,6 +116,18 @@ class Question(Base):
     review: Mapped[ReviewState | None] = relationship(
         back_populates="question", cascade="all, delete-orphan", uselist=False
     )
+
+    @property
+    def choices(self) -> list[str]:
+        try:
+            value = json.loads(self.choices_json or "[]")
+        except (json.JSONDecodeError, TypeError):
+            return []
+        return (
+            value
+            if isinstance(value, list) and all(isinstance(x, str) for x in value)
+            else []
+        )
 
 
 class Attempt(Base):

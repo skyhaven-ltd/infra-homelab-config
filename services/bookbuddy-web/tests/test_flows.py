@@ -174,6 +174,38 @@ def test_quiz_grade_records_attempts_and_schedules(client, epub_path):
         assert stored.review.interval_days == 1.0
 
 
+def test_quiz_offers_optional_choices_and_accepts_a_cued_answer(client, epub_path):
+    book_id = _import_book(client, epub_path)
+    with SessionLocal() as db:
+        chapter = db.get(Book, book_id).chapters[0]
+        question = Question(
+            chapter_id=chapter.id,
+            type="recall",
+            prompt="What opened the gate?",
+            answer="The brass key.",
+            source_quote="The brass key turned.",
+            choices_json='["A password.", "The brass key.", "A lever.", "A spell."]',
+        )
+        db.add(question)
+        db.commit()
+        chapter_id = chapter.id
+        question_id = question.id
+
+    page = client.get(f"/chapters/{chapter_id}/quiz")
+    assert "Need a cue?" in page.text
+    assert "The brass key." in page.text
+
+    reveal = client.post(
+        f"/chapters/{chapter_id}/quiz",
+        data={
+            "question_id": str(question_id),
+            "answer_text": "",
+            "cue_answer": "The brass key.",
+        },
+    )
+    assert "<strong>You wrote:</strong> The brass key." in reveal.text
+
+
 def test_chapter_quiz_presents_one_typed_question_at_a_time(client, epub_path):
     book_id = _import_book(client, epub_path)
     with SessionLocal() as db:

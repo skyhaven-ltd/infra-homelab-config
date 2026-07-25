@@ -15,6 +15,17 @@
           <input type="hidden" name="remaining" value="{{ remaining }}" />
           <textarea name="answer_text" rows="3"
                     placeholder="Your answer from memory"></textarea>
+          {% if question.choices %}
+            <details class="memory-cue">
+              <summary>Need a cue?</summary>
+              <p class="muted">Try recalling first, then choose the closest answer if you are stuck.</p>
+              <div class="choice-list">
+                {% for choice in question.choices %}
+                  <label><input type="radio" name="cue_answer" value="{{ choice }}" /> {{ choice }}</label>
+                {% endfor %}
+              </div>
+            </details>
+          {% endif %}
           <button type="submit">Show answer</button>
         </form>
       </fieldset>
