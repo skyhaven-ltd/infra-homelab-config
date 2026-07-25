@@ -17,8 +17,9 @@ services:
       - .env
     volumes:
       - ./config.yaml:/app/config.yaml:ro
-      - ./products.txt:/app/products.txt:ro
       - ./data:/app/data
+    ports:
+      - "8080:8080"
     depends_on:
       - ntfy
       - flaresolverr

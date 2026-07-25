@@ -1,8 +1,7 @@
 """Configuration loading and validation.
 
-Settings and notifier channels live in ``config.yaml``; the products to watch
-live in ``products.txt`` — one URL per line, optionally followed by
-``| Friendly name``. Environment variables referenced as ``${VAR}`` inside
+Settings and notifier channels live in ``config.yaml``; products are managed
+in the SQLite database through the web UI. Environment variables referenced as ``${VAR}`` inside
 yaml string values are expanded, so secrets (ntfy/Telegram tokens) can be
 injected by Docker without being committed.
 """
@@ -93,7 +92,6 @@ class AppConfig:
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
         "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
     )
-    products_file: str = "products.txt"
     database_path: str = "data/stock.db"
     log_level: str = "INFO"
     log_file: str = "data/stock-alert.log"
@@ -107,21 +105,7 @@ def load_config(path: str | Path = "config.yaml") -> AppConfig:
     raw = yaml.safe_load(Path(path).read_text(encoding="utf-8")) or {}
     raw = _expand(raw)
 
-    if raw.get("products"):
-        log.warning(
-            "config.yaml 'products' section is no longer read — "
-            "put URLs in the products file instead"
-        )
-
     settings = raw.get("settings", {}) or {}
-
-    # Products file path is resolved relative to the config file, so running
-    # from another cwd still finds it.
-    products_file = settings.get("products_file", "products.txt")
-    products_path = Path(products_file)
-    if not products_path.is_absolute():
-        products_path = Path(path).resolve().parent / products_path
-    products = load_products(products_path) if products_path.exists() else []
 
     notif_raw = raw.get("notifiers", {}) or {}
     notifiers = NotifierConfig(
@@ -133,11 +117,9 @@ def load_config(path: str | Path = "config.yaml") -> AppConfig:
         interval_seconds=int(settings.get("interval_seconds", 60)),
         request_timeout=float(settings.get("request_timeout", 20.0)),
         user_agent=settings.get("user_agent", AppConfig.user_agent),
-        products_file=str(products_path),
         database_path=settings.get("database_path", "data/stock.db"),
         log_level=settings.get("log_level", "INFO"),
         log_file=settings.get("log_file", "data/stock-alert.log"),
         flaresolverr_url=settings.get("flaresolverr_url", AppConfig.flaresolverr_url),
-        products=products,
         notifiers=notifiers,
     )

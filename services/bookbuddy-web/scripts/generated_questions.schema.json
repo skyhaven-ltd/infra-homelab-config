@@ -21,9 +21,15 @@
           },
           "source_quote": {
             "type": "string"
+          },
+          "choices": {
+            "type": "array",
+            "items": { "type": "string" },
+            "minItems": 4,
+            "maxItems": 4
           }
         },
-        "required": ["type", "prompt", "answer", "source_quote"],
+        "required": ["type", "prompt", "answer", "source_quote", "choices"],
         "additionalProperties": false
       }
     }

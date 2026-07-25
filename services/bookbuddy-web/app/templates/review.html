@@ -1,29 +1,47 @@
 {% extends "base.html" %}
-{% block title %}Warm-up — BookBuddy{% endblock title %}
+{% block title %}
+    Warm-up — BookBuddy
+{% endblock title %}
 {% block content %}
-  <section class="card">
-    <h1>Warm-up</h1>
-    {% if question %}
-      <p class="muted">
-        {{ question.chapter.book.title }} · {{ question.chapter.title }}
-      </p>
-      <fieldset class="question">
-        <legend><span class="badge">{{ question.type }}</span></legend>
-        <p class="prompt">{{ question.prompt }}</p>
-        <form action="{{ url_for('review_reveal', question_id=question.id) }}" method="post">
-          <input type="hidden" name="return_to" value="{{ return_to }}" />
-          <input type="hidden" name="remaining" value="{{ remaining }}" />
-          <textarea name="answer_text" rows="3"
-                    placeholder="Your answer from memory"></textarea>
-          <button type="submit">Show answer</button>
-        </form>
-      </fieldset>
-      {% if return_to %}
-        <p><a href="{{ return_to }}">Skip straight to the chapter</a></p>
-      {% endif %}
-    {% else %}
-      <p class="empty">Nothing to warm up. Come back later — or read another chapter.</p>
-      {% if return_to %}<a class="button" href="{{ return_to }}">Continue reading</a>{% endif %}
-    {% endif %}
-  </section>
+    <section class="card">
+        <h1>Warm-up</h1>
+        {% if question %}
+            <p class="muted">{{ question.chapter.book.title }} · {{ question.chapter.title }}</p>
+            <fieldset class="question">
+                <legend>
+                    <span class="badge">{{ question.type }}</span>
+                </legend>
+                <p class="prompt">{{ question.prompt }}</p>
+                <form action="{{ url_for('review_reveal', question_id=question.id) }}"
+                      method="post">
+                    <input type="hidden" name="return_to" value="{{ return_to }}" />
+                    <input type="hidden" name="remaining" value="{{ remaining }}" />
+                    <textarea name="answer_text" rows="3" placeholder="Your answer from memory"></textarea>
+                    {% if question.choices %}
+                        <details class="memory-cue">
+                            <summary>Need a cue?</summary>
+                            <p class="muted">Try recalling first, then choose the closest answer if you are stuck.</p>
+                            <div class="choice-list">
+                                {% for choice in question.choices %}
+                                    <label>
+                                        <input type="radio" name="cue_answer" value="{{ choice }}" />
+                                        {{ choice }}
+                                    </label>
+                                {% endfor %}
+                            </div>
+                        </details>
+                    {% endif %}
+                    <button type="submit">Show answer</button>
+                </form>
+            </fieldset>
+            {% if return_to %}
+                <p>
+                    <a href="{{ return_to }}">Skip straight to the chapter</a>
+                </p>
+            {% endif %}
+        {% else %}
+            <p class="empty">Nothing to warm up. Come back later — or read another chapter.</p>
+            {% if return_to %}<a class="button" href="{{ return_to }}">Continue reading</a>{% endif %}
+        {% endif %}
+    </section>
 {% endblock content %}

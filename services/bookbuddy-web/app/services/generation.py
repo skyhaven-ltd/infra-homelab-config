@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import json
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import anthropic
 from sqlalchemy import func, select
@@ -52,8 +52,14 @@ QUESTION_SCHEMA = {
                     "prompt": {"type": "string"},
                     "answer": {"type": "string"},
                     "source_quote": {"type": "string"},
+                    "choices": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "minItems": 4,
+                        "maxItems": 4,
+                    },
                 },
-                "required": ["type", "prompt", "answer", "source_quote"],
+                "required": ["type", "prompt", "answer", "source_quote", "choices"],
                 "additionalProperties": False,
             },
         },
@@ -82,6 +88,9 @@ Rules:
   'source_quote' (for 'elaboration', quote the passage that motivates the
   question).
 - Write clear, specific prompts a reader can answer in one to three sentences.
+- Add exactly four concise choices: the answer and three plausible distractors.
+  Vary the answer's position. Choices are optional cues, so they must not make
+  the answer obvious through wording, length, or absurd alternatives.
 - Also write 'recap': a warm, concise "Previously on" summary of this chapter
   for the reader to see before starting the following chapter. Include the
   argument or events that matter going forward, but nothing beyond this text.
@@ -98,6 +107,7 @@ class GeneratedQuestion:
     prompt: str
     answer: str
     source_quote: str
+    choices: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -166,6 +176,7 @@ def parse_raw_output(raw: str) -> GeneratedMaterial:
                 prompt=item["prompt"],
                 answer=item["answer"],
                 source_quote=item["source_quote"],
+                choices=item["choices"],
             )
         except (TypeError, KeyError) as exc:
             raise GenerationError(f"Question missing field: {exc}") from exc
@@ -176,6 +187,7 @@ def parse_raw_output(raw: str) -> GeneratedMaterial:
             or not question.source_quote.strip()
         ):
             raise GenerationError("Question source_quote must not be blank.")
+        _validate_choices(question)
         questions.append(question)
     return GeneratedMaterial(recap=recap.strip(), questions=questions)
 
@@ -232,6 +244,7 @@ def generate_material(
                 prompt=item["prompt"],
                 answer=item["answer"],
                 source_quote=item["source_quote"],
+                choices=item["choices"],
             )
         except (TypeError, KeyError) as exc:
             raise GenerationError(f"Question missing field: {exc}") from exc
@@ -242,6 +255,7 @@ def generate_material(
             or not question.source_quote.strip()
         ):
             raise GenerationError("Question source_quote must not be blank.")
+        _validate_choices(question)
         questions.append(question)
     if not questions:
         raise GenerationError("The model returned no questions.")
@@ -286,6 +300,7 @@ def store_questions(
             prompt=item.prompt,
             answer=item.answer,
             source_quote=item.source_quote,
+            choices_json=json.dumps(item.choices),
             batch_version=version,
         )
         for item in generated
@@ -293,6 +308,25 @@ def store_questions(
     db.add_all(questions)
     db.commit()
     return questions
+
+
+def _validate_choices(question: GeneratedQuestion) -> None:
+    if (
+        not isinstance(question.choices, list)
+        or len(question.choices) != 4
+        or any(
+            not isinstance(choice, str) or not choice.strip()
+            for choice in question.choices
+        )
+        or len({choice.strip().casefold() for choice in question.choices}) != 4
+    ):
+        raise GenerationError(
+            "Question choices must contain four unique, non-blank options."
+        )
+    if question.answer.strip().casefold() not in {
+        choice.strip().casefold() for choice in question.choices
+    }:
+        raise GenerationError("Question choices must include the answer.")
 
 
 def store_material(

@@ -375,6 +375,7 @@ def chapter_quiz_submit(
     chapter_id: int,
     question_id: int = Form(...),
     answer_text: str = Form(""),
+    cue_answer: str = Form(""),
     db: Session = Depends(get_session),
 ) -> HTMLResponse:
     chapter = _get_chapter(db, chapter_id)
@@ -383,6 +384,7 @@ def chapter_quiz_submit(
     if question is None:
         raise HTTPException(status_code=404, detail="Question not found")
     question_index = questions.index(question)
+    answer_text = answer_text.strip() or cue_answer.strip()
     return templates.TemplateResponse(
         request,
         "quiz_grade.html",
@@ -463,6 +465,7 @@ def review_reveal(
     request: Request,
     question_id: int,
     answer_text: str = Form(""),
+    cue_answer: str = Form(""),
     return_to: str = Form(""),
     remaining: int = Form(REVIEW_SESSION_SIZE),
     db: Session = Depends(get_session),
@@ -470,6 +473,7 @@ def review_reveal(
     question = db.get(Question, question_id)
     if question is None:
         raise HTTPException(status_code=404, detail="Question not found")
+    answer_text = answer_text.strip() or cue_answer.strip()
     return templates.TemplateResponse(
         request,
         "review_reveal.html",

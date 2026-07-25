@@ -13,8 +13,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import logging
-import sys
+import threading
 
 import httpx
 
@@ -23,39 +22,33 @@ from config import load_config
 from database import Database
 from logging_setup import setup_logging
 from notifier import Notifier
-from retailers import registered_keys, resolve_retailer
+from retailers import registered_keys
 from scheduler import run_scheduler
+from web import create_app
 
 
 def build_checker(config_path: str):
     config = load_config(config_path)
     setup_logging(config.log_level, config.log_file)
-    log = logging.getLogger("app")
-
-    if not config.products:
-        log.error(
-            "no products to monitor — add URLs (one per line) to %s",
-            config.products_file,
-        )
-        sys.exit(2)
-    for p in config.products:
-        log.info("watching %s via '%s'", p.url, resolve_retailer(p.url).key)
-
     db = Database(config.database_path)
     client = httpx.Client(headers={"User-Agent": config.user_agent})
     notifier = Notifier(config.notifiers, client)
     checker = StockChecker(config, db, notifier, client)
-    return config, checker
+    return config, checker, db
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Stock alert system — watches product URLs from products.txt"
+        description="Stock alert system with a database-backed product list"
     )
     parser.add_argument("--config", default="config.yaml", help="path to config.yaml")
-    parser.add_argument("--once", action="store_true", help="run one check cycle and exit")
     parser.add_argument(
-        "--list-retailers", action="store_true", help="print supported retailers and exit"
+        "--once", action="store_true", help="run one check cycle and exit"
+    )
+    parser.add_argument(
+        "--list-retailers",
+        action="store_true",
+        help="print supported retailers and exit",
     )
     args = parser.parse_args()
 
@@ -63,16 +56,27 @@ def main() -> None:
         print("\n".join(registered_keys()))
         return
 
-    config, checker = build_checker(args.config)
-
-    # Immediate check so a restock that happened while the app was down is
-    # caught at startup rather than after the first interval.
-    checker.check_all()
+    config, checker, db = build_checker(args.config)
 
     if args.once:
+        checker.check_all()
         return
 
-    run_scheduler(checker, config.interval_seconds)
+    def monitor() -> None:
+        # Check immediately without delaying the management UI startup.
+        checker.check_all()
+        run_scheduler(checker, config.interval_seconds)
+
+    scheduler_thread = threading.Thread(
+        target=monitor,
+        daemon=True,
+        name="stock-check-scheduler",
+    )
+    scheduler_thread.start()
+
+    from waitress import serve
+
+    serve(create_app(db), host="0.0.0.0", port=8080, threads=4)
 
 
 if __name__ == "__main__":

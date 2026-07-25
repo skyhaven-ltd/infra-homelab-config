@@ -23,6 +23,7 @@ VALID_OUTPUT = json.dumps(
                 "prompt": "Why?",
                 "answer": "Because.",
                 "source_quote": "Story text",
+                "choices": ["Before.", "Because.", "Perhaps.", "Never."],
             }
         ],
     }
