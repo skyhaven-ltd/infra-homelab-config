@@ -26,19 +26,23 @@ main {
   max-width: 900px;
   padding: 3rem 1.25rem;
 }
+
 header {
   margin-bottom: 2rem;
 }
+
 h1 {
   font-size: clamp(2.3rem, 8vw, 4.2rem);
   letter-spacing: -0.05em;
   margin: 0;
 }
+
 h2,
 h3,
 p {
   margin-top: 0;
 }
+
 .eyebrow {
   color: var(--accent);
   font-size: 0.75rem;
@@ -46,6 +50,7 @@ p {
   letter-spacing: 0.16em;
   text-transform: uppercase;
 }
+
 .card {
   background: var(--card);
   border: 1px solid var(--line);
@@ -53,24 +58,28 @@ p {
   margin-bottom: 1rem;
   padding: 1.4rem;
 }
+
 .add-form {
   display: grid;
   gap: 1rem;
   grid-template-columns: 2fr 1fr auto;
   align-items: end;
 }
+
 label {
   display: grid;
   font-size: 0.85rem;
   font-weight: 650;
   gap: 0.4rem;
 }
+
 label span,
 .meta,
 header > p:last-child {
   color: var(--muted);
   font-weight: 400;
 }
+
 input {
   border: 1px solid var(--line);
   border-radius: 6px;
@@ -79,10 +88,12 @@ input {
   padding: 0.7rem;
   width: 100%;
 }
+
 input:focus {
   border-color: var(--accent);
   outline: 2px solid color-mix(in srgb, var(--accent) 25%, transparent);
 }
+
 button {
   background: var(--accent);
   border: 0;
@@ -93,6 +104,7 @@ button {
   font-weight: 700;
   padding: 0.75rem 1rem;
 }
+
 .section-heading,
 .title-row,
 article {
@@ -101,6 +113,7 @@ article {
   gap: 0.75rem;
   justify-content: space-between;
 }
+
 .count {
   background: #e5ebe7;
   border-radius: 99px;
@@ -108,31 +121,38 @@ article {
   font-weight: 700;
   padding: 0.25rem 0.65rem;
 }
+
 .products article {
   border-top: 1px solid var(--line);
   padding: 1rem 0;
 }
+
 .products article:last-child {
   padding-bottom: 0;
 }
+
 .product-copy {
   min-width: 0;
 }
+
 h3 {
   font-size: 1rem;
   margin-bottom: 0.2rem;
   overflow-wrap: anywhere;
 }
+
 a {
   color: var(--accent);
   display: block;
   font-size: 0.83rem;
   overflow-wrap: anywhere;
 }
+
 .meta {
   font-size: 0.78rem;
   margin: 0.4rem 0 0;
 }
+
 .status {
   border-radius: 99px;
   flex: none;
@@ -140,29 +160,35 @@ a {
   font-weight: 700;
   padding: 0.25rem 0.55rem;
 }
+
 .in-stock {
   background: #dcecdf;
   color: #236035;
 }
+
 .out-of-stock {
   background: #eee5df;
   color: #745044;
 }
+
 .unknown {
   background: #e8e8e5;
   color: #666;
 }
+
 .remove {
   background: transparent;
   border: 1px solid #dcb9b6;
   color: var(--danger);
 }
+
 .error {
   background: #f9e5e3;
   border-radius: 6px;
   color: var(--danger);
   padding: 0.7rem;
 }
+
 .empty {
   color: var(--muted);
   margin-bottom: 0;
@@ -172,12 +198,15 @@ a {
   main {
     padding-top: 1.5rem;
   }
+
   .add-form {
     grid-template-columns: 1fr;
   }
+
   article {
     align-items: flex-start;
   }
+
   .title-row {
     align-items: flex-start;
     flex-direction: column;
