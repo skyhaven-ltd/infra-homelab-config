@@ -17,13 +17,10 @@ interpolation, so `entrypoint.sh` renders `${VAR}` placeholders from
 
 ## Secrets
 
-`buildarr-secrets` (SealedSecret): `PROWLARR_API_KEY`, `SONARR_API_KEY`,
-`RADARR_API_KEY`. Re-seal after rotation (strict scope):
-
-```sh
-printf '%s' "<api-key>" | kubeseal --cert <cert> --raw \
-  --namespace buildarr --name buildarr-secrets
-```
+`buildarr-secrets` (native Secret): `PROWLARR_API_KEY`, `SONARR_API_KEY`,
+`RADARR_API_KEY`. Projected from Azure Key Vault (`homelab-<service>-api-key`)
+by the `argocd_bootstrap` Ansible role on every platform deploy; rotate the
+Key Vault secret and re-run the Reconcile Platform workflow.
 
 ## Validate before trusting a config change
 
