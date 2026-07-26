@@ -53,4 +53,8 @@ resource "proxmox_virtual_environment_container" "runner" {
     template_file_id = proxmox_download_file.ubuntu_lxc.id
     type             = "ubuntu"
   }
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
