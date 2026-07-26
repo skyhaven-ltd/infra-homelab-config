@@ -24,13 +24,32 @@
     fstype: ext4
     opts: defaults,noatime,nofail
     state: mounted
-- name: Mount media disk
+- name: Media mount directory
+  ansible.builtin.file:
+    path: "{{ media_mount }}"
+    state: directory
+    mode: "0755"
+- name: Configure optional media disk mount
+  ansible.posix.mount:
+    path: "{{ media_mount }}"
+    src: "UUID={{ media_fs_uuid }}"
+    fstype: ext4
+    opts: defaults,noatime,nofail
+    state: present
+- name: Find optional media disk
+  ansible.builtin.command: "blkid -U {{ media_fs_uuid }}"
+  register: media_device
+  changed_when: false
+  failed_when: false
+  check_mode: false
+- name: Mount media disk when available
   ansible.posix.mount:
     path: "{{ media_mount }}"
     src: "UUID={{ media_fs_uuid }}"
     fstype: ext4
     opts: defaults,noatime,nofail
     state: mounted
+  when: media_device.rc == 0
 - name: Kernel params for k8s
   ansible.posix.sysctl:
     { name: "{{ item.k }}", value: "{{ item.v }}", state: present }

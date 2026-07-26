@@ -243,6 +243,16 @@ jobs:
       - name: Install Collections
         working-directory: ansible
         run: ansible-galaxy install -r requirements.yml
+      - name: Validate Deployment Inventories
+        working-directory: ansible
+        run: |
+          set -euo pipefail
+          k8s_host="$(ansible-inventory -i inventory/hosts.yml --host lnsvrk8s01)"
+          runner_host="$(ansible-inventory -i inventory/runner.yml --host lnsvrgha01)"
+          if [[ "${k8s_host}" == "{}" || "${runner_host}" == "{}" ]]; then
+            echo "::error::A required Ansible inventory host is missing."
+            exit 1
+          fi
       - name: Converge Kubernetes Host
         working-directory: ansible
         env:
