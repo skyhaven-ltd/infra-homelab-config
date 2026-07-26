@@ -34,9 +34,6 @@ jobs:
           - root: runner
             state_key: runner.tfstate
             arguments: -var-file=vars/homelab.tfvars
-          - root: tailscale
-            state_key: tailscale.tfstate
-            arguments: ""
     env:
       ARM_USE_OIDC: "true"
       ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
@@ -70,7 +67,6 @@ jobs:
           storage_account_name: stplatformprduks02
           login: "false"
       - name: Fetch Proxmox Credential
-        if: matrix.root != 'tailscale'
         uses: skyhaven-ltd/pipeline-engineering-github-actions/actions/keyvault-secrets@6cfa143b42ff464e4101d69c09945db9fac369e5
         with:
           keyvault_name: kv-platform-prd-uks-02
@@ -78,13 +74,6 @@ jobs:
           secrets: |
             TF_VAR_proxmox_api_token=homelab-proxmox-api-token
             TF_VAR_proxmox_ssh_private_key=homelab-proxmox-ssh-private-key
-      - name: Fetch Tailscale Credential
-        if: matrix.root == 'tailscale'
-        uses: skyhaven-ltd/pipeline-engineering-github-actions/actions/keyvault-secrets@6cfa143b42ff464e4101d69c09945db9fac369e5
-        with:
-          keyvault_name: kv-platform-prd-uks-02
-          login: "false"
-          secrets: TAILSCALE_API_KEY=homelab-tailscale-api-key
       - name: Terraform Init
         uses: skyhaven-ltd/pipeline-engineering-github-actions/actions/terraform-backend-init@6cfa143b42ff464e4101d69c09945db9fac369e5
         with:
@@ -220,6 +209,20 @@ jobs:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_PLATFORM_SUBSCRIPTION_ID }}
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
+      - name: Configure Tailscale Terraform Runtime Data
+        run: |
+          set -euo pipefail
+          printf '%s\n' "TF_DATA_DIR=${RUNNER_TEMP}/terraform-data/tailscale" >> "${GITHUB_ENV}"
+      - name: Ensure State Container
+        uses: skyhaven-ltd/pipeline-engineering-github-actions/actions/ensure-tfstate-container@6cfa143b42ff464e4101d69c09945db9fac369e5
+        with:
+          storage_account_name: stplatformprduks02
+          login: "false"
       - name: Fetch Deployment Secrets
         uses: skyhaven-ltd/pipeline-engineering-github-actions/actions/keyvault-secrets@6cfa143b42ff464e4101d69c09945db9fac369e5
         with:
@@ -228,6 +231,12 @@ jobs:
           secrets: |
             ANSIBLE_SSH_PRIVATE_KEY=homelab-ansible-ssh-private-key
             TAILSCALE_API_KEY=homelab-tailscale-api-key
+            CLOUDFLARE_API_TOKEN=homelab-cloudflare-api-token
+            KNOWLEDGE_MCP_BEARER_TOKEN=homelab-knowledge-mcp-bearer-token
+            BOOKBUDDY_WORKER_TOKEN=homelab-bookbuddy-worker-token
+            PROWLARR_API_KEY=homelab-prowlarr-api-key
+            RADARR_API_KEY=homelab-radarr-api-key
+            SONARR_API_KEY=homelab-sonarr-api-key
       - name: Install Ansible
         run: |
           set -euo pipefail
@@ -258,6 +267,16 @@ jobs:
         env:
           ANSIBLE_PRIVATE_KEY_FILE: ${{ runner.temp }}/homelab_deploy
         run: ansible-playbook -i inventory/hosts.yml site.yml
+      - name: Publish Current Kubernetes Kubeconfig
+        run: |
+          set -euo pipefail
+          kubeconfig_base64="$(base64 -w0 ansible/lnsvrk8s01-kubeconfig)"
+          az keyvault secret set \
+            --vault-name kv-platform-prd-uks-02 \
+            --name homelab-kubernetes-kubeconfig-base64 \
+            --value "${kubeconfig_base64}" \
+            --output none \
+            --only-show-errors
       - name: Verify Kubernetes Host Idempotency
         working-directory: ansible
         env:
@@ -270,6 +289,56 @@ jobs:
             echo "::error::Ansible did not converge cleanly on the Kubernetes host."
             exit 1
           fi
+      - name: Initialize Tailscale Terraform
+        uses: skyhaven-ltd/pipeline-engineering-github-actions/actions/terraform-backend-init@6cfa143b42ff464e4101d69c09945db9fac369e5
+        with:
+          environment: prd
+          working_directory: terraform/tailscale
+          state_key: tailscale.tfstate
+          platform_subscription_id: ${{ vars.AZURE_PLATFORM_SUBSCRIPTION_ID }}
+      - name: Plan Tailscale Reconciliation
+        run: |
+          set -euo pipefail
+          timeout --foreground --signal=TERM --kill-after=30s 12m \
+            terraform -chdir=terraform/tailscale plan \
+            -input=false -lock-timeout=5m -out=tfplan
+      - name: Validate Tailscale Replacement Scope
+        run: |
+          set -euo pipefail
+          plan_json="${RUNNER_TEMP}/tailscale-tfplan.json"
+          trap 'rm -f "${plan_json}"' EXIT
+          terraform -chdir=terraform/tailscale show -json tfplan > "${plan_json}"
+          python3 - "${plan_json}" <<'PY'
+          import json
+          import sys
+
+          with open(sys.argv[1], encoding="utf-8") as stream:
+              plan = json.load(stream)
+
+          destructive = [
+              change["address"]
+              for change in plan.get("resource_changes", [])
+              if "delete" in change.get("change", {}).get("actions", [])
+          ]
+          allowed = {"tailscale_device_key.k8s"}
+          unexpected = [address for address in destructive if address not in allowed]
+          if unexpected:
+              print("::error::Destructive Terraform plan rejected: " + ", ".join(unexpected))
+              raise SystemExit(1)
+          for address in destructive:
+              print(f"::notice::Allowing expected rebuilt-node replacement: {address}")
+          PY
+      - name: Apply Tailscale Reconciliation
+        run: |
+          set -euo pipefail
+          timeout --foreground --signal=TERM --kill-after=30s 25m \
+            terraform -chdir=terraform/tailscale apply -input=false -auto-approve tfplan
+      - name: Verify Tailscale Convergence
+        run: |
+          set -euo pipefail
+          timeout --foreground --signal=TERM --kill-after=30s 12m \
+            terraform -chdir=terraform/tailscale plan \
+            -input=false -lock-timeout=5m -detailed-exitcode
       - name: Converge Actions Runner
         working-directory: ansible
         env:

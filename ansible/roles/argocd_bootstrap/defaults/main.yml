@@ -1,2 +1,3 @@
 ---
 argocd_kubeconfig: /etc/rancher/k3s/k3s.yaml
+platform_health_timeout: 600s
