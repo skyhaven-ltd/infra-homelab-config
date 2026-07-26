@@ -9,7 +9,7 @@
     name: azure-cli
     types: [deb]
     uris: "https://packages.microsoft.com/repos/azure-cli/"
-    suites: ["{{ ansible_distribution_release }}"]
+    suites: ["{{ ansible_facts['distribution_release'] }}"]
     components: [main]
     architectures: [amd64]
     signed_by: "https://packages.microsoft.com/keys/microsoft.asc"
@@ -60,12 +60,17 @@
     group: "{{ gha_runner_group }}"
     creates: "{{ gha_runner_home }}/config.sh"
 
+- name: Check whether runner OS dependencies are installed
+  ansible.builtin.stat:
+    path: "{{ gha_runner_home }}/.dependencies-installed"
+  register: gha_runner_dependencies_marker
+
 - name: Install runner OS dependencies
   ansible.builtin.command: ./bin/installdependencies.sh
   args:
     chdir: "{{ gha_runner_home }}"
     creates: "{{ gha_runner_home }}/.dependencies-installed"
-  register: gha_runner_deps
+  when: not gha_runner_dependencies_marker.stat.exists
   changed_when: true
 
 - name: Mark OS dependencies as installed
@@ -75,7 +80,7 @@
     owner: "{{ gha_runner_user }}"
     group: "{{ gha_runner_group }}"
     mode: "0644"
-  when: gha_runner_deps is changed
+  when: not gha_runner_dependencies_marker.stat.exists
 
 - name: Check whether the runner is already registered
   ansible.builtin.stat:
@@ -116,11 +121,17 @@
   changed_when: true
   no_log: true
 
+- name: Check whether the runner systemd service is installed
+  ansible.builtin.stat:
+    path: "{{ gha_runner_home }}/.service"
+  register: gha_runner_service_marker
+
 - name: Install the runner systemd service
   ansible.builtin.command: ./svc.sh install {{ gha_runner_user }}
   args:
     chdir: "{{ gha_runner_home }}"
     creates: "{{ gha_runner_home }}/.service"
+  when: not gha_runner_service_marker.stat.exists
   changed_when: true
 
 - name: Read the generated systemd unit name
