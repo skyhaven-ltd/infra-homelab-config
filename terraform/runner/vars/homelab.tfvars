@@ -1,5 +1,5 @@
 
-proxmox_host      = "100.82.112.92"
+proxmox_host      = "192.168.1.2"
 proxmox_node      = "lnproxlab01"
 container_storage = "local-lvm"
 template_storage  = "local"
