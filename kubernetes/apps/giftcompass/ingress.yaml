@@ -9,10 +9,10 @@ metadata:
 spec:
   ingressClassName: nginx
   tls:
-    - hosts: [gifts.lab.skyhaven.ltd]
+    - hosts: [giftcompass.lab.skyhaven.ltd]
       secretName: giftcompass-tls
   rules:
-    - host: gifts.lab.skyhaven.ltd
+    - host: giftcompass.lab.skyhaven.ltd
       http:
         paths:
           - path: /
