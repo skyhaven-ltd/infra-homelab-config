@@ -1,0 +1,140 @@
+---
+name: GiftCompass
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "services/giftcompass/**"
+      - ".github/workflows/service-giftcompass.yml"
+  push:
+    branches: [main]
+    paths:
+      - "services/giftcompass/**"
+      - ".github/workflows/service-giftcompass.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: giftcompass-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  IMAGE: ghcr.io/${{ github.repository }}/giftcompass
+  PYTHON_VERSION: "3.12"
+
+jobs:
+  validate:
+    name: Test and Package
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+      - name: Setup Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: services/giftcompass/requirements-dev.txt
+      - name: Install Dependencies
+        working-directory: services/giftcompass
+        run: python -m pip install --disable-pip-version-check -r requirements-dev.txt
+      - name: Lint and Test
+        working-directory: services/giftcompass
+        run: |
+          set -euo pipefail
+          python -m ruff check giftcompass.py tests
+          python -m ruff format --check giftcompass.py tests
+          python -m pytest
+      - name: Build Container
+        run: docker build --tag "${IMAGE}:${GITHUB_SHA}" services/giftcompass
+
+  publish:
+    name: Publish Container
+    if: github.event_name == 'push'
+    needs: validate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+      - name: Build Container
+        run: |
+          set -euo pipefail
+          docker build --tag "${IMAGE}:${GITHUB_SHA}" --tag "${IMAGE}:latest" services/giftcompass
+      - name: Login and Publish
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          printf '%s' "${GHCR_TOKEN}" | docker login ghcr.io --username "${GITHUB_ACTOR}" --password-stdin
+          docker push "${IMAGE}:${GITHUB_SHA}"
+          docker push "${IMAGE}:latest"
+
+  deploy:
+    name: Refresh Deployment
+    if: github.event_name == 'push'
+    needs: publish
+    runs-on: [self-hosted, homelab]
+    environment: homelab
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      ARM_USE_OIDC: "true"
+      ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_PLATFORM_SUBSCRIPTION_ID }}
+      KUBECTL_VERSION: "v1.36.2"
+      KUBECTL_SHA256: "1e9045ec32bea85da43de85f0065358529ea7c7a152eca78154fba5b58c27d82"
+    steps:
+      - name: Azure Login
+        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_PLATFORM_SUBSCRIPTION_ID }}
+      - name: Fetch Kubeconfig
+        uses: skyhaven-ltd/pipeline-engineering-github-actions/actions/keyvault-secrets@6cfa143b42ff464e4101d69c09945db9fac369e5
+        with:
+          keyvault_name: kv-platform-prd-uks-02
+          login: "false"
+          secrets: ARGOCD_KUBECONFIG=homelab-argocd-kubeconfig
+      - name: Install Kubectl
+        run: |
+          set -euo pipefail
+          workdir="$(mktemp -d)"
+          cd "${workdir}"
+          curl -fsSLO "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
+          echo "${KUBECTL_SHA256}  kubectl" | sha256sum -c -
+          install -m 0755 kubectl "${RUNNER_TEMP}/kubectl"
+      - name: Pull Published Image
+        run: |
+          set -euo pipefail
+          umask 077
+          kubeconfig="${RUNNER_TEMP}/giftcompass-kubeconfig"
+          printf '%s\n' "${ARGOCD_KUBECONFIG}" > "${kubeconfig}"
+          export KUBECONFIG="${kubeconfig}"
+
+          deadline=$((SECONDS + 600))
+          until "${RUNNER_TEMP}/kubectl" -n giftcompass get deployment/giftcompass >/dev/null 2>&1; do
+            if [ "${SECONDS}" -ge "${deadline}" ]; then
+              echo "::error::GiftCompass deployment was not created by Argo CD within 10 minutes."
+              exit 1
+            fi
+            sleep 10
+          done
+
+          "${RUNNER_TEMP}/kubectl" -n giftcompass delete pod -l app=giftcompass --wait=false
+          "${RUNNER_TEMP}/kubectl" -n giftcompass rollout status deployment/giftcompass --timeout=5m
+      - name: Remove Kubeconfig
+        if: always()
+        run: rm -f "${RUNNER_TEMP}/giftcompass-kubeconfig"

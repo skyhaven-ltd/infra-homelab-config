@@ -5,6 +5,8 @@ appdata/
 .terraform/
 .terraform.lock.hcl.backup
 crash.log
+__pycache__/
+*.pyc
 
 ansible/inventory/hosts.yml
 ansible/inventory/runner.yml
