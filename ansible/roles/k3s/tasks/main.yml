@@ -19,6 +19,29 @@
   ansible.builtin.shell: |
     curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION={{ k3s_version }} sh -s - server
   args: { creates: /usr/local/bin/k3s }
+- name: Kubeconfig directory for the SSH administration user
+  ansible.builtin.file:
+    path: "/home/{{ ansible_user }}/.kube"
+    state: directory
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: "0700"
+- name: Install kubeconfig for the SSH administration user
+  ansible.builtin.copy:
+    src: /etc/rancher/k3s/k3s.yaml
+    dest: "/home/{{ ansible_user }}/.kube/config"
+    remote_src: true
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: "0600"
+- name: Select the user kubeconfig in login shells
+  ansible.builtin.copy:
+    dest: /etc/profile.d/kubeconfig.sh
+    content: |
+      export KUBECONFIG="$HOME/.kube/config"
+    owner: root
+    group: root
+    mode: "0644"
 - name: Fetch kubeconfig to controller
   ansible.builtin.fetch:
     src: /etc/rancher/k3s/k3s.yaml
