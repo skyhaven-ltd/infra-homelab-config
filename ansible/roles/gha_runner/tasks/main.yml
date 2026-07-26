@@ -138,7 +138,7 @@
     state: directory
     mode: "0755"
 
-- name: Always restart the runner
+- name: Configure automatic runner restart
   ansible.builtin.copy:
     dest: "/etc/systemd/system/{{ gha_runner_unit }}.d/10-restart.conf"
     content: |
@@ -146,7 +146,6 @@
       Restart=always
       RestartSec=5
     mode: "0644"
-  notify: restart gha runner
 
 - name: Ensure the runner service is enabled and running
   ansible.builtin.systemd:
