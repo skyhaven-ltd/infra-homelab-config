@@ -1,13 +1,29 @@
 {% extends "base.html" %}
 {% block content %}
-<section class="hero"><div><p class="eyebrow">People</p><h1>Your gift-giving circle</h1><p>Keep the useful details together and turn them into better ideas.</p></div><a class="button" href="{{ url_for('person_new') }}">Add person</a></section>
-<section class="cards">
-{% for person in people %}
-  <a class="card" href="{{ url_for('person_detail', person_id=person.id) }}">
-    <div class="avatar">{{ person.name[0]|upper }}</div><div><h2>{{ person.name }}</h2><p>{{ person.relationship or "Relationship not set" }}</p><small>{{ person.gift_count }} ideas · {{ person.purchased or 0 }} purchased</small></div>
-  </a>
-{% else %}
-  <div class="empty"><h2>No profiles yet</h2><p>Add someone you care about to start collecting thoughtful ideas.</p></div>
-{% endfor %}
-</section>
-{% endblock %}
+    <section class="hero">
+        <div>
+            <p class="eyebrow">People</p>
+            <h1>Your gift-giving circle</h1>
+            <p>Keep the useful details together and turn them into better ideas.</p>
+        </div>
+        <a class="button" href="{{ url_for('person_new') }}">Add person</a>
+    </section>
+    <section class="cards">
+        {% for person in people %}
+            <a class="card"
+               href="{{ url_for('person_detail', person_id=person.id) }}">
+                <div class="avatar">{{ person.name[0]|upper }}</div>
+                <div>
+                    <h2>{{ person.name }}</h2>
+                    <p>{{ person.relationship or "Relationship not set" }}</p>
+                    <small>{{ person.gift_count }} ideas · {{ person.purchased or 0 }} purchased</small>
+                </div>
+            </a>
+        {% else %}
+            <div class="empty">
+                <h2>No profiles yet</h2>
+                <p>Add someone you care about to start collecting thoughtful ideas.</p>
+            </div>
+        {% endfor %}
+    </section>
+{% endblock content %}
