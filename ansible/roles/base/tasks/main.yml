@@ -59,6 +59,13 @@
     mode: "0755"
   loop:
     - "{{ media_mount }}/library"
+    # Sonarr and Radarr root folders and the qBittorrent save path. They are
+    # created here so a freshly formatted media disk is immediately usable
+    # rather than depending on whichever container happens to start first.
+    - "{{ media_mount }}/library/tv"
+    - "{{ media_mount }}/library/movies"
+    - "{{ media_mount }}/downloads"
+    - "{{ media_mount }}/downloads/complete"
 - name: Kernel params for k8s
   ansible.posix.sysctl:
     { name: "{{ item.k }}", value: "{{ item.v }}", state: present }

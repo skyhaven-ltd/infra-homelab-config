@@ -65,7 +65,11 @@ resource "proxmox_virtual_environment_vm" "k8s" {
   }
 
   lifecycle {
-    # The third disk is attached outside Terraform and contains persistent application data.
+    # scsi2 is the physical media disk (ST1000LM014, serial W38139VJ) passed
+    # through by device path rather than allocated on Proxmox storage. Because
+    # Proxmox does not own that volume, destroying this VM detaches the disk but
+    # cannot delete its contents - unlike the disk image it replaced, which a
+    # qmdestroy removed along with the whole media library on 2026-07-26.
     ignore_changes  = [disk[2]]
     prevent_destroy = true
   }
