@@ -237,6 +237,8 @@ jobs:
             PROWLARR_API_KEY=homelab-prowlarr-api-key
             RADARR_API_KEY=homelab-radarr-api-key
             SONARR_API_KEY=homelab-sonarr-api-key
+            RCLONE_ONEDRIVE_TOKEN=homelab-rclone-onedrive-token
+            RCLONE_ONEDRIVE_DRIVE_ID=homelab-rclone-onedrive-drive-id
       - name: Install Ansible
         run: |
           set -euo pipefail

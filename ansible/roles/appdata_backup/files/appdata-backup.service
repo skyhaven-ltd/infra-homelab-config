@@ -1,0 +1,21 @@
+[Unit]
+Description=Back up container appdata and upload it to OneDrive
+Documentation=https://github.com/skyhaven-ltd/infra-homelab-config/blob/main/docs/backup-restore.md
+After=network-online.target
+Wants=network-online.target
+# Fail closed rather than archiving an empty mountpoint.
+RequiresMountsFor=/srv/appdata
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+Environment=KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+EnvironmentFile=/etc/default/appdata-backup
+ExecStart=/usr/local/sbin/backup-appdata.sh
+# Only runs when ExecStart succeeded, so a failed archive is never uploaded.
+ExecStartPost=/usr/local/sbin/sync-backups-to-onedrive.sh
+TimeoutStartSec=3600
+
+[Install]
+WantedBy=multi-user.target
