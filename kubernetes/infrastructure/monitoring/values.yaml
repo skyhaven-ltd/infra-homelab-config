@@ -12,6 +12,19 @@ kubeEtcd:
   enabled: false
 
 grafana:
+  # Without this the subchart renders a new random admin password on every Helm
+  # render. Argo rewrites the generated secret, Grafana resets its database
+  # password from that secret on every start, and the value nobody has ever
+  # seen changes again on the next sync - so admin login is permanently broken.
+  #
+  # Unlike the other platform credentials this password is deliberately NOT in
+  # Key Vault; it is held in Bitwarden. The grafana-admin secret therefore is
+  # not reconciled by Ansible and must be recreated by hand on a cluster
+  # rebuild - Grafana will not start without it. See docs/backup-restore.md.
+  admin:
+    existingSecret: grafana-admin
+    userKey: admin-user
+    passwordKey: admin-password
   ingress:
     enabled: true
     ingressClassName: nginx
