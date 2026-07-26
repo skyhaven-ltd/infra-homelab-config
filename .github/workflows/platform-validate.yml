@@ -27,7 +27,7 @@ env:
   ANSIBLE_LINT_VERSION: "26.6.0"
 
 jobs:
-  terraform:
+  Terraform:
     name: Terraform (${{ matrix.root }})
     runs-on: ubuntu-latest
     strategy:
@@ -63,7 +63,7 @@ jobs:
           ROOT: ${{ matrix.root }}
         run: terraform -chdir="terraform/${ROOT}" validate
 
-  kubernetes:
+  Kubernetes:
     name: Kubernetes Manifests
     runs-on: ubuntu-latest
     steps:
@@ -114,7 +114,7 @@ jobs:
             -schema-location default -schema-location "${CRD_SCHEMA}" \
             kubernetes/argocd-apps/*.yaml
 
-  ansible:
+  Ansible:
     name: Ansible
     runs-on: ubuntu-latest
     steps:

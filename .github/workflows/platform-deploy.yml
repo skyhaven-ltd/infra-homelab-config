@@ -18,7 +18,7 @@ env:
   TERRAFORM_VERSION: "1.15.7"
 
 jobs:
-  terraform:
+  Terraform:
     name: Terraform Apply (${{ matrix.root }})
     runs-on: [self-hosted, homelab]
     environment: homelab
@@ -187,9 +187,9 @@ jobs:
             terraform -chdir="terraform/${ROOT}" plan \
             -input=false -lock-timeout=5m -detailed-exitcode ${TF_ARGUMENTS}
 
-  ansible:
+  Ansible:
     name: Ansible Converge
-    needs: terraform
+    needs: Terraform
     runs-on: [self-hosted, homelab]
     environment: homelab
     timeout-minutes: 45
@@ -320,7 +320,7 @@ jobs:
               for change in plan.get("resource_changes", [])
               if "delete" in change.get("change", {}).get("actions", [])
           ]
-          allowed = {"tailscale_device_key.k8s"}
+          allowed = {"tailscale_device_key.k8s", "tailscale_device_subnet_routes.k8s"}
           unexpected = [address for address in destructive if address not in allowed]
           if unexpected:
               print("::error::Destructive Terraform plan rejected: " + ", ".join(unexpected))

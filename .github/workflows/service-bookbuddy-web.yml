@@ -27,7 +27,7 @@ env:
   PYTHON_VERSION: "3.12"
 
 jobs:
-  validate:
+  Validate:
     name: Test and Package
     runs-on: ubuntu-latest
     steps:
@@ -60,10 +60,10 @@ jobs:
       - name: Build Container
         run: docker build --tag "${IMAGE}:${GITHUB_SHA}" services/bookbuddy-web
 
-  publish:
+  Publish:
     name: Publish Container
     if: github.event_name == 'push'
-    needs: validate
+    needs: Validate
     runs-on: ubuntu-latest
     permissions:
       contents: read
