@@ -69,7 +69,9 @@ jobs:
         with:
           keyvault_name: kv-platform-prd-uks-02
           login: "false"
-          secrets: TF_VAR_proxmox_api_token=homelab-proxmox-api-token
+          secrets: |
+            TF_VAR_proxmox_api_token=homelab-proxmox-api-token
+            TF_VAR_proxmox_ssh_private_key=homelab-proxmox-ssh-private-key
       - name: Fetch Tailscale Credential
         if: matrix.root == 'tailscale'
         uses: skyhaven-ltd/pipeline-engineering-github-actions/actions/keyvault-secrets@6cfa143b42ff464e4101d69c09945db9fac369e5
