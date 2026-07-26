@@ -126,7 +126,7 @@ the vault under it:
     secrets: |
       TF_VAR_proxmox_api_token=homelab-proxmox-api-token
       ANSIBLE_SSH_PRIVATE_KEY=homelab-ansible-ssh-private-key
-      ARGOCD_KUBECONFIG=homelab-argocd-kubeconfig
+      TAILSCALE_API_KEY=homelab-tailscale-api-key
 ```
 
 The action masks each value (line by line, so multiline PEM keys and kubeconfigs
@@ -150,9 +150,9 @@ The secrets themselves (all under the `homelab-` prefix):
 | --- | --- | --- |
 | `homelab-proxmox-api-token` | CI + operator | `terraform@pve!tf=<uuid>`, becomes `TF_VAR_proxmox_api_token` |
 | `homelab-ansible-ssh-private-key` | CI + operator | private key whose public half is in `ansible/roles/users/files/authorized_keys.d/` |
-| `homelab-argocd-kubeconfig` | CI + operator | least-privilege ServiceAccount kubeconfig, read-only on Argo CD Applications |
-| `homelab-proxmox-ssh-private-key` | operator only | `id_ed25519_proxmox`; the `bpg/proxmox` provider's `ssh-agent` key at apply time. CI reaches Proxmox over the API, not host SSH, so the deploy workflow never fetches this |
-| `homelab-tailscale-api-key` | operator only | `TAILSCALE_API_KEY` for the `terraform/tailscale` root, which CI does not run |
+| `homelab-proxmox-ssh-private-key` | CI + operator | `id_ed25519_proxmox`; the `bpg/proxmox` provider's SSH key at apply time |
+| `homelab-tailscale-api-key` | CI + operator | `TAILSCALE_API_KEY` for the `terraform/tailscale` root, applied by the deploy workflow |
+| `homelab-kubernetes-kubeconfig-base64` | CI | written by the deploy workflow after Kubernetes convergence; read by the service deploy jobs |
 
 Populate or rotate any of them from an authenticated workstation. `--file` keeps
 multiline values (private keys, kubeconfigs) intact where `--value` would mangle
@@ -163,15 +163,7 @@ az keyvault secret set --vault-name kv-platform-prd-uks-02 \
   --name homelab-proxmox-api-token --value 'terraform@pve!tf=...'
 az keyvault secret set --vault-name kv-platform-prd-uks-02 \
   --name homelab-ansible-ssh-private-key --file ~/.ssh/homelab_deploy
-az keyvault secret set --vault-name kv-platform-prd-uks-02 \
-  --name homelab-argocd-kubeconfig --file ./argocd-kubeconfig
 ```
-
-`homelab-argocd-kubeconfig` must not be the cluster-admin
-`/etc/rancher/k3s/k3s.yaml` verbatim. That file points its server at
-`127.0.0.1:6443`, which on the runner resolves to the runner. Rewrite the server
-to the node's LAN address and use a ServiceAccount token that can only
-`get`/`list` `applications.argoproj.io`.
 
 The `AZURE_CLIENT_ID`, `AZURE_TENANT_ID` and `AZURE_PLATFORM_SUBSCRIPTION_ID`
 *variables* on the `homelab` environment are created by `bootstrap-platform.sh`

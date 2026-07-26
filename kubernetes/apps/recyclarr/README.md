@@ -17,15 +17,11 @@ Recyclarr fully owns custom formats on both instances.
 
 ## Secrets
 
-`recyclarr-secrets` (SealedSecret) holds `SONARR_API_KEY` and `RADARR_API_KEY`,
-injected as env and referenced from the config via `!env_var`.
-
-Re-seal after rotating a key (kubeseal 0.38.4, strict scope):
-
-```sh
-printf '%s' "<api-key>" | kubeseal --cert <cert> --raw \
-  --namespace recyclarr --name recyclarr-secrets
-```
+`recyclarr-secrets` (native Secret) holds `SONARR_API_KEY` and `RADARR_API_KEY`,
+injected as env and referenced from the config via `!env_var`. Projected from
+Azure Key Vault (`homelab-<service>-api-key`) by the `argocd_bootstrap` Ansible
+role on every platform deploy; rotate the Key Vault secret and re-run the
+Reconcile Platform workflow.
 
 ## Changing quality
 

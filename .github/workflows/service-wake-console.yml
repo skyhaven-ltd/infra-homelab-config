@@ -29,7 +29,7 @@ env:
   RUFF_VERSION: "0.12.5"
 
 jobs:
-  validate:
+  Validate:
     name: Validate and Package
     runs-on: ubuntu-latest
     steps:
@@ -66,10 +66,10 @@ jobs:
       - name: Build Container
         run: docker build --tag "${IMAGE_SHA}" services/wake-console
 
-  publish:
+  Publish:
     name: Publish Container
     if: github.event_name == 'push'
-    needs: validate
+    needs: Validate
     runs-on: ubuntu-latest
     permissions:
       contents: read

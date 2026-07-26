@@ -27,7 +27,7 @@ env:
   UV_VERSION: "0.11.21"
 
 jobs:
-  validate:
+  Validate:
     name: Validate and Package
     runs-on: ubuntu-latest
     steps:
@@ -68,10 +68,10 @@ jobs:
       - name: Build Container
         run: docker build --tag "${IMAGE}" services/knowledge-mcp
 
-  publish:
+  Publish:
     name: Publish Immutable Commit Image
     if: github.event_name == 'push'
-    needs: validate
+    needs: Validate
     runs-on: ubuntu-latest
     permissions:
       contents: read
