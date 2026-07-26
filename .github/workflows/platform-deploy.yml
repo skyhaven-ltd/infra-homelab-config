@@ -92,12 +92,15 @@ jobs:
           set -euo pipefail
           # Intentional word splitting permits zero or one static tfvars argument from the matrix.
           # shellcheck disable=SC2086
-          terraform -chdir="terraform/${ROOT}" plan \
+          timeout --foreground --signal=TERM --kill-after=30s 12m \
+            terraform -chdir="terraform/${ROOT}" plan \
             -input=false -lock-timeout=5m -out=tfplan ${TF_ARGUMENTS}
       - name: Terraform Apply Exact Plan
         env:
           ROOT: ${{ matrix.root }}
-        run: terraform -chdir="terraform/${ROOT}" apply -input=false -auto-approve tfplan
+        run: |
+          timeout --foreground --signal=TERM --kill-after=30s 25m \
+            terraform -chdir="terraform/${ROOT}" apply -input=false -auto-approve tfplan
       - name: Verify Terraform Convergence
         env:
           ROOT: ${{ matrix.root }}
@@ -106,7 +109,8 @@ jobs:
           set -euo pipefail
           # Exit code 2 means applying the saved plan did not leave a converged state.
           # shellcheck disable=SC2086
-          terraform -chdir="terraform/${ROOT}" plan \
+          timeout --foreground --signal=TERM --kill-after=30s 12m \
+            terraform -chdir="terraform/${ROOT}" plan \
             -input=false -lock-timeout=5m -detailed-exitcode ${TF_ARGUMENTS}
 
   ansible:
