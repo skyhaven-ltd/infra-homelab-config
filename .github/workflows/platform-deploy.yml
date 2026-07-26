@@ -42,12 +42,17 @@ jobs:
       ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
       ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
       ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_PLATFORM_SUBSCRIPTION_ID }}
-      TF_DATA_DIR: ${{ runner.temp }}/terraform-data/${{ matrix.root }}
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
         with:
           persist-credentials: false
+      - name: Configure Terraform Runtime Data
+        env:
+          ROOT: ${{ matrix.root }}
+        run: |
+          set -euo pipefail
+          printf '%s\n' "TF_DATA_DIR=${RUNNER_TEMP}/terraform-data/${ROOT}" >> "${GITHUB_ENV}"
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e
         with:
