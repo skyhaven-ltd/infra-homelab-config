@@ -16,6 +16,70 @@
   environment: { KUBECONFIG: "{{ argocd_kubeconfig }}" }
   changed_when: false
 
+- name: Validate durable platform secret inputs
+  ansible.builtin.assert:
+    that:
+      - cloudflare_api_token | length > 0
+      - knowledge_mcp_bearer_token | length > 0
+      - bookbuddy_worker_token | length > 0
+      - prowlarr_api_key | length > 0
+      - radarr_api_key | length > 0
+      - sonarr_api_key | length > 0
+    fail_msg: Required platform secrets were not retrieved from Azure Key Vault
+  no_log: true
+
+- name: Project durable Key Vault values into Kubernetes
+  ansible.builtin.command: kubectl apply -f -
+  args:
+    stdin: |
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: cert-manager
+      ---
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: cloudflare-api-token
+        namespace: cert-manager
+      type: Opaque
+      stringData:
+        api-token: {{ cloudflare_api_token | to_json }}
+      ---
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: knowledge-mcp
+      ---
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: knowledge-mcp-env
+        namespace: knowledge-mcp
+      type: Opaque
+      stringData:
+        KNOWLEDGE_MCP_BEARER_TOKEN: {{ knowledge_mcp_bearer_token | to_json }}
+      ---
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: bookbuddy
+      ---
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: bookbuddy-env
+        namespace: bookbuddy
+      type: Opaque
+      stringData:
+        WORKER_TOKEN: {{ bookbuddy_worker_token | to_json }}
+  environment: { KUBECONFIG: "{{ argocd_kubeconfig }}" }
+  register: platform_secrets_apply
+  changed_when: >-
+    'created' in platform_secrets_apply.stdout or
+    'configured' in platform_secrets_apply.stdout
+  no_log: true
+
 - name: Apply the app-of-apps root Application
   ansible.builtin.command: kubectl apply -f -
   args:
@@ -23,3 +87,135 @@
   environment: { KUBECONFIG: "{{ argocd_kubeconfig }}" }
   register: root_apply
   changed_when: "'created' in root_apply.stdout or 'configured' in root_apply.stdout"
+
+- name: Wait for media API deployments to be created
+  ansible.builtin.shell: |
+    set -euo pipefail
+    for service in prowlarr radarr sonarr; do
+      kubectl -n "${service}" get "deployment/${service}"
+    done
+  args:
+    executable: /bin/bash
+  environment: { KUBECONFIG: "{{ argocd_kubeconfig }}" }
+  register: media_api_deployments
+  changed_when: false
+  retries: 60
+  delay: 10
+  until: media_api_deployments.rc == 0
+
+- name: Wait for media API deployments to become available
+  ansible.builtin.shell: |
+    set -euo pipefail
+    for service in prowlarr radarr sonarr; do
+      kubectl -n "${service}" rollout status "deployment/${service}" \
+        --timeout={{ platform_health_timeout }}
+    done
+  args:
+    executable: /bin/bash
+  environment: { KUBECONFIG: "{{ argocd_kubeconfig }}" }
+  changed_when: false
+
+- name: Reconcile stable media API keys from Key Vault
+  ansible.builtin.shell: |
+    set -euo pipefail
+    current_key="$(kubectl -n {{ item.namespace }} exec deployment/{{ item.deployment }} -- \
+      sh -c "sed -n 's:.*<ApiKey>\(.*\)</ApiKey>.*:\1:p' /config/config.xml" | tr -d '\r\n')"
+    if [[ "${current_key}" == {{ item.api_key | quote }} ]]; then
+      echo unchanged
+      exit 0
+    fi
+    kubectl -n {{ item.namespace }} exec deployment/{{ item.deployment }} -- \
+      sed -i 's#<ApiKey>.*</ApiKey>#<ApiKey>{{ item.api_key }}</ApiKey>#' /config/config.xml
+    kubectl -n {{ item.namespace }} rollout restart deployment/{{ item.deployment }}
+    echo changed
+  args:
+    executable: /bin/bash
+  environment: { KUBECONFIG: "{{ argocd_kubeconfig }}" }
+  loop:
+    - { namespace: prowlarr, deployment: prowlarr, api_key: "{{ prowlarr_api_key }}" }
+    - { namespace: radarr, deployment: radarr, api_key: "{{ radarr_api_key }}" }
+    - { namespace: sonarr, deployment: sonarr, api_key: "{{ sonarr_api_key }}" }
+  register: media_api_key_reconcile
+  changed_when: "'changed' in media_api_key_reconcile.stdout"
+  no_log: true
+
+- name: Wait for reconciled media APIs to become available
+  ansible.builtin.shell: |
+    set -euo pipefail
+    for service in prowlarr radarr sonarr; do
+      kubectl -n "${service}" rollout status "deployment/${service}" \
+        --timeout={{ platform_health_timeout }}
+    done
+  args:
+    executable: /bin/bash
+  environment: { KUBECONFIG: "{{ argocd_kubeconfig }}" }
+  changed_when: false
+
+- name: Reconcile generated media integration secrets
+  ansible.builtin.command: kubectl apply -f -
+  args:
+    stdin: |
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: buildarr
+      ---
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: buildarr-secrets
+        namespace: buildarr
+      type: Opaque
+      stringData:
+        PROWLARR_API_KEY: {{ prowlarr_api_key | to_json }}
+        RADARR_API_KEY: {{ radarr_api_key | to_json }}
+        SONARR_API_KEY: {{ sonarr_api_key | to_json }}
+      ---
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: recyclarr
+      ---
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: recyclarr-secrets
+        namespace: recyclarr
+      type: Opaque
+      stringData:
+        RADARR_API_KEY: {{ radarr_api_key | to_json }}
+        SONARR_API_KEY: {{ sonarr_api_key | to_json }}
+  environment: { KUBECONFIG: "{{ argocd_kubeconfig }}" }
+  register: media_secrets_apply
+  changed_when: >-
+    'created' in media_secrets_apply.stdout or
+    'configured' in media_secrets_apply.stdout
+  no_log: true
+
+- name: Wait for all deployments to become available
+  ansible.builtin.command: >-
+    kubectl wait --for=condition=Available deployment --all --all-namespaces
+    --timeout={{ platform_health_timeout }}
+  environment: { KUBECONFIG: "{{ argocd_kubeconfig }}" }
+  changed_when: false
+
+- name: Wait for all managed certificates to become ready
+  ansible.builtin.command: >-
+    kubectl wait --for=condition=Ready certificate --all --all-namespaces
+    --timeout={{ platform_health_timeout }}
+  environment: { KUBECONFIG: "{{ argocd_kubeconfig }}" }
+  changed_when: false
+
+- name: Wait for all Argo CD applications to become synced
+  ansible.builtin.command: >-
+    kubectl wait --for=jsonpath='{.status.sync.status}'=Synced
+    application --all -n argocd --timeout={{ platform_health_timeout }}
+  environment: { KUBECONFIG: "{{ argocd_kubeconfig }}" }
+  changed_when: false
+
+- name: Wait for all Argo CD applications to become healthy
+  ansible.builtin.command: >-
+    kubectl wait --for=jsonpath='{.status.health.status}'=Healthy
+    application --all -n argocd --timeout={{ platform_health_timeout }}
+  environment: { KUBECONFIG: "{{ argocd_kubeconfig }}" }
+  changed_when: false

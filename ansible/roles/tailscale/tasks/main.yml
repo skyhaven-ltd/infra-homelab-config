@@ -5,6 +5,13 @@
   args: { creates: /etc/apt/sources.list.d/tailscale.list }
 - name: Install tailscale
   ansible.builtin.apt: { name: tailscale, update_cache: true }
+- name: Enable IPv4 forwarding for advertised routes
+  ansible.posix.sysctl:
+    name: net.ipv4.ip_forward
+    value: "1"
+    state: present
+    sysctl_set: true
+    reload: true
 - name: Check tailscale backend state
   ansible.builtin.command: tailscale status
   register: ts_status
@@ -45,5 +52,18 @@
       - "--authkey={{ tailscale_auth_key.json.key }}"
       - --accept-dns=false
       - --hostname=lnsvrk8s01
-  when: ts_status.rc != 0
+      - "--advertise-routes={{ tailscale_advertised_routes | join(',') }}"
+  when:
+    - ts_status.rc != 0
+    - not ansible_check_mode
   no_log: true
+- name: Reconcile tailscale node preferences
+  ansible.builtin.command:
+    argv:
+      - tailscale
+      - set
+      - --accept-dns=false
+      - --hostname=lnsvrk8s01
+      - "--advertise-routes={{ tailscale_advertised_routes | join(',') }}"
+  changed_when: false
+  when: not ansible_check_mode

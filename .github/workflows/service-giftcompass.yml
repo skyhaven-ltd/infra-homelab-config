@@ -107,7 +107,7 @@ jobs:
         with:
           keyvault_name: kv-platform-prd-uks-02
           login: "false"
-          secrets: ARGOCD_KUBECONFIG=homelab-argocd-kubeconfig
+          secrets: ARGOCD_KUBECONFIG_BASE64=homelab-kubernetes-kubeconfig-base64
       - name: Install Kubectl
         run: |
           set -euo pipefail
@@ -121,7 +121,7 @@ jobs:
           set -euo pipefail
           umask 077
           kubeconfig="${RUNNER_TEMP}/giftcompass-kubeconfig"
-          printf '%s\n' "${ARGOCD_KUBECONFIG}" > "${kubeconfig}"
+          printf '%s' "${ARGOCD_KUBECONFIG_BASE64}" | base64 -d > "${kubeconfig}"
           export KUBECONFIG="${kubeconfig}"
 
           deadline=$((SECONDS + 600))
