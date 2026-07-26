@@ -65,6 +65,8 @@ resource "proxmox_virtual_environment_vm" "k8s" {
   }
 
   lifecycle {
-    ignore_changes = [disk[2]]
+    # The third disk is attached outside Terraform and contains persistent application data.
+    ignore_changes  = [disk[2]]
+    prevent_destroy = true
   }
 }

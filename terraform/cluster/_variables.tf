@@ -9,6 +9,12 @@ variable "proxmox_api_token" {
   description = "terraform@pve!tf=<uuid> — supplied via TF_VAR_proxmox_api_token"
 }
 
+variable "proxmox_ssh_private_key" {
+  type        = string
+  sensitive   = true
+  description = "Private key for Proxmox host operations supplied via TF_VAR_proxmox_ssh_private_key"
+}
+
 variable "proxmox_node" {
   type        = string
   description = "Proxmox node name"
