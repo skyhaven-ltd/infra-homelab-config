@@ -92,6 +92,59 @@ jobs:
           working_directory: terraform/${{ matrix.root }}
           state_key: ${{ matrix.state_key }}
           platform_subscription_id: ${{ vars.AZURE_PLATFORM_SUBSCRIPTION_ID }}
+      - name: Release Abandoned Runner State Lock
+        env:
+          CONTAINER_NAME: ${{ github.event.repository.name }}
+          ROOT: ${{ matrix.root }}
+          STATE_KEY: ${{ matrix.state_key }}
+          STORAGE_ACCOUNT_NAME: stplatformprduks02
+        run: |
+          set -euo pipefail
+          lease_status="$(az storage blob show \
+            --account-name "${STORAGE_ACCOUNT_NAME}" \
+            --container-name "${CONTAINER_NAME}" \
+            --name "${STATE_KEY}" \
+            --auth-mode key \
+            --query properties.lease.status \
+            --output tsv \
+            --only-show-errors 2>/dev/null || true)"
+          [[ "${lease_status}" == "locked" ]] || exit 0
+
+          lock_metadata="$(az storage blob show \
+            --account-name "${STORAGE_ACCOUNT_NAME}" \
+            --container-name "${CONTAINER_NAME}" \
+            --name "${STATE_KEY}" \
+            --auth-mode key \
+            --query metadata.Terraformlockid \
+            --output tsv \
+            --only-show-errors)"
+          lock_owner="$(LOCK_METADATA="${lock_metadata}" python3 - <<'PY'
+          import base64
+          import json
+          import os
+
+          metadata = base64.b64decode(os.environ["LOCK_METADATA"], validate=True)
+          print(json.loads(metadata)["Who"])
+          PY
+          )"
+          expected_owner="$(id -un)@$(hostname)"
+
+          if [[ "${lock_owner}" != "${expected_owner}" ]]; then
+            echo "::error::State ${STATE_KEY} is locked by ${lock_owner}; refusing to break it."
+            exit 1
+          fi
+          if pgrep -u "$(id -u)" -f "terraform .*terraform/${ROOT}" >/dev/null; then
+            echo "::error::A Terraform process for ${ROOT} is still running; refusing to break its lock."
+            exit 1
+          fi
+
+          az storage blob lease break \
+            --account-name "${STORAGE_ACCOUNT_NAME}" \
+            --container-name "${CONTAINER_NAME}" \
+            --blob-name "${STATE_KEY}" \
+            --auth-mode key \
+            --output none \
+            --only-show-errors
       - name: Terraform Plan
         env:
           ROOT: ${{ matrix.root }}
