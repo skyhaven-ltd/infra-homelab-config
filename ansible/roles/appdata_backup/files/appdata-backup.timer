@@ -1,0 +1,12 @@
+[Unit]
+Description=Daily container appdata backup
+
+[Timer]
+OnCalendar=*-*-* 03:15:00
+# Catch up after downtime instead of silently skipping a night.
+Persistent=true
+RandomizedDelaySec=300
+Unit=appdata-backup.service
+
+[Install]
+WantedBy=timers.target

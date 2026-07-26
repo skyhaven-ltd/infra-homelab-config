@@ -1,0 +1,5 @@
+- name: restart appdata backup timer
+  ansible.builtin.systemd:
+    name: appdata-backup.timer
+    state: restarted
+    daemon_reload: true

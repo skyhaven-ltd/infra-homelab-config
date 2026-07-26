@@ -1,0 +1,73 @@
+- name: Install rclone
+  ansible.builtin.apt:
+    name: rclone
+    state: present
+    update_cache: true
+- name: Backup staging directory
+  ansible.builtin.file:
+    path: "{{ appdata_backup_stage }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+- name: Rclone configuration directory
+  ansible.builtin.file:
+    path: /root/.config/rclone
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+- name: Rclone OneDrive remote
+  ansible.builtin.template:
+    src: rclone.conf.j2
+    dest: /root/.config/rclone/rclone.conf
+    owner: root
+    group: root
+    mode: "0600"
+  no_log: true
+  when: rclone_onedrive_token | default('') | length > 0
+- name: Backup environment file
+  ansible.builtin.copy:
+    dest: /etc/default/appdata-backup
+    owner: root
+    group: root
+    mode: "0644"
+    # Values are quoted so the file is valid both as a systemd EnvironmentFile
+    # and when sourced by a shell - the remote path contains spaces.
+    content: |
+      APPDATA_SRC="{{ appdata_mount }}/local-path"
+      APPDATA_MOUNT="{{ appdata_mount }}"
+      BACKUP_STAGE="{{ appdata_backup_stage }}"
+      BACKUP_LOCAL_KEEP="{{ appdata_backup_local_keep }}"
+      BACKUP_REMOTE="{{ appdata_backup_remote }}"
+      BACKUP_REMOTE_RETAIN_DAYS="{{ appdata_backup_remote_retain_days }}"
+      BACKUP_REMOTE_MAX_DELETE="{{ appdata_backup_remote_max_delete }}"
+  notify: restart appdata backup timer
+- name: Install backup scripts
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "/usr/local/sbin/{{ item }}"
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - backup-appdata.sh
+    - sync-backups-to-onedrive.sh
+    - restore-appdata.sh
+- name: Install backup systemd units
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "/etc/systemd/system/{{ item }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - appdata-backup.service
+    - appdata-backup.timer
+  notify: restart appdata backup timer
+- name: Enable nightly appdata backup timer
+  ansible.builtin.systemd:
+    name: appdata-backup.timer
+    enabled: true
+    state: started
+    daemon_reload: true
