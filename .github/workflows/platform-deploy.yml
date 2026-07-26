@@ -97,6 +97,30 @@ jobs:
           timeout --foreground --signal=TERM --kill-after=30s 12m \
             terraform -chdir="terraform/${ROOT}" plan \
             -input=false -lock-timeout=5m -out=tfplan ${TF_ARGUMENTS}
+      - name: Reject Destructive Terraform Plan
+        env:
+          ROOT: ${{ matrix.root }}
+        run: |
+          set -euo pipefail
+          plan_json="${RUNNER_TEMP}/${ROOT}-tfplan.json"
+          trap 'rm -f "${plan_json}"' EXIT
+          terraform -chdir="terraform/${ROOT}" show -json tfplan > "${plan_json}"
+          python3 - "${plan_json}" <<'PY'
+          import json
+          import sys
+
+          with open(sys.argv[1], encoding="utf-8") as stream:
+              plan = json.load(stream)
+
+          destructive = [
+              change["address"]
+              for change in plan.get("resource_changes", [])
+              if "delete" in change.get("change", {}).get("actions", [])
+          ]
+          if destructive:
+              print("::error::Destructive Terraform plan rejected: " + ", ".join(destructive))
+              raise SystemExit(1)
+          PY
       - name: Terraform Apply Exact Plan
         env:
           ROOT: ${{ matrix.root }}
