@@ -1,193 +1,193 @@
-name: Deploy
+---
+name: Reconcile Platform
 
 on:
   push:
-    branches:
-      - main
-    paths:
-      - "terraform/cluster/**"
-      - "ansible/**"
-      - "services/bookbuddy-web/scripts/**"
-      - ".github/workflows/platform-deploy.yml"
-  workflow_dispatch:
-    inputs:
-      terraform_action:
-        description: "Terraform action"
-        type: choice
-        default: plan
-        options:
-          - plan
-          - apply
+    branches: [main]
 
 permissions:
   contents: read
   id-token: write
 
 concurrency:
-  group: k8s-deploy-${{ github.repository }}
+  group: homelab-platform-state
   cancel-in-progress: false
 
 env:
-  KUBECTL_VERSION: "v1.36.2"
-  KUBECTL_SHA256: "1e9045ec32bea85da43de85f0065358529ea7c7a152eca78154fba5b58c27d82"
   ANSIBLE_CORE_VERSION: "2.21.1"
   TERRAFORM_VERSION: "1.15.7"
 
 jobs:
-  deploy:
-    name: Deploy Homelab (${{ inputs.terraform_action || 'plan' }})
+  terraform:
+    name: Terraform Apply (${{ matrix.root }})
     runs-on: [self-hosted, homelab]
     environment: homelab
     timeout-minutes: 45
-
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        include:
+          - root: cluster
+            state_key: cluster.tfstate
+            arguments: -var-file=vars/homelab.tfvars
+          - root: runner
+            state_key: runner.tfstate
+            arguments: -var-file=vars/homelab.tfvars
+          - root: tailscale
+            state_key: tailscale.tfstate
+            arguments: ""
     env:
-      TF_ACTION: ${{ inputs.terraform_action || 'plan' }}
       ARM_USE_OIDC: "true"
       ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
       ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
       ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_PLATFORM_SUBSCRIPTION_ID }}
-
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
         with:
           persist-credentials: false
-
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e
         with:
           terraform_version: ${{ env.TERRAFORM_VERSION }}
           terraform_wrapper: false
-
       - name: Azure Login
         uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43
         with:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_PLATFORM_SUBSCRIPTION_ID }}
-
       - name: Ensure State Container
         uses: skyhaven-ltd/pipeline-engineering-github-actions/actions/ensure-tfstate-container@6cfa143b42ff464e4101d69c09945db9fac369e5
         with:
           storage_account_name: stplatformprduks02
           login: "false"
+      - name: Fetch Proxmox Credential
+        if: matrix.root != 'tailscale'
+        uses: skyhaven-ltd/pipeline-engineering-github-actions/actions/keyvault-secrets@6cfa143b42ff464e4101d69c09945db9fac369e5
+        with:
+          keyvault_name: kv-platform-prd-uks-02
+          login: "false"
+          secrets: TF_VAR_proxmox_api_token=homelab-proxmox-api-token
+      - name: Fetch Tailscale Credential
+        if: matrix.root == 'tailscale'
+        uses: skyhaven-ltd/pipeline-engineering-github-actions/actions/keyvault-secrets@6cfa143b42ff464e4101d69c09945db9fac369e5
+        with:
+          keyvault_name: kv-platform-prd-uks-02
+          login: "false"
+          secrets: TAILSCALE_API_KEY=homelab-tailscale-api-key
+      - name: Terraform Init
+        uses: skyhaven-ltd/pipeline-engineering-github-actions/actions/terraform-backend-init@6cfa143b42ff464e4101d69c09945db9fac369e5
+        with:
+          environment: prd
+          working_directory: terraform/${{ matrix.root }}
+          state_key: ${{ matrix.state_key }}
+          platform_subscription_id: ${{ vars.AZURE_PLATFORM_SUBSCRIPTION_ID }}
+      - name: Terraform Plan
+        env:
+          ROOT: ${{ matrix.root }}
+          TF_ARGUMENTS: ${{ matrix.arguments }}
+        run: |
+          set -euo pipefail
+          # Intentional word splitting permits zero or one static tfvars argument from the matrix.
+          # shellcheck disable=SC2086
+          terraform -chdir="terraform/${ROOT}" plan \
+            -input=false -lock-timeout=5m -out=tfplan ${TF_ARGUMENTS}
+      - name: Terraform Apply Exact Plan
+        env:
+          ROOT: ${{ matrix.root }}
+        run: terraform -chdir="terraform/${ROOT}" apply -input=false -auto-approve tfplan
+      - name: Verify Terraform Convergence
+        env:
+          ROOT: ${{ matrix.root }}
+          TF_ARGUMENTS: ${{ matrix.arguments }}
+        run: |
+          set -euo pipefail
+          # Exit code 2 means applying the saved plan did not leave a converged state.
+          # shellcheck disable=SC2086
+          terraform -chdir="terraform/${ROOT}" plan \
+            -input=false -lock-timeout=5m -detailed-exitcode ${TF_ARGUMENTS}
 
-      - name: Fetch Secrets from Key Vault
+  ansible:
+    name: Ansible Converge
+    needs: terraform
+    runs-on: [self-hosted, homelab]
+    environment: homelab
+    timeout-minutes: 45
+    env:
+      ARM_USE_OIDC: "true"
+      ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_PLATFORM_SUBSCRIPTION_ID }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+      - name: Azure Login
+        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_PLATFORM_SUBSCRIPTION_ID }}
+      - name: Fetch Deployment Secrets
         uses: skyhaven-ltd/pipeline-engineering-github-actions/actions/keyvault-secrets@6cfa143b42ff464e4101d69c09945db9fac369e5
         with:
           keyvault_name: kv-platform-prd-uks-02
           login: "false"
           secrets: |
-            TF_VAR_proxmox_api_token=homelab-proxmox-api-token
             ANSIBLE_SSH_PRIVATE_KEY=homelab-ansible-ssh-private-key
-            ARGOCD_KUBECONFIG=homelab-argocd-kubeconfig
-
-      - name: Terraform Init
-        uses: skyhaven-ltd/pipeline-engineering-github-actions/actions/terraform-backend-init@6cfa143b42ff464e4101d69c09945db9fac369e5
-        with:
-          environment: prd
-          working_directory: terraform/cluster
-          state_key: cluster.tfstate
-          platform_subscription_id: ${{ vars.AZURE_PLATFORM_SUBSCRIPTION_ID }}
-
-      - name: Terraform Plan
-        if: env.TF_ACTION == 'plan'
-        run: terraform -chdir=terraform/cluster plan -input=false -var-file="vars/homelab.tfvars" -var="proxmox_host=192.168.1.2"
-
-      - name: Terraform Apply
-        if: env.TF_ACTION == 'apply'
-        run: terraform -chdir=terraform/cluster apply -input=false -auto-approve -var-file="vars/homelab.tfvars" -var="proxmox_host=192.168.1.2"
-
+            TAILSCALE_API_KEY=homelab-tailscale-api-key
       - name: Install Ansible
-        if: env.TF_ACTION == 'apply'
         run: |
           set -euo pipefail
           python3 -m venv "${RUNNER_TEMP}/venv"
           "${RUNNER_TEMP}/venv/bin/pip" install --quiet --disable-pip-version-check \
             "ansible-core==${ANSIBLE_CORE_VERSION}"
           echo "${RUNNER_TEMP}/venv/bin" >> "${GITHUB_PATH}"
-
-      - name: Write the Deploy SSH Key
-        if: env.TF_ACTION == 'apply'
+      - name: Write Deployment SSH Key
         run: |
           set -euo pipefail
           umask 077
           printf '%s\n' "${ANSIBLE_SSH_PRIVATE_KEY}" > "${RUNNER_TEMP}/homelab_deploy"
-
-      - name: Ansible Check Run
-        if: env.TF_ACTION == 'apply'
+      - name: Install Collections
         working-directory: ansible
-        env:
-          ANSIBLE_PRIVATE_KEY_FILE: ${{ runner.temp }}/homelab_deploy
-        run: |
-          set -euo pipefail
-          ansible-galaxy install -r requirements.yml
-          ansible-playbook -i inventory/hosts.yml site.yml --check --diff
-
-      - name: Ansible Apply
-        if: env.TF_ACTION == 'apply'
+        run: ansible-galaxy install -r requirements.yml
+      - name: Converge Kubernetes Host
         working-directory: ansible
         env:
           ANSIBLE_PRIVATE_KEY_FILE: ${{ runner.temp }}/homelab_deploy
         run: ansible-playbook -i inventory/hosts.yml site.yml
-
-      - name: Install Kubectl
-        if: env.TF_ACTION == 'apply'
+      - name: Verify Kubernetes Host Idempotency
+        working-directory: ansible
+        env:
+          ANSIBLE_PRIVATE_KEY_FILE: ${{ runner.temp }}/homelab_deploy
         run: |
           set -euo pipefail
-          mkdir -p "${RUNNER_TEMP}/bin"
-          cd "${RUNNER_TEMP}"
-          curl -fsSLO "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
-          echo "${KUBECTL_SHA256}  kubectl" | sha256sum -c -
-          install -m 0755 kubectl "${RUNNER_TEMP}/bin/kubectl"
-          echo "${RUNNER_TEMP}/bin" >> "${GITHUB_PATH}"
-
-      - name: Verify Argo CD Applications Are Synced and Healthy
-        if: env.TF_ACTION == 'apply'
-        run: |
-          set -euo pipefail
-          umask 077
-          kubeconfig="${RUNNER_TEMP}/argocd-kubeconfig"
-          printf '%s\n' "${ARGOCD_KUBECONFIG}" > "${kubeconfig}"
-          export KUBECONFIG="${kubeconfig}"
-
-          count="$(kubectl -n argocd get applications.argoproj.io -o name | wc -l)"
-          if [ "${count}" -eq 0 ]; then
-            echo "::error::No Argo CD applications found — the app-of-apps root is missing."
+          output="$(ANSIBLE_NOCOLOR=1 ansible-playbook -i inventory/hosts.yml site.yml --check)"
+          printf '%s\n' "${output}"
+          if grep -Eq 'changed=[1-9][0-9]*' <<< "${output}"; then
+            echo "::error::Ansible did not converge cleanly on the Kubernetes host."
             exit 1
           fi
-          echo "Tracking ${count} Argo CD applications."
-
-          deadline=$(( SECONDS + 600 ))
-          while :; do
-            pending="$(kubectl -n argocd get applications.argoproj.io \
-              -o jsonpath='{range .items[*]}{.metadata.name} {.status.sync.status} {.status.health.status}{"\n"}{end}' \
-              | awk 'NF && ($2 != "Synced" || $3 != "Healthy")')"
-
-            if [ -z "${pending}" ]; then
-              echo "All ${count} Argo CD applications are Synced and Healthy."
-              break
-            fi
-
-            if [ "${SECONDS}" -ge "${deadline}" ]; then
-              echo "::error::Argo CD applications did not converge within 10 minutes:"
-              printf '%s\n' "${pending}"
-              exit 1
-            fi
-
-            echo "Waiting for Argo CD to converge:"
-            printf '%s\n' "${pending}"
-            sleep 15
-          done
-
-      - name: Remove Job Secrets from Disk
+      - name: Converge Actions Runner
+        working-directory: ansible
+        env:
+          ANSIBLE_PRIVATE_KEY_FILE: ${{ runner.temp }}/homelab_deploy
+        run: ansible-playbook -i inventory/runner.yml site.yml --tags gha_runner
+      - name: Verify Actions Runner Idempotency
+        working-directory: ansible
+        env:
+          ANSIBLE_PRIVATE_KEY_FILE: ${{ runner.temp }}/homelab_deploy
+        run: |
+          set -euo pipefail
+          output="$(ANSIBLE_NOCOLOR=1 ansible-playbook -i inventory/runner.yml site.yml --tags gha_runner --check)"
+          printf '%s\n' "${output}"
+          if grep -Eq 'changed=[1-9][0-9]*' <<< "${output}"; then
+            echo "::error::Ansible did not converge cleanly on the Actions runner."
+            exit 1
+          fi
+      - name: Remove Job Secret
         if: always()
-        run: rm -f "${RUNNER_TEMP}/homelab_deploy" "${RUNNER_TEMP}/argocd-kubeconfig"
-
-      - name: Break State Lease
-        if: always()
-        uses: skyhaven-ltd/pipeline-engineering-github-actions/actions/break-tfstate-lease@6cfa143b42ff464e4101d69c09945db9fac369e5
-        with:
-          storage_account_name: stplatformprduks02
-          state_key: cluster.tfstate
-          login: "false"
+        run: rm -f "${RUNNER_TEMP}/homelab_deploy"

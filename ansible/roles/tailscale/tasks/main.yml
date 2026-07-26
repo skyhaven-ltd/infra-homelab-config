@@ -10,6 +10,40 @@
   register: ts_status
   changed_when: false
   failed_when: false
-- name: Bring up tailscale (MagicDNS OFF on this node — see decision 1.13)
-  ansible.builtin.command: tailscale up --authkey={{ tailscale_authkey }} --accept-dns=false --hostname=lnsvrk8s01
+- name: Require the Tailscale API credential when joining the tailnet
+  ansible.builtin.assert:
+    that:
+      - tailscale_api_key | length > 0
+    fail_msg: TAILSCALE_API_KEY is required to provision a new Tailscale node
   when: ts_status.rc != 0
+- name: Create a single-use Tailscale auth key
+  ansible.builtin.uri:
+    url: https://api.tailscale.com/api/v2/tailnet/-/keys
+    method: POST
+    url_username: "{{ tailscale_api_key }}"
+    url_password: ""
+    force_basic_auth: true
+    body_format: json
+    body:
+      capabilities:
+        devices:
+          create:
+            reusable: false
+            ephemeral: false
+            preauthorized: true
+    status_code: 200
+  register: tailscale_auth_key
+  delegate_to: localhost
+  become: false
+  no_log: true
+  when: ts_status.rc != 0
+- name: Bring up tailscale (MagicDNS OFF on this node — see decision 1.13)
+  ansible.builtin.command:
+    argv:
+      - tailscale
+      - up
+      - "--authkey={{ tailscale_auth_key.json.key }}"
+      - --accept-dns=false
+      - --hostname=lnsvrk8s01
+  when: ts_status.rc != 0
+  no_log: true

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hmac
 import secrets
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from urllib.parse import urlsplit
 
 from flask import Flask, abort, redirect, render_template, request, url_for
@@ -26,7 +26,7 @@ def create_app(db: Database) -> Flask:
     def timestamp(value: float | None) -> str:
         if value is None:
             return "Not checked yet"
-        return datetime.fromtimestamp(value, UTC).strftime("%d %b %Y, %H:%M UTC")
+        return datetime.fromtimestamp(value, timezone.utc).strftime("%d %b %Y, %H:%M UTC")
 
     @app.get("/")
     def index():

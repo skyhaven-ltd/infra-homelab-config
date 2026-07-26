@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}{{ "Edit" if person else "Add" }} person · GiftCompass{% endblock title %}
+{% block content %}
+    <section class="narrow">
+        <p class="eyebrow">Profile</p>
+        <h1>{{ "Edit profile" if person else "Add someone" }}</h1>
+        {% if error %}<p class="error">{{ error }}</p>{% endif %}
+        <form method="post" class="panel form-grid">
+            <label>
+                Name
+                <input name="name" required value="{{ person.name if person else '' }}">
+            </label>
+            <label>
+                Relationship
+                <input name="relationship"
+                       placeholder="Friend, sister, partner…"
+                       value="{{ person.relationship if person else '' }}">
+            </label>
+            <label>
+                Birthday
+                <input name="birthday"
+                       type="date"
+                       value="{{ person.birthday if person and person.birthday else '' }}">
+            </label>
+            <label class="wide">
+                Interests <small>Comma separated</small><textarea name="interests" placeholder="Cooking, hiking, science fiction">{{ person.interests if person else '' }}</textarea>
+            </label>
+            <label class="wide">
+                Dislikes and avoidances<textarea name="dislikes">{{ person.dislikes if person else '' }}</textarea>
+            </label>
+            <label class="wide">
+                Notes<textarea name="notes">{{ person.notes if person else '' }}</textarea>
+            </label>
+            <div class="actions">
+                <button>Save profile</button>
+                <a href="{{ url_for('person_detail', person_id=person.id) if person else url_for('index') }}">Cancel</a>
+            </div>
+        </form>
+    </section>
+{% endblock content %}
