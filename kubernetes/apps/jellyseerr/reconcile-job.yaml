@@ -1,0 +1,35 @@
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: jellyseerr-reconcile-services
+  namespace: jellyseerr
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 6
+  activeDeadlineSeconds: 900
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: reconcile
+          image: callum027/buildarr@sha256:57e2343fefe5d5701364b5e93b4985dbf08310d7b152f70556bdaba7e9475447
+          command: ["python3", "/etc/jellyseerr/reconcile-services.py"]
+          envFrom:
+            - secretRef:
+                name: jellyseerr-secrets
+          volumeMounts:
+            - { name: config, mountPath: /app/config, readOnly: true }
+            - { name: scripts, mountPath: /etc/jellyseerr }
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits: { memory: 256Mi }
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: jellyseerr-config
+        - name: scripts
+          configMap:
+            name: jellyseerr-scripts

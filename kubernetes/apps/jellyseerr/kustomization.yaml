@@ -1,12 +1,13 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
-namespace: qbittorrent
+namespace: jellyseerr
 resources:
   - pvc.yaml
   - deployment.yaml
   - service.yaml
   - ingress.yaml
+  - reconcile-job.yaml
 configMapGenerator:
-  - name: qbittorrent-config
+  - name: jellyseerr-scripts
     files:
-      - share-limits.py
+      - reconcile-services.py

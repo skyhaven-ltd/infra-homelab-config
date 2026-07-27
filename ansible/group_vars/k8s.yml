@@ -25,6 +25,8 @@ cloudflare_api_token: "{{ lookup('env', 'CLOUDFLARE_API_TOKEN') }}"
 knowledge_mcp_bearer_token: "{{ lookup('env', 'KNOWLEDGE_MCP_BEARER_TOKEN') }}"
 bookbuddy_worker_token: "{{ lookup('env', 'BOOKBUDDY_WORKER_TOKEN') }}"
 prowlarr_api_key: "{{ lookup('env', 'PROWLARR_API_KEY') }}"
+prowlarr_admin_username: admin
+prowlarr_admin_password: "{{ lookup('env', 'PROWLARR_ADMIN_PASSWORD') }}"
 radarr_api_key: "{{ lookup('env', 'RADARR_API_KEY') }}"
 sonarr_api_key: "{{ lookup('env', 'SONARR_API_KEY') }}"
 tailscale_advertised_routes:

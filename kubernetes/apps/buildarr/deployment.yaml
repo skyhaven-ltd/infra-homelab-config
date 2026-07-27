@@ -35,6 +35,17 @@ spec:
           resources:
             requests: { cpu: 100m, memory: 128Mi }
             limits: { memory: 512Mi }
+        - name: wait-for-dependencies
+          image: callum027/buildarr@sha256:57e2343fefe5d5701364b5e93b4985dbf08310d7b152f70556bdaba7e9475447
+          command: ["python3", "/etc/buildarr/wait-for-dependencies.py"]
+          envFrom:
+            - secretRef:
+                name: buildarr-secrets
+          volumeMounts:
+            - { name: tmpl, mountPath: /etc/buildarr }
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits: { memory: 128Mi }
       containers:
         - name: buildarr
           image: callum027/buildarr@sha256:57e2343fefe5d5701364b5e93b4985dbf08310d7b152f70556bdaba7e9475447

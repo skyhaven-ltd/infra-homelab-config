@@ -1,0 +1,41 @@
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: recyclarr-sync
+  namespace: recyclarr
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 4
+  activeDeadlineSeconds: 900
+  template:
+    spec:
+      restartPolicy: Never
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      containers:
+        - name: recyclarr
+          image: ghcr.io/recyclarr/recyclarr@sha256:2aaa0205a93171b93a159e4665004ccee1a5aacd60359fb8d7683db0ae7e774b
+          args: ["sync"]
+          env:
+            - { name: RECYCLARR_APP_DATA, value: /config }
+            - { name: TZ, value: "Etc/UTC" }
+          envFrom:
+            - secretRef:
+                name: recyclarr-secrets
+          volumeMounts:
+            - { name: appdata, mountPath: /config }
+            - { name: config, mountPath: /config/recyclarr.yml, subPath: recyclarr.yml, readOnly: true }
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits: { memory: 256Mi }
+      volumes:
+        - name: appdata
+          emptyDir: {}
+        - name: config
+          configMap:
+            name: recyclarr-config

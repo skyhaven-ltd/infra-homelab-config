@@ -23,6 +23,7 @@
       - knowledge_mcp_bearer_token | length > 0
       - bookbuddy_worker_token | length > 0
       - prowlarr_api_key | length > 0
+      - prowlarr_admin_password | length > 0
       - radarr_api_key | length > 0
       - sonarr_api_key | length > 0
     fail_msg: Required platform secrets were not retrieved from Azure Key Vault
@@ -151,6 +152,44 @@
   environment: { KUBECONFIG: "{{ argocd_kubeconfig }}" }
   changed_when: false
 
+- name: Enable Prowlarr forms authentication
+  ansible.builtin.shell: |
+    set -euo pipefail
+    api="kubectl -n prowlarr exec -i deployment/prowlarr -- curl -sS"
+    host_config="$(${api} -H 'X-Api-Key: {{ prowlarr_api_key }}' \
+      http://localhost:9696/api/v1/config/host)"
+    if [[ "$(printf '%s' "${host_config}" | python3 -c \
+      'import json,sys; print(json.load(sys.stdin)["authenticationMethod"])')" != "none" ]]; then
+      echo unchanged
+      exit 0
+    fi
+    printf '%s' "${host_config}" | python3 -c 'import json,sys; \
+      config = json.load(sys.stdin); \
+      config["authenticationMethod"] = "forms"; \
+      config["authenticationRequired"] = "enabled"; \
+      config["username"] = {{ prowlarr_admin_username | to_json }}; \
+      config["password"] = {{ prowlarr_admin_password | to_json }}; \
+      config["passwordConfirmation"] = {{ prowlarr_admin_password | to_json }}; \
+      sys.stdout.write(json.dumps(config))' \
+      | ${api} -X PUT -H 'X-Api-Key: {{ prowlarr_api_key }}' \
+        -H 'Content-Type: application/json' --data-binary @- \
+        "http://localhost:9696/api/v1/config/host/$(printf '%s' "${host_config}" | python3 -c \
+        'import json,sys; print(json.load(sys.stdin)["id"])')" >/dev/null
+    echo changed
+  args:
+    executable: /bin/bash
+  environment: { KUBECONFIG: "{{ argocd_kubeconfig }}" }
+  register: prowlarr_auth_reconcile
+  changed_when: "'changed' in prowlarr_auth_reconcile.stdout"
+  no_log: true
+
+- name: Wait for Prowlarr to become available after the authentication change
+  ansible.builtin.command: >-
+    kubectl -n prowlarr rollout status deployment/prowlarr
+    --timeout={{ platform_health_timeout }}
+  environment: { KUBECONFIG: "{{ argocd_kubeconfig }}" }
+  changed_when: false
+
 - name: Reconcile generated media integration secrets
   ansible.builtin.command: kubectl apply -f -
   args:
@@ -181,6 +220,21 @@
       metadata:
         name: recyclarr-secrets
         namespace: recyclarr
+      type: Opaque
+      stringData:
+        RADARR_API_KEY: {{ radarr_api_key | to_json }}
+        SONARR_API_KEY: {{ sonarr_api_key | to_json }}
+      ---
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: jellyseerr
+      ---
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: jellyseerr-secrets
+        namespace: jellyseerr
       type: Opaque
       stringData:
         RADARR_API_KEY: {{ radarr_api_key | to_json }}
