@@ -87,6 +87,33 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+@app.get("/metrics")
+def metrics(db: Session = Depends(get_session)) -> Response:
+    """Prometheus exposition for the generation queue. Scraped rather than
+    pushed so a queue nobody is draining is visible without the worker having
+    to report anything itself."""
+    counts = jobs_service.status_counts(db)
+    lines = [
+        "# HELP bookbuddy_generation_jobs Generation jobs by status.",
+        "# TYPE bookbuddy_generation_jobs gauge",
+    ]
+    lines += [
+        f'bookbuddy_generation_jobs{{status="{status}"}} {counts[status]}'
+        for status in jobs_service.JOB_STATUSES
+    ]
+    for status in ("pending", "running"):
+        name = f"bookbuddy_generation_job_oldest_{status}_age_seconds"
+        lines += [
+            f"# HELP {name} Age of the oldest {status} generation job.",
+            f"# TYPE {name} gauge",
+            f"{name} {jobs_service.oldest_age_seconds(db, status):.0f}",
+        ]
+    return Response(
+        content="\n".join(lines) + "\n",
+        media_type="text/plain; version=0.0.4; charset=utf-8",
+    )
+
+
 @app.get("/", response_class=HTMLResponse)
 def index(
     request: Request, db: Session = Depends(get_session), error: str = ""

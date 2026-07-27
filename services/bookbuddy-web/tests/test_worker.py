@@ -21,7 +21,7 @@ VALID_OUTPUT = json.dumps(
             {
                 "type": "plot",
                 "prompt": "Why?",
-                "answer": "Because.",
+                "answer_index": 1,
                 "source_quote": "Story text",
                 "choices": ["Before.", "Because.", "Perhaps.", "Never."],
             }
@@ -279,3 +279,23 @@ def test_fail_endpoint_records_error(client, epub_path, worker_settings):
         json={"raw_output": VALID_OUTPUT},
     )
     assert response.status_code == 409
+
+
+def test_metrics_expose_the_generation_queue(client, epub_path, worker_settings):
+    _queue_job(client, epub_path)
+
+    body = client.get("/metrics").text
+
+    assert 'bookbuddy_generation_jobs{status="pending"} 1' in body
+    assert 'bookbuddy_generation_jobs{status="failed"} 0' in body
+    assert "bookbuddy_generation_job_oldest_pending_age_seconds" in body
+
+
+def test_metrics_report_a_claimed_job_as_running(client, epub_path, worker_settings):
+    _queue_job(client, epub_path)
+    client.post("/worker/generation-jobs/claim", headers=AUTH)
+
+    body = client.get("/metrics").text
+
+    assert 'bookbuddy_generation_jobs{status="running"} 1' in body
+    assert 'bookbuddy_generation_jobs{status="pending"} 0' in body
