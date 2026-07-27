@@ -59,6 +59,7 @@ radarr:
       minimum_free_space: 20000
       use_hardlinks: true
       delete_empty_folders: true
+      colon_replacement: "spaceDash"
       root_folders:
         delete_unmanaged: false
         definitions:
@@ -79,7 +80,8 @@ radarr:
         "WEBRip-2160p": { min: 34.5, preferred: 100, max: 150 }
         "WEBDL-2160p": { min: 34.5, preferred: 100, max: 150 }
         "Bluray-2160p": { min: 102, preferred: 175, max: 250 }
-        "Remux-2160p": { min: 187.4, preferred: 300, max: 400 }
+        "Remux-2160p": { min: 187.4, preferred: 200, max: 300 }
+        "BR-DISK": { min: 0, preferred: 200, max: 300 }
 
 prowlarr:
   hostname: "prowlarr.prowlarr.svc.cluster.local"
