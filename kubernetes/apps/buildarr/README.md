@@ -28,6 +28,11 @@ Prowlarr-plugin image is published, so an init container installs the pinned
 interpolation, so `entrypoint.sh` renders `${VAR}` placeholders from
 `buildarr-secrets` into `/config/buildarr.yml` before starting the daemon.
 
+`entrypoint.sh` uses `string.Template.substitute`, so **every `$` in
+`buildarr.yml.tmpl` is a placeholder**, including inside comments. An unmatched
+one crashes the container on start with `KeyError`. Escape a literal dollar as
+`$$`.
+
 A second init container, `wait-for-dependencies`, blocks startup until Radarr and
 Sonarr have the quality profiles this config references and Prowlarr has
 authentication enabled. Buildarr aborts its entire apply if either is untrue, and
