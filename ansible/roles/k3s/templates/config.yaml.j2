@@ -1,0 +1,9 @@
+disable:
+  - traefik
+node-ip: {{ node_ip }}
+tls-san:
+{% for san in k3s_tls_san %}
+  - {{ san }}
+{% endfor %}
+default-local-storage-path: {{ appdata_mount }}/local-path
+write-kubeconfig-mode: "0640"
