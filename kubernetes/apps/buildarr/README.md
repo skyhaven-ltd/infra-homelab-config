@@ -4,8 +4,19 @@ Declarative source of truth for **Prowlarr**: indexers, app sync connections
 (Sonarr/Radarr), sync profiles, and the FlareSolverr proxy. Runs as a daemon that
 reconciles Prowlarr against `configmap.yaml` on start and daily at 04:30.
 
-Scope is deliberately Prowlarr-only. Sonarr/Radarr quality is owned by
-[`recyclarr`](../recyclarr/README.md); the two do not overlap.
+It also owns **Sonarr quality definition sizes** (the min/max megabytes-per-minute
+caps). Everything else about Sonarr and Radarr quality — profiles and custom
+formats — is owned by [`recyclarr`](../recyclarr/README.md); the two do not
+overlap.
+
+Buildarr is used for the sizes because Recyclarr can only apply a whole TRaSH
+quality-definition template, and the series template leaves maxSize unlimited.
+Buildarr merges each definition over the current remote object, so Sonarr's
+`preferredSize` is preserved, and it leaves any attribute not named in
+`configmap.yaml` alone (`check_unmanaged` defaults to false).
+
+Sizes are megabytes per minute of runtime; Sonarr's UI shows GiB/hour
+(multiply by 60, divide by 1024).
 
 ## How it runs
 
