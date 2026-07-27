@@ -184,6 +184,119 @@ grafana:
                 "targets": [{"expr": "sum by (phase) (kube_pod_status_phase)", "refId": "A"}],
                 "title": "Pod Health",
                 "type": "timeseries"
+              },
+              {
+                "gridPos": {"h": 1, "w": 24, "x": 0, "y": 21},
+                "id": 20,
+                "title": "Homelab Health",
+                "type": "row"
+              },
+              {
+                "datasource": {"type": "prometheus", "uid": "${datasource}"},
+                "description": "Tailscale backend state on the k3s node. Down means no remote access at all.",
+                "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "mappings": [{"options": {"0": {"text": "Down"}, "1": {"text": "Up"}}, "type": "value"}], "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]}}},
+                "gridPos": {"h": 4, "w": 3, "x": 0, "y": 22},
+                "id": 21,
+                "options": {"graphMode": "none", "reduceOptions": {"calcs": ["lastNotNull"]}},
+                "targets": [{"expr": "max(homelab_tailscale_backend_running)", "refId": "A"}],
+                "title": "Tailnet Backend",
+                "type": "stat"
+              },
+              {
+                "datasource": {"type": "prometheus", "uid": "${datasource}"},
+                "description": "Subnet route approved in the tailnet. Unapproved after a rebuild until Terraform reruns.",
+                "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "mappings": [{"options": {"0": {"text": "No"}, "1": {"text": "Yes"}}, "type": "value"}], "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]}}},
+                "gridPos": {"h": 4, "w": 3, "x": 3, "y": 22},
+                "id": 22,
+                "options": {"graphMode": "none", "reduceOptions": {"calcs": ["lastNotNull"]}},
+                "targets": [{"expr": "max(homelab_tailscale_route_approved)", "refId": "A"}],
+                "title": "Subnet Route",
+                "type": "stat"
+              },
+              {
+                "datasource": {"type": "prometheus", "uid": "${datasource}"},
+                "description": "API server certificate covers the node's current tailnet address and MagicDNS name.",
+                "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "mappings": [{"options": {"0": {"text": "Stale"}, "1": {"text": "OK"}}, "type": "value"}], "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]}}},
+                "gridPos": {"h": 4, "w": 3, "x": 6, "y": 22},
+                "id": 23,
+                "options": {"graphMode": "none", "reduceOptions": {"calcs": ["lastNotNull"]}},
+                "targets": [{"expr": "max(homelab_apiserver_cert_covers_tailnet)", "refId": "A"}],
+                "title": "kubectl TLS Path",
+                "type": "stat"
+              },
+              {
+                "datasource": {"type": "prometheus", "uid": "${datasource}"},
+                "description": "BookBuddy generation worker timer. Absent means queued jobs are never claimed.",
+                "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "mappings": [{"options": {"0": {"text": "Missing"}, "1": {"text": "Active"}}, "type": "value"}], "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]}}},
+                "gridPos": {"h": 4, "w": 3, "x": 9, "y": 22},
+                "id": 24,
+                "options": {"graphMode": "none", "reduceOptions": {"calcs": ["lastNotNull"]}},
+                "targets": [{"expr": "max(homelab_bookbuddy_worker_timer_active)", "refId": "A"}],
+                "title": "BookBuddy Worker",
+                "type": "stat"
+              },
+              {
+                "datasource": {"type": "prometheus", "uid": "${datasource}"},
+                "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 1}]}}},
+                "gridPos": {"h": 4, "w": 3, "x": 12, "y": 22},
+                "id": 25,
+                "options": {"graphMode": "none", "reduceOptions": {"calcs": ["lastNotNull"]}},
+                "targets": [{"expr": "sum(bookbuddy_generation_jobs{status=\"pending\"})", "refId": "A"}],
+                "title": "Gen Jobs Pending",
+                "type": "stat"
+              },
+              {
+                "datasource": {"type": "prometheus", "uid": "${datasource}"},
+                "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]}}},
+                "gridPos": {"h": 4, "w": 3, "x": 15, "y": 22},
+                "id": 26,
+                "options": {"graphMode": "none", "reduceOptions": {"calcs": ["lastNotNull"]}},
+                "targets": [{"expr": "sum(bookbuddy_generation_jobs{status=\"failed\"})", "refId": "A"}],
+                "title": "Gen Jobs Failed",
+                "type": "stat"
+              },
+              {
+                "datasource": {"type": "prometheus", "uid": "${datasource}"},
+                "description": "HD-or-better Sonarr qualities with no maximum size. Non-zero lets a season balloon.",
+                "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]}}},
+                "gridPos": {"h": 4, "w": 3, "x": 18, "y": 22},
+                "id": 27,
+                "options": {"graphMode": "none", "reduceOptions": {"calcs": ["lastNotNull"]}},
+                "targets": [{"expr": "max(homelab_sonarr_quality_definitions_uncapped)", "refId": "A"}],
+                "title": "Sonarr Uncapped",
+                "type": "stat"
+              },
+              {
+                "datasource": {"type": "prometheus", "uid": "${datasource}"},
+                "description": "Series not on the managed quality profile, which is how they end up unscored.",
+                "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]}}},
+                "gridPos": {"h": 4, "w": 3, "x": 21, "y": 22},
+                "id": 28,
+                "options": {"graphMode": "none", "reduceOptions": {"calcs": ["lastNotNull"]}},
+                "targets": [{"expr": "max(homelab_sonarr_series_off_managed_profile)", "refId": "A"}],
+                "title": "Series Off Profile",
+                "type": "stat"
+              },
+              {
+                "datasource": {"type": "prometheus", "uid": "${datasource}"},
+                "gridPos": {"h": 7, "w": 12, "x": 0, "y": 26},
+                "id": 29,
+                "targets": [{"expr": "sum by (status) (bookbuddy_generation_jobs)", "legendFormat": "{{status}}", "refId": "A"}],
+                "title": "BookBuddy Generation Queue",
+                "type": "timeseries"
+              },
+              {
+                "datasource": {"type": "prometheus", "uid": "${datasource}"},
+                "description": "A pending age that keeps climbing means nothing is draining the queue.",
+                "fieldConfig": {"defaults": {"unit": "s"}},
+                "gridPos": {"h": 7, "w": 12, "x": 12, "y": 26},
+                "id": 30,
+                "targets": [
+                  {"expr": "max(bookbuddy_generation_job_oldest_pending_age_seconds)", "legendFormat": "Oldest pending", "refId": "A"},
+                  {"expr": "max(bookbuddy_generation_job_oldest_running_age_seconds)", "legendFormat": "Oldest running", "refId": "B"}
+                ],
+                "title": "Generation Job Age",
+                "type": "timeseries"
               }
             ],
             "refresh": "30s",
@@ -279,9 +392,134 @@ kube-state-metrics:
       memory: 128Mi
 
 prometheus-node-exporter:
+  # The DaemonSet already bind-mounts the host root at /host/root, so pointing
+  # the textfile collector inside it needs no extra volume. The files are
+  # written by the homelab_metrics Ansible role.
+  extraArgs:
+    - --collector.textfile.directory=/host/root/var/lib/node_exporter/textfile_collector
   resources:
     requests:
       cpu: 50m
       memory: 32Mi
     limits:
       memory: 64Mi
+
+# Alerts for the failure modes that survived the cluster rebuild silently:
+# remote access to the API server, the BookBuddy generation queue, and the
+# Sonarr guardrails that stop a single season reaching 50GB.
+additionalPrometheusRulesMap:
+  homelab:
+    groups:
+      - name: homelab-remote-access
+        rules:
+          - alert: TailscaleBackendDown
+            expr: max(homelab_tailscale_backend_running) == 0
+            for: 10m
+            labels:
+              severity: critical
+            annotations:
+              summary: Tailscale is down on the k3s node
+              description: >-
+                The node is off the tailnet, so kubectl and every lab service
+                are unreachable from outside the LAN.
+          - alert: TailscaleSubnetRouteNotApproved
+            expr: max(homelab_tailscale_route_approved) == 0
+            for: 15m
+            labels:
+              severity: warning
+            annotations:
+              summary: Advertised subnet route is not approved
+              description: >-
+                The LAN subnet route is advertised but not approved in the
+                tailnet. Re-run the tailscale Terraform stack.
+          - alert: ApiServerCertMissingTailnetName
+            expr: max(homelab_apiserver_cert_covers_tailnet) == 0
+            for: 15m
+            labels:
+              severity: critical
+            annotations:
+              summary: API server certificate does not cover the tailnet address
+              description: >-
+                Remote kubectl will fail TLS verification. A rebuild changes the
+                node's tailnet address; re-run the k3s role to reissue the
+                certificate.
+          - alert: HomelabMetricsStale
+            expr: time() - max(homelab_metrics_last_run_timestamp_seconds) > 900
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: Homelab metrics exporter has stopped publishing
+              description: >-
+                Every homelab_* alert below is blind until the exporter timer
+                runs again.
+
+      - name: homelab-bookbuddy
+        rules:
+          - alert: BookBuddyWorkerTimerMissing
+            expr: max(homelab_bookbuddy_worker_timer_active) == 0
+            for: 15m
+            labels:
+              severity: warning
+            annotations:
+              summary: BookBuddy generation worker is not installed
+              description: >-
+                Queued generation jobs will never be claimed. Re-run the
+                bookbuddy_worker Ansible role with CODEX_AUTH_FILE set.
+          - alert: BookBuddyWorkerRunFailing
+            expr: max(homelab_bookbuddy_worker_last_run_ok) == 0
+            for: 30m
+            labels:
+              severity: warning
+            annotations:
+              summary: BookBuddy generation worker runs are failing
+          - alert: BookBuddyGenerationJobStalled
+            expr: max(bookbuddy_generation_job_oldest_pending_age_seconds) > 1800
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: A BookBuddy generation job has sat pending for over 30 minutes
+              description: >-
+                Nothing is draining the queue. This is the state that went
+                unnoticed for a day after the rebuild.
+          - alert: BookBuddyGenerationJobStuckRunning
+            expr: max(bookbuddy_generation_job_oldest_running_age_seconds) > 3600
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: A BookBuddy generation job has been running for over an hour
+              description: >-
+                A worker most likely died mid-job; nothing resets the claim.
+          - alert: BookBuddyGenerationJobsFailing
+            expr: sum(bookbuddy_generation_jobs{status="failed"}) > 0
+            for: 30m
+            labels:
+              severity: warning
+            annotations:
+              summary: BookBuddy generation jobs are failing
+
+      - name: homelab-media
+        rules:
+          - alert: SonarrQualityDefinitionsUncapped
+            expr: max(homelab_sonarr_quality_definitions_uncapped) > 0
+            for: 30m
+            labels:
+              severity: warning
+            annotations:
+              summary: Sonarr HD qualities have no maximum size
+              description: >-
+                Sonarr will accept whatever an indexer offers. Buildarr owns
+                these sizes; check it reconciled and that recyclarr is not
+                re-applying the TRaSH quality definition template.
+          - alert: SonarrSeriesOffManagedProfile
+            expr: max(homelab_sonarr_series_off_managed_profile) > 0
+            for: 30m
+            labels:
+              severity: warning
+            annotations:
+              summary: Sonarr series are not on the managed quality profile
+              description: >-
+                Series on the default profile get no custom-format scoring and
+                no upgrade cutoff, which is how oversized releases get grabbed.
