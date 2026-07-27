@@ -39,6 +39,21 @@ authentication enabled. Buildarr aborts its entire apply if either is untrue, an
 on a rebuild both are untrue until Recyclarr and the `argocd_bootstrap` Ansible
 role have run.
 
+It then normalises two Radarr values that `buildarr-radarr` 0.2.6 cannot parse.
+Both abort the apply for *every* instance, not just Radarr:
+
+- **`colonReplacementFormat`.** Radarr defaults to `smart`, which the plugin's
+  bundled API client does not know
+  (`permitted: 'delete', 'dash', 'spaceDash', 'spaceDashSpace'`). It is reset to
+  `spaceDash`, which `buildarr.yml.tmpl` then owns via `colon_replacement`.
+- **Quality definition sizes above the plugin's ceiling.** `preferred` is capped
+  at 399 and `max` at 400, but TRaSH's movie definitions set `BR-DISK` and
+  `Raw-HD` to 542.4, so buildarr could not even read the current state. Anything
+  over is clamped before startup.
+
+Note that **`max: 400` means unlimited** — 400 MB/min is the top of Radarr's
+slider. Use a lower number for an actual ceiling.
+
 The config files are loaded through kustomize's `configMapGenerator`, so the
 ConfigMap name carries a content hash and editing a config file rolls the
 Deployment. A plain ConfigMap syncs without restarting the pod, which previously
