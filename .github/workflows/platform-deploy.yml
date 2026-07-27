@@ -235,6 +235,7 @@ jobs:
             KNOWLEDGE_MCP_BEARER_TOKEN=homelab-knowledge-mcp-bearer-token
             BOOKBUDDY_WORKER_TOKEN=homelab-bookbuddy-worker-token
             PROWLARR_API_KEY=homelab-prowlarr-api-key
+            PROWLARR_ADMIN_PASSWORD=homelab-prowlarr-admin-password
             RADARR_API_KEY=homelab-radarr-api-key
             SONARR_API_KEY=homelab-sonarr-api-key
             RCLONE_ONEDRIVE_TOKEN=homelab-rclone-onedrive-token
