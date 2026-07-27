@@ -1,0 +1,8 @@
+homelab_metrics_textfile_dir: /var/lib/node_exporter/textfile_collector
+homelab_metrics_root: /opt/homelab-metrics
+homelab_metrics_interval: "*:0/1"
+# Sonarr is reached through the in-cluster ingress on the node's own loopback
+# with an explicit Host header, so the exporter needs no DNS and no kubeconfig.
+homelab_metrics_sonarr_host: sonarr.lab.skyhaven.ltd
+homelab_metrics_sonarr_profile: WEB-1080p
+homelab_metrics_sonarr_api_key: "{{ sonarr_api_key | default('') }}"

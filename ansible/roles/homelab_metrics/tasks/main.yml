@@ -1,0 +1,56 @@
+- name: Create homelab metrics directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - "{{ homelab_metrics_root }}"
+    # node_exporter reads this through its /host/root mount, so no extra
+    # volume is needed on the DaemonSet - only the collector flag.
+    - "{{ homelab_metrics_textfile_dir }}"
+
+- name: Install the homelab metrics exporter
+  ansible.builtin.copy:
+    src: write-homelab-metrics.sh
+    dest: "{{ homelab_metrics_root }}/write-homelab-metrics.sh"
+    owner: root
+    group: root
+    mode: "0755"
+  notify: restart homelab metrics timer
+
+- name: Install the homelab metrics environment
+  ansible.builtin.template:
+    src: homelab-metrics.env.j2
+    dest: /etc/homelab-metrics.env
+    owner: root
+    group: root
+    mode: "0600"
+  no_log: true
+  notify: restart homelab metrics timer
+
+- name: Install the homelab metrics service
+  ansible.builtin.template:
+    src: homelab-metrics.service.j2
+    dest: /etc/systemd/system/homelab-metrics.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: restart homelab metrics timer
+
+- name: Install the homelab metrics timer
+  ansible.builtin.template:
+    src: homelab-metrics.timer.j2
+    dest: /etc/systemd/system/homelab-metrics.timer
+    owner: root
+    group: root
+    mode: "0644"
+  notify: restart homelab metrics timer
+
+- name: Enable and start the homelab metrics timer
+  ansible.builtin.systemd:
+    name: homelab-metrics.timer
+    enabled: true
+    state: started
+    daemon_reload: true

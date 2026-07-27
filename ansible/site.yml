@@ -11,6 +11,7 @@
     - { role: k3s, tags: [k3s] }
     - { role: argocd_bootstrap, tags: [argocd] }
     - { role: appdata_backup, tags: [appdata_backup] }
+    - { role: homelab_metrics, tags: [homelab_metrics] }
     - role: bookbuddy_worker
       tags: [bookbuddy_worker]
       when: "'bookbuddy_worker' in ansible_run_tags"

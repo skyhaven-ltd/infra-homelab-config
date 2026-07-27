@@ -1,0 +1,5 @@
+- name: restart homelab metrics timer
+  ansible.builtin.systemd:
+    name: homelab-metrics.timer
+    state: restarted
+    daemon_reload: true
