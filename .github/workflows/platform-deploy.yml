@@ -275,7 +275,7 @@ jobs:
           kubeconfig_base64="$(base64 -w0 ansible/lnsvrk8s01-kubeconfig)"
           az keyvault secret set \
             --vault-name kv-platform-prd-uks-02 \
-            --name homelab-kubernetes-kubeconfig-base64 \
+            --name homelab-kubernetes-kubeconfig \
             --value "${kubeconfig_base64}" \
             --output none \
             --only-show-errors

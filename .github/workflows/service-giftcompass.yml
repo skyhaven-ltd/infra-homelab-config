@@ -107,7 +107,7 @@ jobs:
         with:
           keyvault_name: kv-platform-prd-uks-02
           login: "false"
-          secrets: ARGOCD_KUBECONFIG_BASE64=homelab-kubernetes-kubeconfig-base64
+          secrets: ARGOCD_KUBECONFIG_BASE64=homelab-kubernetes-kubeconfig
       - name: Install Kubectl
         run: |
           set -euo pipefail
