@@ -15,6 +15,16 @@ spec:
       labels:
         app: qbittorrent
     spec:
+      initContainers:
+        - name: apply-share-limits
+          image: lscr.io/linuxserver/qbittorrent@sha256:352371a7242e8b4aa10958ca02076d1023758070519b89a10251475fb9f1a35a
+          command: ["python3", "/etc/qbittorrent/share-limits.py"]
+          volumeMounts:
+            - { name: config, mountPath: /config }
+            - { name: share-limits, mountPath: /etc/qbittorrent }
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits: { memory: 128Mi }
       containers:
         - name: qbittorrent
           image: lscr.io/linuxserver/qbittorrent@sha256:352371a7242e8b4aa10958ca02076d1023758070519b89a10251475fb9f1a35a
@@ -39,3 +49,6 @@ spec:
             claimName: qbittorrent-config
         - name: media
           hostPath: { path: /mnt/media, type: Directory }
+        - name: share-limits
+          configMap:
+            name: qbittorrent-config
