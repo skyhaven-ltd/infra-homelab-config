@@ -50,7 +50,7 @@ QUESTION_SCHEMA = {
                 "properties": {
                     "type": {"type": "string", "enum": QUESTION_TYPES},
                     "prompt": {"type": "string"},
-                    "answer": {"type": "string"},
+                    "answer_index": {"type": "integer", "minimum": 0, "maximum": 3},
                     "source_quote": {"type": "string"},
                     "choices": {
                         "type": "array",
@@ -59,7 +59,13 @@ QUESTION_SCHEMA = {
                         "maxItems": 4,
                     },
                 },
-                "required": ["type", "prompt", "answer", "source_quote", "choices"],
+                "required": [
+                    "type",
+                    "prompt",
+                    "answer_index",
+                    "source_quote",
+                    "choices",
+                ],
                 "additionalProperties": False,
             },
         },
@@ -88,9 +94,10 @@ Rules:
   'source_quote' (for 'elaboration', quote the passage that motivates the
   question).
 - Write clear, specific prompts a reader can answer in one to three sentences.
-- Add exactly four concise choices: the answer and three plausible distractors.
-  Vary the answer's position. Choices are optional cues, so they must not make
-  the answer obvious through wording, length, or absurd alternatives.
+- Add exactly four concise choices: the correct answer and three plausible
+  distractors. Give the correct choice's position in 'answer_index' (0-3) and
+  vary that position between questions. Choices are optional cues, so they must
+  not make the answer obvious through wording, length, or absurd alternatives.
 - Also write 'recap': a warm, concise "Previously on" summary of this chapter
   for the reader to see before starting the following chapter. Include the
   argument or events that matter going forward, but nothing beyond this text.
@@ -152,6 +159,41 @@ def build_worker_prompt(
     )
 
 
+def _resolve_answer(item: dict, choices: object) -> str:
+    """The model marks its answer by position, so the answer is by construction
+    one of the choices it wrote. Output predating 'answer_index' carried the
+    answer as free text, which the model could — and did — paraphrase into
+    something matching none of its choices."""
+    if "answer_index" not in item:
+        return item["answer"]
+    index = item["answer_index"]
+    if not isinstance(index, int) or isinstance(index, bool):
+        raise GenerationError("Question answer_index must be an integer.")
+    if not isinstance(choices, list) or not 0 <= index < len(choices):
+        raise GenerationError("Question answer_index is out of range.")
+    return choices[index]
+
+
+def _question_from_item(item: dict) -> GeneratedQuestion:
+    try:
+        choices = item["choices"]
+        question = GeneratedQuestion(
+            type=item["type"],
+            prompt=item["prompt"],
+            answer=_resolve_answer(item, choices),
+            source_quote=item["source_quote"],
+            choices=choices,
+        )
+    except (TypeError, KeyError) as exc:
+        raise GenerationError(f"Question missing field: {exc}") from exc
+    if question.type not in QUESTION_TYPES:
+        raise GenerationError(f"Unknown question type: {question.type}")
+    if not isinstance(question.source_quote, str) or not question.source_quote.strip():
+        raise GenerationError("Question source_quote must not be blank.")
+    _validate_choices(question)
+    return question
+
+
 def parse_raw_output(raw: str) -> GeneratedMaterial:
     """Parse worker output into chapter material, tolerating Markdown fences."""
     cleaned = raw.strip()
@@ -168,27 +210,7 @@ def parse_raw_output(raw: str) -> GeneratedMaterial:
     recap = data.get("recap") if isinstance(data, dict) else None
     if not isinstance(recap, str) or not recap.strip():
         raise GenerationError("Worker output contained no chapter recap.")
-    questions = []
-    for item in items:
-        try:
-            question = GeneratedQuestion(
-                type=item["type"],
-                prompt=item["prompt"],
-                answer=item["answer"],
-                source_quote=item["source_quote"],
-                choices=item["choices"],
-            )
-        except (TypeError, KeyError) as exc:
-            raise GenerationError(f"Question missing field: {exc}") from exc
-        if question.type not in QUESTION_TYPES:
-            raise GenerationError(f"Unknown question type: {question.type}")
-        if (
-            not isinstance(question.source_quote, str)
-            or not question.source_quote.strip()
-        ):
-            raise GenerationError("Question source_quote must not be blank.")
-        _validate_choices(question)
-        questions.append(question)
+    questions = [_question_from_item(item) for item in items]
     return GeneratedMaterial(recap=recap.strip(), questions=questions)
 
 
@@ -236,27 +258,7 @@ def generate_material(
     recap = data.get("recap", "")
     if not isinstance(recap, str) or not recap.strip():
         raise GenerationError("The model returned no chapter recap.")
-    questions = []
-    for item in data.get("questions", []):
-        try:
-            question = GeneratedQuestion(
-                type=item["type"],
-                prompt=item["prompt"],
-                answer=item["answer"],
-                source_quote=item["source_quote"],
-                choices=item["choices"],
-            )
-        except (TypeError, KeyError) as exc:
-            raise GenerationError(f"Question missing field: {exc}") from exc
-        if question.type not in QUESTION_TYPES:
-            raise GenerationError(f"Unknown question type: {question.type}")
-        if (
-            not isinstance(question.source_quote, str)
-            or not question.source_quote.strip()
-        ):
-            raise GenerationError("Question source_quote must not be blank.")
-        _validate_choices(question)
-        questions.append(question)
+    questions = [_question_from_item(item) for item in data.get("questions", [])]
     if not questions:
         raise GenerationError("The model returned no questions.")
     return GeneratedMaterial(recap=recap.strip(), questions=questions)

@@ -1,0 +1,17 @@
+[Unit]
+Description=Write homelab health metrics for the node_exporter textfile collector
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/homelab-metrics.env
+ExecStart={{ homelab_metrics_root }}/write-homelab-metrics.sh
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths={{ homelab_metrics_textfile_dir }}
+
+[Install]
+WantedBy=multi-user.target

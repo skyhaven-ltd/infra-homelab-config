@@ -8,6 +8,7 @@ from app.services.generation import (
     GeneratedQuestion,
     GenerationError,
     generate_questions,
+    parse_raw_output,
     store_questions,
 )
 
@@ -47,7 +48,7 @@ def test_generate_questions_parses_model_output(db_session):
             {
                 "type": "plot",
                 "prompt": "Why did X happen?",
-                "answer": "Because Y.",
+                "answer_index": 1,
                 "source_quote": "Once upon...",
                 "choices": ["Because X.", "Because Y.", "Because Z.", "By chance."],
             }
@@ -80,7 +81,7 @@ def test_generate_questions_rejects_blank_source_quote(db_session):
                 {
                     "type": "plot",
                     "prompt": "What happened?",
-                    "answer": "An event.",
+                    "answer_index": 0,
                     "source_quote": "   ",
                     "choices": ["An event.", "Nothing.", "A dream.", "A mistake."],
                 }
@@ -124,3 +125,52 @@ def test_store_questions_versions_batches(db_session):
     assert len(active) == 1
     assert active[0].prompt == "P2"
     assert active[0].batch_version == 2
+
+
+def _raw(**overrides) -> str:
+    question = {
+        "type": "plot",
+        "prompt": "Why did X happen?",
+        "answer_index": 2,
+        "source_quote": "Once upon...",
+        "choices": ["Because W.", "Because X.", "Because Y.", "By chance."],
+    }
+    question.update(overrides)
+    return json.dumps({"recap": "A recap of the chapter.", "questions": [question]})
+
+
+def test_parse_raw_output_takes_the_answer_from_its_index():
+    material = parse_raw_output(_raw())
+
+    assert material.questions[0].answer == "Because Y."
+
+
+def test_parse_raw_output_rejects_an_out_of_range_answer_index():
+    with pytest.raises(GenerationError, match="answer_index is out of range"):
+        parse_raw_output(_raw(answer_index=4))
+
+
+def test_parse_raw_output_rejects_a_non_integer_answer_index():
+    with pytest.raises(GenerationError, match="answer_index must be an integer"):
+        parse_raw_output(_raw(answer_index="2"))
+
+
+def test_parse_raw_output_still_accepts_a_free_text_answer():
+    """Output generated before answer_index existed must keep parsing."""
+    legacy = json.loads(_raw())
+    del legacy["questions"][0]["answer_index"]
+    legacy["questions"][0]["answer"] = "Because Y."
+
+    material = parse_raw_output(json.dumps(legacy))
+
+    assert material.questions[0].answer == "Because Y."
+
+
+def test_parse_raw_output_rejects_a_free_text_answer_absent_from_choices():
+    """The failure answer_index removes: a paraphrase matching no choice."""
+    legacy = json.loads(_raw())
+    del legacy["questions"][0]["answer_index"]
+    legacy["questions"][0]["answer"] = "Because Y happened first."
+
+    with pytest.raises(GenerationError, match="must include the answer"):
+        parse_raw_output(json.dumps(legacy))

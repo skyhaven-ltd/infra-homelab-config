@@ -9,11 +9,13 @@ so generation rides an existing subscription instead of per-token API costs.
 
 from __future__ import annotations
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.models import Chapter, GenerationJob
+from app.models import Chapter, GenerationJob, utcnow
 from app.services import generation
+
+JOB_STATUSES = ("pending", "running", "succeeded", "failed")
 
 
 def enqueue(db: Session, chapter: Chapter) -> GenerationJob:
@@ -69,6 +71,27 @@ def fail(db: Session, job: GenerationJob, error: str) -> None:
     job.status = "failed"
     job.error = error[:2000]
     db.commit()
+
+
+def status_counts(db: Session) -> dict[str, int]:
+    counts = dict.fromkeys(JOB_STATUSES, 0)
+    rows = db.execute(
+        select(GenerationJob.status, func.count()).group_by(GenerationJob.status)
+    ).all()
+    for status, count in rows:
+        counts[status] = count
+    return counts
+
+
+def oldest_age_seconds(db: Session, status: str) -> float:
+    """Age of the longest-waiting job in a status, 0 when there is none. A
+    pending job that keeps ageing means no worker is claiming it."""
+    oldest = db.execute(
+        select(func.min(GenerationJob.created_at)).where(GenerationJob.status == status)
+    ).scalar()
+    if oldest is None:
+        return 0.0
+    return max((utcnow() - oldest).total_seconds(), 0.0)
 
 
 def latest_by_chapter(db: Session, chapter_ids: list[int]) -> dict[int, GenerationJob]:

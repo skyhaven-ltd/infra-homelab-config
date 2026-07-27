@@ -3,6 +3,8 @@ kind: Service
 metadata:
   name: bookbuddy
   namespace: bookbuddy
+  labels:
+    app: bookbuddy
 spec:
   selector:
     app: bookbuddy

@@ -51,7 +51,7 @@
       - up
       - "--authkey={{ tailscale_auth_key.json.key }}"
       - --accept-dns=false
-      - --hostname=lnsvrk8s01
+      - "--hostname={{ tailscale_hostname }}"
       - "--advertise-routes={{ tailscale_advertised_routes | join(',') }}"
   when:
     - ts_status.rc != 0
@@ -63,7 +63,26 @@
       - tailscale
       - set
       - --accept-dns=false
-      - --hostname=lnsvrk8s01
+      - "--hostname={{ tailscale_hostname }}"
       - "--advertise-routes={{ tailscale_advertised_routes | join(',') }}"
   changed_when: false
   when: not ansible_check_mode
+# The k3s role puts this in the API server certificate. A rebuild changes the
+# address, so read it from the node rather than pinning it in group_vars.
+- name: Read the node tailnet address
+  ansible.builtin.command: tailscale ip -4
+  register: tailscale_ip_result
+  changed_when: false
+  failed_when: false
+  # Read-only, and it must run under --check too: without it the rendered
+  # tls-san list would omit the tailnet address and the idempotency gate in
+  # platform-deploy would report a spurious change on every run.
+  check_mode: false
+- name: Record the node tailnet address
+  ansible.builtin.set_fact:
+    tailscale_ipv4: >-
+      {{
+        (tailscale_ip_result.stdout_lines | first | trim)
+        if tailscale_ip_result.rc == 0 and tailscale_ip_result.stdout_lines
+        else ''
+      }}

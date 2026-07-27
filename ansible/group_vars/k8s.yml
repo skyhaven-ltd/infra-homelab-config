@@ -15,6 +15,11 @@ rclone_onedrive_token: "{{ lookup('env', 'RCLONE_ONEDRIVE_TOKEN') }}"
 rclone_onedrive_drive_id: "{{ lookup('env', 'RCLONE_ONEDRIVE_DRIVE_ID') }}"
 rclone_onedrive_drive_type: personal
 node_ip: 192.168.1.3
+tailscale_hostname: lnsvrk8s01
+# A rebuild re-registers the node and it gets a new 100.x address, so the
+# MagicDNS name is the only tailnet endpoint stable across rebuilds. Both go in
+# the API server certificate so remote kubectl works without subnet routes.
+tailscale_magicdns_suffix: tail1092e5.ts.net
 tailscale_api_key: "{{ lookup('env', 'TAILSCALE_API_KEY') }}"
 cloudflare_api_token: "{{ lookup('env', 'CLOUDFLARE_API_TOKEN') }}"
 knowledge_mcp_bearer_token: "{{ lookup('env', 'KNOWLEDGE_MCP_BEARER_TOKEN') }}"

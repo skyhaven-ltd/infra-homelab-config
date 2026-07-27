@@ -29,6 +29,38 @@ data:
       update_times:
         - "04:30"
 
+    # Sonarr scope is deliberately limited to quality definition sizes. Quality
+    # profiles and custom formats stay with recyclarr. Buildarr leaves any
+    # attribute it is not given alone (check_unmanaged defaults to false), and
+    # it PUTs each definition merged over the current remote object, so
+    # preferredSize is preserved.
+    #
+    # Sizes are megabytes per minute of runtime; Sonarr's UI shows GiB/hour
+    # (x60/1024). Without a max, Sonarr accepts whatever an indexer offers.
+    sonarr:
+      hostname: "sonarr.sonarr.svc.cluster.local"
+      port: 8989
+      protocol: "http"
+      api_key: "${SONARR_API_KEY}"
+      settings:
+        quality:
+          definitions:
+            "Raw-HD": { min: 4, max: 150 }
+            "HDTV-720p": { min: 10, max: 35 }
+            "WEBRip-720p": { min: 10, max: 35 }
+            "WEBDL-720p": { min: 10, max: 35 }
+            "Bluray-720p": { min: 17.1, max: 50 }
+            "HDTV-1080p": { min: 15, max: 55 }
+            "WEBRip-1080p": { min: 15, max: 55 }
+            "WEBDL-1080p": { min: 15, max: 55 }
+            "Bluray-1080p": { min: 50.4, max: 80 }
+            "Bluray-1080p Remux": { min: 69.1, max: 130 }
+            "HDTV-2160p": { min: 25, max: 150 }
+            "WEBRip-2160p": { min: 25, max: 150 }
+            "WEBDL-2160p": { min: 25, max: 150 }
+            "Bluray-2160p": { min: 94.6, max: 250 }
+            "Bluray-2160p Remux": { min: 187.4, max: 400 }
+
     prowlarr:
       hostname: "prowlarr.prowlarr.svc.cluster.local"
       port: 9696

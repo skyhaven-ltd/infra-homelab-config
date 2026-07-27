@@ -1,2 +1,16 @@
-- name: restart k3s
+# k3s only rebuilds the API server serving certificate when it is missing, so a
+# changed tls-san list has no effect until the old certificate is removed. Both
+# tasks share the "restart k3s" topic and run in file order: delete, then start.
+- name: Discard the API server serving certificate
+  ansible.builtin.file:
+    path: "/var/lib/rancher/k3s/server/tls/{{ item }}"
+    state: absent
+  loop:
+    - serving-kube-apiserver.crt
+    - serving-kube-apiserver.key
+    - dynamic-cert.json
+  listen: restart k3s
+
+- name: Restart k3s
   ansible.builtin.systemd: { name: k3s, state: restarted }
+  listen: restart k3s

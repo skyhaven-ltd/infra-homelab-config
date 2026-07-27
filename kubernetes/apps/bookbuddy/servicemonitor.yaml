@@ -1,0 +1,17 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: bookbuddy
+  namespace: bookbuddy
+  labels:
+    # kube-prometheus-stack only selects ServiceMonitors carrying its release
+    # label, so without this Prometheus silently ignores the target.
+    release: monitoring
+spec:
+  selector:
+    matchLabels:
+      app: bookbuddy
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 60s

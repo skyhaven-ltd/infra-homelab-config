@@ -1,0 +1,11 @@
+[Unit]
+Description=Refresh homelab health metrics
+
+[Timer]
+OnCalendar={{ homelab_metrics_interval }}
+Persistent=true
+RandomizedDelaySec=5
+Unit=homelab-metrics.service
+
+[Install]
+WantedBy=timers.target

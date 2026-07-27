@@ -1,0 +1,20 @@
+# Names and addresses the API server certificate must cover. The tailnet
+# entries let kubectl reach the cluster from any tailnet device without
+# relying on the advertised subnet route (which needs --accept-routes on
+# every client). tailscale_ipv4 is set by the tailscale role; it is empty
+# when this role runs on its own, and empty entries are dropped.
+k3s_tls_san_extra: []
+k3s_tls_san: >-
+  {{
+    (
+      [
+        tailscale_hostname,
+        node_ip,
+        tailscale_hostname ~ '.' ~ tailscale_magicdns_suffix,
+        tailscale_ipv4 | default(''),
+      ] + k3s_tls_san_extra
+    )
+    | reject('equalto', '')
+    | unique
+    | list
+  }}

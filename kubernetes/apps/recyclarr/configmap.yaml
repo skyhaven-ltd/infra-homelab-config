@@ -15,7 +15,10 @@ data:
         delete_old_custom_formats: true
         replace_existing_custom_formats: true
         include:
-          - template: sonarr-quality-definition-series
+          # sonarr-quality-definition-series is deliberately NOT included. It
+          # sets maxSize to unlimited on every HD quality, which let a single
+          # season reach 50GB. Buildarr owns Sonarr quality definition sizes
+          # instead; including the template here would fight it nightly.
           - template: sonarr-v4-quality-profile-web-1080p
           - template: sonarr-v4-custom-formats-web-1080p
 
