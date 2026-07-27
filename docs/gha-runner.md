@@ -152,7 +152,7 @@ The secrets themselves (all under the `homelab-` prefix):
 | `homelab-ansible-ssh-private-key` | CI + operator | private key whose public half is in `ansible/roles/users/files/authorized_keys.d/` |
 | `homelab-proxmox-ssh-private-key` | CI + operator | `id_ed25519_proxmox`; the `bpg/proxmox` provider's SSH key at apply time |
 | `homelab-tailscale-api-key` | CI + operator | `TAILSCALE_API_KEY` for the `terraform/tailscale` root, applied by the deploy workflow |
-| `homelab-kubernetes-kubeconfig-base64` | CI | written by the deploy workflow after Kubernetes convergence; read by the service deploy jobs |
+| `homelab-kubernetes-kubeconfig` | CI | base64-encoded kubeconfig written by the deploy workflow after Kubernetes convergence; read by the service deploy jobs |
 
 Populate or rotate any of them from an authenticated workstation. `--file` keeps
 multiline values (private keys, kubeconfigs) intact where `--value` would mangle
