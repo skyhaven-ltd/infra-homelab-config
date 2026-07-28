@@ -1,0 +1,42 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: arr-queue-maintenance
+  namespace: buildarr
+spec:
+  schedule: "17 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 300
+      template:
+        spec:
+          restartPolicy: Never
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+          containers:
+            - name: queue-maintenance
+              image: callum027/buildarr@sha256:57e2343fefe5d5701364b5e93b4985dbf08310d7b152f70556bdaba7e9475447
+              command: ["python3", "/etc/buildarr/queue-maintenance.py"]
+              env:
+                - { name: MINIMUM_AGE_HOURS, value: "8" }
+                - { name: TZ, value: "Etc/UTC" }
+              envFrom:
+                - secretRef:
+                    name: buildarr-secrets
+              volumeMounts:
+                - name: config
+                  mountPath: /etc/buildarr/queue-maintenance.py
+                  subPath: queue-maintenance.py
+                  readOnly: true
+              resources:
+                requests: { cpu: 25m, memory: 32Mi }
+                limits: { memory: 64Mi }
+          volumes:
+            - name: config
+              configMap:
+                name: buildarr-config

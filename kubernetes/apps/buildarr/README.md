@@ -59,6 +59,29 @@ ConfigMap name carries a content hash and editing a config file rolls the
 Deployment. A plain ConfigMap syncs without restarting the pod, which previously
 left the old config running until someone noticed.
 
+## Queue maintenance
+
+`arr-queue-maintenance` runs hourly and acts once per download ID (Sonarr shows a
+season pack once per episode). After eight hours from the time a torrent was
+added, it:
+
+- removes and blocklists torrents currently reported as stalled with no
+  connections, allowing Sonarr or Radarr to search for another release; and
+- removes completed import-blocked downloads only when every file-level message
+  says that the file was already imported.
+
+The ARR applications remove the matching item from qBittorrent. Ambiguous import
+warnings and all younger downloads are left for a person to review. The APIs do
+not expose when a torrent first became stalled, so the threshold is necessarily
+measured from its original add time.
+
+`radarr-availability-search` runs every six hours. It searches monitored,
+available movies that are still missing and have not been searched within the
+last six hours. Each run is capped at 20 movies to bound indexer load. This fills
+the gap where Jellyseerr's initial search occurs before a release is available:
+Radarr's RSS sync sees newly published releases, but does not continuously run a
+backlog search for every missing movie.
+
 ## Secrets
 
 `buildarr-secrets` (native Secret): `PROWLARR_API_KEY`, `SONARR_API_KEY`,
@@ -85,10 +108,11 @@ kubectl -n buildarr exec deploy/buildarr -- \
 - The FlareSolverr proxy uses the `flaresolverr` tag. Assign the same tag to each
   hand-added indexer that should use it. Prowlarr invokes FlareSolverr only when it
   detects a supported challenge on an indexer with a matching tag.
-- Managed public indexers: The Pirate Bay, LimeTorrents, Nyaa.si — each verified
-  to pass Prowlarr's create-test. Cloudflare/DDoS-Guard sites (1337x, TorrentGalaxy,
-  YTS) and legally-blocked ones (EZTV → HTTP 451) fail that test and abort the whole
-  apply, so add those by hand in the Prowlarr UI. Public indexer *definitions* are
-  maintained by Prowlarr and refreshed on Prowlarr updates — keep the image current.
+- Managed public indexers: The Pirate Bay, LimeTorrents, Nyaa.si, 1337x, YTS,
+  TorrentsCSV, and TorrentProject2. All passed Prowlarr's own indexer test from
+  the k3s node on 2026-07-28; the latter four carry the FlareSolverr tag. EZTV
+  returned HTTP 451, while ExtraTorrent and Kickass returned HTTP 403, so they
+  remain excluded. Public indexer definitions are maintained by Prowlarr and
+  refreshed on Prowlarr updates — keep the image current.
 - Productionization follow-up: bake a custom image with the plugin preinstalled to
   drop the runtime `pip install` (needs PyPI reachability on pod start).

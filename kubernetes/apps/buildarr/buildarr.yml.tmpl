@@ -100,7 +100,7 @@ prowlarr:
             enable_automatic_search: true
             enable_interactive_search: true
             enable_rss: true
-            minimum_seeders: 1
+            minimum_seeders: 3
       applications:
         # false: never delete app links Buildarr does not manage (e.g. UI-created).
         delete_unmanaged: false
@@ -171,3 +171,31 @@ prowlarr:
             enable: true
             sync_profile: "Standard"
             priority: 25
+          "1337x":
+            type: "1337x"
+            enable: true
+            sync_profile: "Standard"
+            priority: 25
+            tags:
+              - "flaresolverr"
+          "YTS":
+            type: "yts"
+            enable: true
+            sync_profile: "Standard"
+            priority: 25
+            tags:
+              - "flaresolverr"
+          "TorrentsCSV":
+            type: "torrentscsv"
+            enable: true
+            sync_profile: "Standard"
+            priority: 25
+            tags:
+              - "flaresolverr"
+          "TorrentProject2":
+            type: "torrentproject2"
+            enable: true
+            sync_profile: "Standard"
+            priority: 25
+            tags:
+              - "flaresolverr"

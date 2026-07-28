@@ -3,9 +3,13 @@ kind: Kustomization
 namespace: buildarr
 resources:
   - deployment.yaml
+  - queue-maintenance-cronjob.yaml
+  - availability-search-cronjob.yaml
 configMapGenerator:
   - name: buildarr-config
     files:
       - entrypoint.sh
       - buildarr.yml.tmpl
       - wait-for-dependencies.py
+      - queue-maintenance.py
+      - availability-search.py
