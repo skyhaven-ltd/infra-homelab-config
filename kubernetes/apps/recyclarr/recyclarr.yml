@@ -1,5 +1,3 @@
-# Managed by infra-homelab-config. Do not edit in-cluster.
-# Templates are pulled from the TRaSH-Guides recyclarr config repo at sync time.
 sonarr:
   series:
     base_url: http://sonarr.sonarr.svc.cluster.local:8989
@@ -7,12 +5,27 @@ sonarr:
     delete_old_custom_formats: true
     replace_existing_custom_formats: true
     include:
-      # sonarr-quality-definition-series is deliberately NOT included. It
-      # sets maxSize to unlimited on every HD quality, which let a single
-      # season reach 50GB. Buildarr owns Sonarr quality definition sizes
-      # instead; including the template here would fight it nightly.
       - template: sonarr-v4-quality-profile-web-1080p
       - template: sonarr-v4-custom-formats-web-1080p
+    quality_profiles:
+      - name: WEB-1080p
+        upgrade:
+          allowed: true
+          until_quality: WEB 1080p
+        min_format_score: 0
+        quality_sort: top
+        qualities:
+          - name: WEB 1080p
+            qualities:
+              - WEBDL-1080p
+              - WEBRip-1080p
+          - name: Bluray-1080p
+    custom_formats:
+      - trash_ids:
+          - dc98083864ea246d05a42df0d05f81cc # x265 (HD)
+        score: 0
+        assign_scores_to:
+          - name: WEB-1080p
 
 radarr:
   movies:
