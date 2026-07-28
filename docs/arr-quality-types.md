@@ -65,7 +65,7 @@ The live profiles target 1080p and currently accept:
 
 | Application | Profile | Accepted qualities |
 | --- | --- | --- |
-| Sonarr | `WEB-1080p` | `WEBRip-1080p`, `WEBDL-1080p` |
+| Sonarr | `WEB-1080p` | `WEBRip-1080p`, `WEBDL-1080p`, `Bluray-1080p` |
 | Radarr | `HD Bluray + WEB` | `Bluray-720p`, `WEBRip-1080p`, `WEBDL-1080p`, `Bluray-1080p` |
 
 The profile **cutoff** is the quality at which Sonarr or Radarr considers an item
@@ -73,8 +73,11 @@ good enough and stops seeking quality upgrades. Accepted qualities determine
 what may be downloaded before that cutoff is reached. Custom-format scores then
 rank multiple releases of an accepted quality.
 
-The present profiles inherently reject 2160p, Remux, BR-DISK, and Raw-HD. This
-comes from the selected Recyclarr profiles; there is no separate exclusion rule.
+Sonarr permits HD x265 releases at a neutral custom-format score so older,
+space-efficient season packs remain eligible when x264 WEB releases are not
+available. The present profiles inherently reject 2160p, Remux, BR-DISK, and
+Raw-HD. This comes from the selected Recyclarr profiles; there is no separate
+exclusion rule.
 
 ## Storage planning
 

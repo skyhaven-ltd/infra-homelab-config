@@ -4,6 +4,14 @@ import sys
 CONFIG_PATH = pathlib.Path("/config/qBittorrent/qBittorrent.conf")
 SECTION = "[BitTorrent]"
 SETTINGS = {
+    "Session\\QueueingSystemEnabled": "true",
+    "Session\\MaxActiveDownloads": "10",
+    "Session\\MaxActiveUploads": "-1",
+    "Session\\MaxActiveTorrents": "-1",
+    "Session\\GlobalDLSpeedLimit": "0",
+    "Session\\GlobalUPSpeedLimit": "0",
+    "Session\\UseAlternativeGlobalSpeedLimit": "false",
+    "Session\\BandwidthSchedulerEnabled": "false",
     "Session\\GlobalMaxRatio": "2",
     "Session\\GlobalMaxSeedingMinutes": "10080",
     "Session\\ShareLimitAction": "Stop",

@@ -16,7 +16,8 @@ included here. Re-adding either would fight Buildarr nightly.
 A daily `CronJob` (04:00 UTC) runs `recyclarr sync`, which pulls the pinned
 TRaSH templates and applies them to both apps over the cluster network:
 
-- Sonarr → WEB-1080p quality profile + custom formats.
+- Sonarr → WEB-1080p quality profile with Blu-ray fallback, neutral HD x265,
+  and custom formats.
 - Radarr → HD Bluray + WEB quality profile + custom formats.
 
 A `recyclarr-sync` Job also runs as an Argo CD `PostSync` hook, so a rebuilt
