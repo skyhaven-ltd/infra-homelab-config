@@ -1,0 +1,43 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: radarr-availability-search
+  namespace: buildarr
+spec:
+  schedule: "43 */6 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 300
+      template:
+        spec:
+          restartPolicy: Never
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+          containers:
+            - name: availability-search
+              image: callum027/buildarr@sha256:57e2343fefe5d5701364b5e93b4985dbf08310d7b152f70556bdaba7e9475447
+              command: ["python3", "/etc/buildarr/availability-search.py"]
+              env:
+                - { name: SEARCH_INTERVAL_HOURS, value: "6" }
+                - { name: MAX_MOVIES_PER_RUN, value: "20" }
+                - { name: TZ, value: "Etc/UTC" }
+              envFrom:
+                - secretRef:
+                    name: buildarr-secrets
+              volumeMounts:
+                - name: config
+                  mountPath: /etc/buildarr/availability-search.py
+                  subPath: availability-search.py
+                  readOnly: true
+              resources:
+                requests: { cpu: 25m, memory: 32Mi }
+                limits: { memory: 64Mi }
+          volumes:
+            - name: config
+              configMap:
+                name: buildarr-config
