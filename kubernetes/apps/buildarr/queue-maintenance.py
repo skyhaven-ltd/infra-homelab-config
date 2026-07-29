@@ -39,7 +39,19 @@ def parse_timestamp(value):
 
 
 def is_old_enough(item):
-    return NOW - parse_timestamp(item["added"]) >= MINIMUM_AGE
+    added = item.get("added")
+    if not added:
+        # Radarr can briefly return queue records without an added timestamp
+        # while it is importing or removing a download. There is no safe way
+        # to apply the age policy to those transient records, so leave them
+        # for the next hourly run instead of failing maintenance for both apps.
+        print(
+            f"Skipping queue entry without an added timestamp: "
+            f"{item.get('title', item.get('id', 'unknown'))!r}",
+            flush=True,
+        )
+        return False
+    return NOW - parse_timestamp(added) >= MINIMUM_AGE
 
 
 def is_stalled(item):

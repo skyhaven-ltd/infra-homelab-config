@@ -5,7 +5,7 @@ CONFIG_PATH = pathlib.Path("/config/qBittorrent/qBittorrent.conf")
 SECTION = "[BitTorrent]"
 SETTINGS = {
     "Session\\QueueingSystemEnabled": "true",
-    "Session\\MaxActiveDownloads": "10",
+    "Session\\MaxActiveDownloads": "20",
     "Session\\MaxActiveUploads": "-1",
     "Session\\MaxActiveTorrents": "-1",
     "Session\\GlobalDLSpeedLimit": "0",

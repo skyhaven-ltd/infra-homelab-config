@@ -71,9 +71,11 @@ added, it:
   says that the file was already imported.
 
 The ARR applications remove the matching item from qBittorrent. Ambiguous import
-warnings and all younger downloads are left for a person to review. The APIs do
-not expose when a torrent first became stalled, so the threshold is necessarily
-measured from its original add time.
+warnings and all younger downloads are left for a person to review. Transient
+Radarr queue records without an `added` timestamp are skipped until the next run
+because their age cannot be checked safely. The APIs do not expose when a
+torrent first became stalled, so the threshold is necessarily measured from its
+original add time.
 
 `radarr-availability-search` runs every six hours. It searches monitored,
 available movies that are still missing and have not been searched within the
