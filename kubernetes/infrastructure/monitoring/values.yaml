@@ -493,12 +493,15 @@ additionalPrometheusRulesMap:
               description: >-
                 A worker most likely died mid-job; nothing resets the claim.
           - alert: BookBuddyGenerationJobsFailing
-            expr: sum(bookbuddy_generation_jobs{status="failed"}) > 0
-            for: 30m
+            expr: delta(bookbuddy_generation_jobs{status="failed"}[1h]) > 0
+            for: 5m
             labels:
               severity: warning
             annotations:
-              summary: BookBuddy generation jobs are failing
+              summary: A BookBuddy generation job failed in the last hour
+              description: >-
+                The alert resolves after the investigation window instead of
+                treating retained historical failures as an active incident.
 
       - name: homelab-media
         rules:
