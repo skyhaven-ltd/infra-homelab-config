@@ -11,7 +11,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
-from app import jobs, providers
+from app import classification, jobs, providers
 from app.config import Target, get_settings
 from app.database import SessionLocal, get_session, init_db
 from app.models import AuditEvent, Draft, GenerationJob
@@ -94,20 +94,29 @@ def index(
 @app.post("/drafts")
 def create_draft(
     target_id: str = Form(...),
-    item_type: str = Form(...),
+    item_type: str = Form(""),
     raw_idea: str = Form(...),
     _: str = Depends(require_user),
     db: Session = Depends(get_session),
 ) -> RedirectResponse:
     target = get_target(target_id)
-    if item_type not in target.item_types:
-        raise HTTPException(status_code=400, detail="Unsupported item type")
     idea = raw_idea.strip()
     if len(idea) < 10 or len(idea) > 20_000:
         raise HTTPException(status_code=422, detail="Idea must be 10-20000 characters")
-    draft = Draft(target_id=target.id, item_type=item_type, raw_idea=idea)
+    try:
+        result = classification.classify(idea, target.item_types, item_type)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    draft = Draft(target_id=target.id, item_type=result.item_type, raw_idea=idea)
     db.add(draft)
     db.flush()
+    db.add(
+        AuditEvent(
+            draft_id=draft.id,
+            action="classification.completed",
+            detail=f"type={result.item_type}; source={result.source}",
+        )
+    )
     jobs.enqueue(db, draft)
     return RedirectResponse(f"/drafts/{draft.id}", status_code=303)
 
@@ -158,9 +167,12 @@ def submit_draft(
             status_code=422, detail="Title and description are required"
         )
     target = get_target(draft.target_id)
+    draft.state = "submitting"
+    db.commit()
     try:
         result = providers.submit(settings, target, draft)
     except providers.SubmissionError as exc:
+        draft.state = "review"
         db.add(
             AuditEvent(
                 draft_id=draft.id,

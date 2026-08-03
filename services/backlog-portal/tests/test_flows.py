@@ -75,11 +75,97 @@ def test_draft_is_refined_by_worker_then_submitted(client, auth):
         assert db.get(Draft, 1).state == "submitted"
         actions = [event.action for event in db.query(AuditEvent).all()]
     assert actions == [
+        "classification.completed",
         "draft.queued",
         "ai.claimed",
         "ai.completed",
         "provider.submitted",
     ]
+
+
+def test_missing_type_is_inferred_deterministically_and_retry_is_safe(client, auth):
+    first = client.post(
+        "/drafts",
+        auth=auth,
+        data={"target_id": "github-infra", "raw_idea": "Fix the broken workflow error"},
+        follow_redirects=False,
+    )
+    second = client.post(
+        "/drafts",
+        auth=auth,
+        data={"target_id": "github-infra", "raw_idea": "Fix the broken workflow error"},
+        follow_redirects=False,
+    )
+    assert first.status_code == second.status_code == 303
+
+    from app.database import SessionLocal
+
+    with SessionLocal() as db:
+        drafts = db.query(Draft).order_by(Draft.id).all()
+        assert [draft.item_type for draft in drafts] == ["Bug", "Bug"]
+        events = db.query(AuditEvent).filter_by(action="classification.completed").all()
+        assert all("source=inferred" in event.detail for event in events)
+
+
+def test_explicit_type_wins_and_ambiguous_idea_uses_documented_fallback(client, auth):
+    explicit = client.post(
+        "/drafts",
+        auth=auth,
+        data={
+            "target_id": "github-infra",
+            "item_type": "Feature",
+            "raw_idea": "Fix the broken workflow error",
+        },
+        follow_redirects=False,
+    )
+    fallback = client.post(
+        "/drafts",
+        auth=auth,
+        data={"target_id": "github-infra", "raw_idea": "Consider this idea later"},
+        follow_redirects=False,
+    )
+    assert explicit.status_code == fallback.status_code == 303
+
+    from app.database import SessionLocal
+
+    with SessionLocal() as db:
+        drafts = db.query(Draft).order_by(Draft.id).all()
+        assert [draft.item_type for draft in drafts] == ["Feature", "Task"]
+        details = [
+            event.detail
+            for event in db.query(AuditEvent)
+            .filter_by(action="classification.completed")
+            .order_by(AuditEvent.id)
+        ]
+        assert "source=explicit" in details[0]
+        assert "source=fallback" in details[1]
+
+
+def test_submitted_draft_cannot_create_a_duplicate(client, auth):
+    from app.database import SessionLocal
+
+    with SessionLocal() as db:
+        draft = Draft(
+            target_id="github-infra",
+            item_type="Task",
+            raw_idea="A sufficiently detailed idea",
+            title="Existing item",
+            description="Already submitted.",
+            state="submitted",
+            remote_url="https://github.test/issues/1",
+        )
+        db.add(draft)
+        db.commit()
+        draft_id = draft.id
+
+    with patch("app.main.providers.submit") as submit:
+        response = client.post(
+            f"/drafts/{draft_id}/submit",
+            auth=auth,
+            data={"title": "Existing item", "description": "Already submitted."},
+        )
+    assert response.status_code == 409
+    submit.assert_not_called()
 
 
 def test_rejects_unknown_target_and_worker_token(client, auth):
