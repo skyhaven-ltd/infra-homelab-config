@@ -1,0 +1,7 @@
+- name: Restart Backlog Portal worker timer
+  ansible.builtin.systemd:
+    name: backlog-portal-worker.timer
+    state: restarted
+    enabled: true
+    daemon_reload: true
+  listen: restart backlog portal worker timer

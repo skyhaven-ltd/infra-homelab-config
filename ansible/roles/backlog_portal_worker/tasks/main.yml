@@ -1,0 +1,118 @@
+- name: Validate Backlog Portal worker deployment inputs
+  ansible.builtin.assert:
+    that:
+      - backlog_portal_worker_token | length > 0
+      - backlog_portal_worker_codex_auth_file | length > 0
+    fail_msg: >-
+      Set BACKLOG_PORTAL_WORKER_TOKEN and CODEX_AUTH_FILE before applying the
+      backlog_portal_worker role.
+  no_log: true
+
+- name: Install Backlog Portal worker runtime packages
+  ansible.builtin.apt:
+    name:
+      - nodejs
+      - npm
+      - python3
+    state: present
+    update_cache: true
+
+- name: Install pinned Codex CLI
+  community.general.npm:
+    name: "@openai/codex"
+    version: "{{ backlog_portal_worker_codex_version }}"
+    global: true
+    state: present
+
+- name: Resolve Backlog Portal ingress without cluster-hosted DNS
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    regexp: "^[^#]+\\s+{{ backlog_portal_worker_hostname | regex_escape }}$"
+    line: "{{ backlog_portal_worker_ingress_ip }} {{ backlog_portal_worker_hostname }}"
+    owner: root
+    group: root
+    mode: "0644"
+    state: present
+
+- name: Create Backlog Portal worker group
+  ansible.builtin.group:
+    name: "{{ backlog_portal_worker_group }}"
+    system: true
+    state: present
+
+- name: Create Backlog Portal worker user
+  ansible.builtin.user:
+    name: "{{ backlog_portal_worker_user }}"
+    group: "{{ backlog_portal_worker_group }}"
+    home: "{{ backlog_portal_worker_state_dir }}"
+    create_home: true
+    shell: /usr/sbin/nologin
+    system: true
+    state: present
+
+- name: Create Backlog Portal worker directories
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: "{{ backlog_portal_worker_user }}"
+    group: "{{ backlog_portal_worker_group }}"
+    mode: "{{ item.mode }}"
+  loop:
+    - { path: "{{ backlog_portal_worker_root }}/scripts", mode: "0755" }
+    - { path: "{{ backlog_portal_worker_state_dir }}/.codex", mode: "0700" }
+
+- name: Install Backlog Portal worker files
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../services/backlog-portal/scripts/{{ item.name }}"
+    dest: "{{ backlog_portal_worker_root }}/scripts/{{ item.name }}"
+    owner: root
+    group: root
+    mode: "{{ item.mode }}"
+  loop:
+    - { name: process_jobs.py, mode: "0755" }
+    - { name: refined_item.schema.json, mode: "0644" }
+  notify: restart backlog portal worker timer
+
+- name: Install Codex subscription authentication
+  ansible.builtin.copy:
+    src: "{{ backlog_portal_worker_codex_auth_file }}"
+    dest: "{{ backlog_portal_worker_state_dir }}/.codex/auth.json"
+    owner: "{{ backlog_portal_worker_user }}"
+    group: "{{ backlog_portal_worker_group }}"
+    mode: "0600"
+  no_log: true
+
+- name: Install Backlog Portal worker environment
+  ansible.builtin.template:
+    src: backlog-portal-worker.env.j2
+    dest: /etc/backlog-portal-worker.env
+    owner: root
+    group: "{{ backlog_portal_worker_group }}"
+    mode: "0640"
+  no_log: true
+  notify: restart backlog portal worker timer
+
+- name: Install Backlog Portal worker service
+  ansible.builtin.template:
+    src: backlog-portal-worker.service.j2
+    dest: /etc/systemd/system/backlog-portal-worker.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: restart backlog portal worker timer
+
+- name: Install Backlog Portal worker timer
+  ansible.builtin.template:
+    src: backlog-portal-worker.timer.j2
+    dest: /etc/systemd/system/backlog-portal-worker.timer
+    owner: root
+    group: root
+    mode: "0644"
+  notify: restart backlog portal worker timer
+
+- name: Enable and start Backlog Portal worker timer
+  ansible.builtin.systemd:
+    name: backlog-portal-worker.timer
+    enabled: true
+    state: started
+    daemon_reload: true
