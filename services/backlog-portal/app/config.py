@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import lru_cache
 
 
@@ -16,6 +16,7 @@ class Target:
     item_types: tuple[str, ...]
     project_id: str
     template: str
+    template_mappings: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -45,6 +46,7 @@ class Settings:
                     "Produce an implementation-ready backlog item with testable "
                     "acceptance criteria.",
                 ),
+                template_mappings=dict(value.get("template_mappings", {})),
             )
             for value in raw_targets
         )

@@ -23,6 +23,13 @@ def test_health_does_not_require_login(client):
     assert client.get("/").status_code == 401
 
 
+def test_intake_is_provider_first_and_has_no_type_control(client, auth):
+    html = client.get("/", auth=auth).text
+    assert html.index("GitHub") < html.index("Azure DevOps")
+    assert 'name="provider"' in html
+    assert 'name="item_type"' not in html
+
+
 def test_draft_is_refined_by_worker_then_submitted(client, auth):
     response = create_draft(client, auth)
     assert response.status_code == 303
@@ -139,6 +146,35 @@ def test_explicit_type_wins_and_ambiguous_idea_uses_documented_fallback(client, 
         ]
         assert "source=explicit" in details[0]
         assert "source=fallback" in details[1]
+        assert drafts[1].state == "validation"
+
+
+def test_missing_template_mapping_fails_safely(client, auth, monkeypatch):
+    from dataclasses import replace
+
+    from app import main
+
+    target = main.settings.targets[0]
+    monkeypatch.setattr(
+        main,
+        "settings",
+        replace(
+            main.settings,
+            targets=(
+                replace(target, template_mappings={}),
+                *main.settings.targets[1:],
+            ),
+        ),
+    )
+    response = client.post(
+        "/drafts",
+        auth=auth,
+        data={"target_id": target.id, "raw_idea": "Fix the broken portal error"},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    review = client.get(response.headers["location"], auth=auth)
+    assert "No remote item was created" in review.text
 
 
 def test_submitted_draft_cannot_create_a_duplicate(client, auth):

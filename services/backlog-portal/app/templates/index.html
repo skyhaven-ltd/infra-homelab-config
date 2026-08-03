@@ -1,26 +1,37 @@
 {% extends "base.html" %}
 {% block content %}
+<section class="hero"><p class="eyebrow">Sky Haven workspace</p><h1>Turn a rough thought into ready work.</h1>
+<p>Choose where it belongs. The portal will classify, structure, and prepare it for your review.</p></section>
 <section class="compose">
-  <h1>Capture a backlog item</h1>
   <form method="post" action="{{ url_for('create_draft') }}">
-    <label>Project board<select name="target_id" id="target" required>
-      {% for target in targets %}<option value="{{ target.id }}" data-types="{{ target.item_types | join(',') }}">{{ target.label }} · {{ "GitHub" if target.provider == "github" else "Azure DevOps" }}</option>{% endfor %}
+    <fieldset><legend>1. Choose a provider</legend><div class="provider-grid">
+      {% set providers = namespace(seen=[]) %}{% for target in targets %}{% if target.provider not in providers.seen %}{% set providers.seen = providers.seen + [target.provider] %}
+      <label class="provider-card"><input type="radio" name="provider" value="{{ target.provider }}" {% if loop.first %}checked{% endif %}><span class="provider-mark">{{ "GH" if target.provider == "github" else "ADO" }}</span><strong>{{ "GitHub" if target.provider == "github" else "Azure DevOps" }}</strong><small>{{ "Issues and project boards" if target.provider == "github" else "Agile work items" }}</small></label>
+      {% endif %}{% endfor %}
+    </div></fieldset>
+    <label>2. Choose a destination<select name="target_id" id="target" required>
+      {% for target in targets %}<option value="{{ target.id }}" data-provider="{{ target.provider }}">{{ target.label }}</option>{% endfor %}
     </select></label>
-    <label>Type<select name="item_type" id="item-type" required></select></label>
-    <label class="wide">Idea<textarea name="raw_idea" rows="7" minlength="10" maxlength="20000" placeholder="Describe the problem, desired outcome, and any constraints." required></textarea></label>
-    <button class="primary" type="submit">Refine with AI</button>
+    <label>3. Describe the idea<textarea name="raw_idea" rows="8" minlength="10" maxlength="20000" placeholder="What should change, why does it matter, and what would done look like?" required></textarea><small class="hint">Type is inferred automatically. You will review everything before submission.</small></label>
+    <button class="primary" type="submit">Prepare draft <span aria-hidden="true">→</span></button>
   </form>
 </section>
 <section>
-  <h2>Recent items</h2>
+  <div class="section-heading"><div><p class="eyebrow">Your queue</p><h2>Recent drafts</h2></div><span>{{ drafts | length }} total</span></div>
   <div class="items">
     {% for draft in drafts %}<a class="item" href="{{ url_for('review_draft', draft_id=draft.id) }}"><span><strong>{{ draft.title or draft.raw_idea | truncate(70) }}</strong><small>{{ draft.target_id }} · {{ draft.item_type }}</small></span><b class="state {{ draft.state }}">{{ draft.state }}</b></a>
     {% else %}<p class="empty">No items yet.</p>{% endfor %}
   </div>
 </section>
 <script>
-const target = document.querySelector('#target'); const type = document.querySelector('#item-type');
-function syncTypes() { type.replaceChildren(...target.selectedOptions[0].dataset.types.split(',').map(value => new Option(value, value))); }
-target.addEventListener('change', syncTypes); syncTypes();
+const target = document.querySelector('#target');
+const options = [...target.options];
+function syncTargets(provider) {
+  const selected = target.value;
+  target.replaceChildren(...options.filter(option => option.dataset.provider === provider));
+  if ([...target.options].some(option => option.value === selected)) target.value = selected;
+}
+document.querySelectorAll('[name="provider"]').forEach(input => input.addEventListener('change', () => syncTargets(input.value)));
+syncTargets(document.querySelector('[name="provider"]:checked').value);
 </script>
 {% endblock content %}

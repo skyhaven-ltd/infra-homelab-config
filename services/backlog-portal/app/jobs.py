@@ -27,6 +27,7 @@ def claim_next(db: Session, targets: tuple[Target, ...]) -> dict | None:
     if job is None:
         return None
     target = next(value for value in targets if value.id == job.draft.target_id)
+    template_mapping = target.template_mappings[job.draft.item_type]
     job.status = "running"
     job.draft.state = "refining"
     db.add(AuditEvent(draft_id=job.draft.id, action="ai.claimed"))
@@ -35,6 +36,7 @@ def claim_next(db: Session, targets: tuple[Target, ...]) -> dict | None:
 Destination: {target.provider} / {target.organisation} / {target.container}
 Item type: {job.draft.item_type}
 Template instructions: {target.template}
+Canonical template mapping: {template_mapping}
 Rough idea:
 {job.draft.raw_idea}
 
