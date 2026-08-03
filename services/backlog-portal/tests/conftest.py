@@ -20,6 +20,26 @@ os.environ["PORTAL_TARGETS"] = json.dumps(
             "item_types": ["Bug", "Feature", "Task"],
             "project_id": "PVT_test",
             "template": "Use the infrastructure template.",
+            "template_mappings": {
+                "Bug": ".github/ISSUE_TEMPLATE/bug-report.md",
+                "Feature": ".github/ISSUE_TEMPLATE/feature-request.md",
+                "Task": ".github/ISSUE_TEMPLATE/task.md",
+            },
+        },
+        {
+            "id": "ado-platform",
+            "provider": "azure_devops",
+            "label": "Platform project",
+            "organisation": "skyhaven",
+            "container": "Platform",
+            "item_types": ["Bug", "Feature", "Task"],
+            "project_id": "",
+            "template": "Use the Agile process template.",
+            "template_mappings": {
+                "Bug": ".github/ADO_WORK_ITEM_TEMPLATE/bug.md",
+                "Feature": ".github/ADO_WORK_ITEM_TEMPLATE/feature.md",
+                "Task": ".github/ADO_WORK_ITEM_TEMPLATE/task.md",
+            },
         }
     ]
 )

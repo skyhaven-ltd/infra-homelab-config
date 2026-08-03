@@ -28,6 +28,11 @@ target can set a `template` instruction and its own `item_types`; the worker
 includes both in the refinement prompt. Azure DevOps targets use `organisation`
 for the organisation name and `container` for the project name.
 
+Each target must also define an explicit `template_mappings` object from every
+supported item type to its canonical path in the organisation `.github`
+repository. Missing mappings and ambiguous classifications remain local in a
+validation state; the portal does not contact a provider in either case.
+
 ## Deployment
 
 Kubernetes manifests live in `kubernetes/apps/backlog-portal`. Before Argo CD

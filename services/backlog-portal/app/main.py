@@ -86,8 +86,18 @@ def index(
     db: Session = Depends(get_session),
 ) -> HTMLResponse:
     drafts = db.execute(select(Draft).order_by(Draft.created_at.desc())).scalars().all()
+    providers_order = ("github", "azure_devops")
+    targets = sorted(
+        settings.targets,
+        key=lambda value: (
+            providers_order.index(value.provider)
+            if value.provider in providers_order
+            else len(providers_order),
+            value.label.casefold(),
+        ),
+    )
     return templates.TemplateResponse(
-        request, "index.html", {"targets": settings.targets, "drafts": drafts}
+        request, "index.html", {"targets": targets, "drafts": drafts}
     )
 
 
@@ -117,7 +127,25 @@ def create_draft(
             detail=f"type={result.item_type}; source={result.source}",
         )
     )
-    jobs.enqueue(db, draft)
+    template_mapping = target.template_mappings.get(result.item_type, "")
+    if not result.confident or not template_mapping:
+        draft.state = "validation"
+        reason = (
+            "The idea could not be classified confidently. Add a clear action such "
+            "as fix, create, or investigate."
+            if not result.confident
+            else f"No template is mapped for {result.item_type}."
+        )
+        db.add(
+            AuditEvent(
+                draft_id=draft.id,
+                action="classification.rejected",
+                detail=reason,
+            )
+        )
+        db.commit()
+    else:
+        jobs.enqueue(db, draft)
     return RedirectResponse(f"/drafts/{draft.id}", status_code=303)
 
 
