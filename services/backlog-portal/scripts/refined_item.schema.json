@@ -2,15 +2,24 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "additionalProperties": false,
-  "required": ["title", "description", "acceptance_criteria", "priority", "area", "iteration", "labels", "assignee"],
+  "required": [
+    "title",
+    "description",
+    "acceptance_criteria",
+    "priority",
+    "area",
+    "iteration",
+    "labels",
+    "assignee"
+  ],
   "properties": {
-    "title": {"type": "string"},
-    "description": {"type": "string"},
-    "acceptance_criteria": {"type": "array", "items": {"type": "string"}},
-    "priority": {"type": "string"},
-    "area": {"type": "string"},
-    "iteration": {"type": "string"},
-    "labels": {"type": "array", "items": {"type": "string"}},
-    "assignee": {"type": "string"}
+    "title": { "type": "string" },
+    "description": { "type": "string" },
+    "acceptance_criteria": { "type": "array", "items": { "type": "string" } },
+    "priority": { "type": "string" },
+    "area": { "type": "string" },
+    "iteration": { "type": "string" },
+    "labels": { "type": "array", "items": { "type": "string" } },
+    "assignee": { "type": "string" }
   }
 }

@@ -3,11 +3,14 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{% block title %}Backlog Portal{% endblock %}</title>
+    <meta name="description" content="Create and refine backlog items.">
+    <title>{% block title %}Backlog Portal{% endblock title %}</title>
     <link rel="stylesheet" href="{{ url_for('static', path='/app.css') }}">
   </head>
   <body>
-    <header><a href="/">Backlog Portal</a><span>Sky Haven</span></header>
-    <main>{% block content %}{% endblock %}</main>
+    <header>
+      <a href="{{ url_for('index') }}">Backlog Portal</a><span>Sky Haven</span>
+    </header>
+    <main>{% block content %}{% endblock content %}</main>
   </body>
 </html>
