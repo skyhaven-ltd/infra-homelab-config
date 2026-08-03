@@ -60,6 +60,7 @@ def test_github_issue_is_added_to_selected_project():
         template="template",
     )
     responses = [
+        Response([{"name": "portal"}]),
         Response(
             {
                 "html_url": "https://github.test/issues/12",
@@ -73,9 +74,14 @@ def test_github_issue_is_added_to_selected_project():
         result = submit(settings(), target, draft())
 
     assert result.url == "https://github.test/issues/12"
-    issue_request = urlopen.call_args_list[0].args[0]
-    project_request = urlopen.call_args_list[1].args[0]
+    labels_request = urlopen.call_args_list[0].args[0]
+    issue_request = urlopen.call_args_list[1].args[0]
+    project_request = urlopen.call_args_list[2].args[0]
+    assert labels_request.full_url.endswith("/labels?per_page=100")
     assert issue_request.full_url.endswith("/skyhaven-ltd/infra-homelab-config/issues")
+    issue_payload = json.loads(issue_request.data)
+    assert issue_payload["labels"] == ["portal"]
+    assert "## Item type\n\nFeature" in issue_payload["body"]
     project_payload = json.loads(project_request.data)
     assert project_payload["variables"] == {
         "project": "PVT_board",
