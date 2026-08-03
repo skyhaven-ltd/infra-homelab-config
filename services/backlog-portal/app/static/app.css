@@ -239,14 +239,12 @@ summary {
 }
 
 @keyframes spin {
-
   to {
     transform: rotate(360deg);
   }
 }
 
 @media (width >= 40rem) {
-
   main {
     padding-top: 2.5rem;
   }
@@ -276,7 +274,6 @@ summary {
 }
 
 @media (prefers-reduced-motion: reduce) {
-
   .waiting span {
     animation: none;
   }
