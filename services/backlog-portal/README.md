@@ -5,6 +5,12 @@ issues and Azure DevOps work items. A user captures a rough idea, a host-side
 Codex worker refines it through the same queue pattern used by BookBuddy, and
 the application presents an editable review before server-side submission.
 
+When no item type is supplied, the portal applies deterministic keyword scoring
+against the destination's supported types. A unique match is inferred; ambiguous
+ideas fall back to `Task` when supported (otherwise the first configured type).
+Explicit supported types always take precedence. The audit log records the
+classification result and whether it was explicit, inferred, or a fallback.
+
 ## Configuration
 
 Copy `.env.example` to `.env` for local development. `PORTAL_TARGETS` is an
