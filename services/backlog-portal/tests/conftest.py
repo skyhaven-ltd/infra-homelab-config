@@ -18,6 +18,8 @@ os.environ["PORTAL_TARGETS"] = json.dumps(
             "organisation": "skyhaven-ltd",
             "container": "infra-homelab-config",
             "item_types": ["Bug", "Feature", "Task"],
+            "project_id": "PVT_test",
+            "template": "Use the infrastructure template.",
         }
     ]
 )

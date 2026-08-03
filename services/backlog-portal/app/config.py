@@ -14,6 +14,8 @@ class Target:
     organisation: str
     container: str
     item_types: tuple[str, ...]
+    project_id: str
+    template: str
 
 
 @dataclass(frozen=True)
@@ -37,6 +39,12 @@ class Settings:
                 organisation=value["organisation"],
                 container=value["container"],
                 item_types=tuple(value["item_types"]),
+                project_id=value.get("project_id", ""),
+                template=value.get(
+                    "template",
+                    "Produce an implementation-ready backlog item with testable "
+                    "acceptance criteria.",
+                ),
             )
             for value in raw_targets
         )
