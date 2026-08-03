@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Draft {{ draft.id }} · Backlog Portal{% endblock %}
+{% block content %}
+<div class="review-head"><div><a class="back" href="/">← Back</a><h1>Draft {{ draft.id }}</h1><p>{{ target.label }} · {{ draft.item_type }}</p></div><b class="state {{ draft.state }}">{{ draft.state }}</b></div>
+{% if draft.state in ['queued', 'refining'] %}<div class="waiting"><span></span><h2>Refining your idea</h2><p>This page will update when the queue finishes.</p></div><script>setTimeout(() => location.reload(), 4000)</script>
+{% elif draft.state == 'submitted' %}<div class="success"><h2>Item created</h2><a class="primary button" href="{{ draft.remote_url }}">Open item</a></div>
+{% else %}
+{% if draft.state == 'failed' %}<p class="error">AI refinement failed. You can complete the item manually.</p>{% endif %}
+<form class="review-form" method="post" action="/drafts/{{ draft.id }}/submit">
+  <label>Title<input name="title" value="{{ draft.title }}" maxlength="512" required></label>
+  <label>Description<textarea name="description" rows="8" required>{{ draft.description }}</textarea></label>
+  <label>Acceptance criteria<textarea name="acceptance_criteria" rows="7">{{ draft.acceptance_criteria }}</textarea></label>
+  <div class="fields"><label>Priority<input name="priority" value="{{ draft.priority }}"></label><label>Labels<input name="labels" value="{{ draft.labels }}" placeholder="comma, separated"></label><label>Area<input name="area" value="{{ draft.area }}"></label><label>Iteration<input name="iteration" value="{{ draft.iteration }}"></label><label>Assignee<input name="assignee" value="{{ draft.assignee }}"></label></div>
+  <details><summary>Original idea</summary><p>{{ draft.raw_idea }}</p></details>
+  <button class="primary" type="submit">Create {{ draft.item_type }}</button>
+</form>{% endif %}
+{% endblock %}

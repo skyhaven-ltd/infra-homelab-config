@@ -4,6 +4,7 @@ This directory contains personal application and MCP source that is developed an
 
 | Service | Imported from | Import commit | History |
 | --- | --- | --- | --- |
+| `backlog-portal` | Developed in this repository | Not applicable | Native history |
 | `bookbuddy-web` | `skyhaven-ltd/app-bookbuddy-web` | `7b67ce00b3f59e729ad967edf820cc2b412b9645` | Archived in `history/app-bookbuddy-web.bundle` |
 | `knowledge-mcp` | Developed in this repository | Not applicable | Native history |
 | `stockalert-monitor` | `skyhaven-ltd/app-stockalert-monitor` | `f54ba2e7f2bd7a5ad13c914067b802975677e97f` | Archived in `history/app-stockalert-monitor.bundle` |

@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="compose">
+  <h1>Capture a backlog item</h1>
+  <form method="post" action="/drafts">
+    <label>Destination<select name="target_id" id="target" required>
+      {% for target in targets %}<option value="{{ target.id }}" data-types="{{ target.item_types | join(',') }}">{{ target.label }}</option>{% endfor %}
+    </select></label>
+    <label>Type<select name="item_type" id="item-type" required></select></label>
+    <label class="wide">Idea<textarea name="raw_idea" rows="7" minlength="10" maxlength="20000" placeholder="Describe the problem, desired outcome, and any constraints." required></textarea></label>
+    <button class="primary" type="submit">Refine with AI</button>
+  </form>
+</section>
+<section>
+  <h2>Recent items</h2>
+  <div class="items">
+    {% for draft in drafts %}<a class="item" href="/drafts/{{ draft.id }}"><span><strong>{{ draft.title or draft.raw_idea | truncate(70) }}</strong><small>{{ draft.target_id }} · {{ draft.item_type }}</small></span><b class="state {{ draft.state }}">{{ draft.state }}</b></a>
+    {% else %}<p class="empty">No items yet.</p>{% endfor %}
+  </div>
+</section>
+<script>
+const target = document.querySelector('#target'); const type = document.querySelector('#item-type');
+function syncTypes() { type.replaceChildren(...target.selectedOptions[0].dataset.types.split(',').map(value => new Option(value, value))); }
+target.addEventListener('change', syncTypes); syncTypes();
+</script>
+{% endblock %}
