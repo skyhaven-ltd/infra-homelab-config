@@ -5,4 +5,11 @@ metadata:
   namespace: backlog-portal
 data:
   PORTAL_TARGETS: >-
-    [{"id":"github-homelab","provider":"github","label":"Sky Haven Project Board / Homelab","organisation":"skyhaven-ltd","container":"infra-homelab-config","project_id":"PVT_kwDOEbaq0c4BcELw","item_types":["Bug","Feature","Task"],"template":"Explain the desired homelab outcome, operational constraints, security considerations, and testable completion criteria. Keep infrastructure changes explicit and idempotent.","template_mappings":{"Bug":".github/ISSUE_TEMPLATE/bug-report.md","Feature":".github/ISSUE_TEMPLATE/feature-request.md","Task":".github/ISSUE_TEMPLATE/task.md"}}]
+    [{"id":"github-homelab","provider":"github",
+    "label":"Sky Haven Project Board / Homelab","organisation":"skyhaven-ltd",
+    "container":"infra-homelab-config","project_id":"PVT_kwDOEbaq0c4BcELw",
+    "item_types":["Bug","Feature","Task"],
+    "template":"Explain the desired homelab outcome, operational constraints, security considerations, and testable completion criteria. Keep infrastructure changes explicit and idempotent.",
+    "template_mappings":{"Bug":".github/ISSUE_TEMPLATE/bug-report.md",
+    "Feature":".github/ISSUE_TEMPLATE/feature-request.md",
+    "Task":".github/ISSUE_TEMPLATE/task.md"}}]

@@ -3,6 +3,7 @@
   font-family: "Avenir Next", Avenir, "Segoe UI", sans-serif;
   color: #1c2927;
   background: #f3f0e9;
+
   --ink: #1c2927;
   --pine: #164d43;
   --mint: #bfe1d4;
@@ -330,7 +331,7 @@ legend {
   margin-bottom: 1.5rem;
 }
 
-.review-head p {
+.review-meta {
   color: #66727d;
   margin: 0;
   font-size: 0.85rem;
@@ -379,7 +380,7 @@ summary {
   margin-top: 1rem;
 }
 
-.waiting p,
+.waiting-copy,
 .empty {
   color: #68747f;
 }
