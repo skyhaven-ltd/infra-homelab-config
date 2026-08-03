@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backlog-portal
+  namespace: backlog-portal
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: backlog-portal
+  template:
+    metadata:
+      labels:
+        app: backlog-portal
+    spec:
+      containers:
+        - name: app
+          image: ghcr.io/skyhaven-ltd/infra-homelab-config/backlog-portal@sha256:9f61c74e85b07bc593f6ff9c576e243515bfec9a815fa340c42abc2bc2d5d2d4
+          env:
+            - name: DATABASE_URL
+              value: sqlite:////data/backlog-portal.db
+          envFrom:
+            - configMapRef:
+                name: backlog-portal-config
+            - secretRef:
+                name: backlog-portal-env
+          ports:
+            - name: http
+              containerPort: 8080
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            readOnlyRootFilesystem: true
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: backlog-portal-data

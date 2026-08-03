@@ -34,6 +34,7 @@ def claim_next(db: Session, targets: tuple[Target, ...]) -> dict | None:
     prompt = f"""Turn this rough backlog idea into a concise, implementation-ready item.
 Destination: {target.provider} / {target.organisation} / {target.container}
 Item type: {job.draft.item_type}
+Template instructions: {target.template}
 Rough idea:
 {job.draft.raw_idea}
 

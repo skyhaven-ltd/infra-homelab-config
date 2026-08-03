@@ -40,6 +40,24 @@ def _request(url: str, headers: dict[str, str], payload: object) -> dict:
         raise SubmissionError(f"Provider returned HTTP {exc.code}: {detail}") from exc
 
 
+def _add_to_github_project(settings: Settings, project_id: str, item_id: str) -> None:
+    mutation = """
+    mutation($project: ID!, $item: ID!) {
+      addProjectV2ItemById(input: {projectId: $project, contentId: $item}) {
+        item { id }
+      }
+    }
+    """
+    _request(
+        "https://api.github.com/graphql",
+        {
+            "Authorization": f"Bearer {settings.github_token}",
+            "X-GitHub-Api-Version": "2022-11-28",
+        },
+        {"query": mutation, "variables": {"project": project_id, "item": item_id}},
+    )
+
+
 def submit(settings: Settings, target: Target, draft: Draft) -> SubmittedItem:
     if target.provider == "github":
         return _submit_github(settings, target, draft)
@@ -76,6 +94,8 @@ def _submit_github(settings: Settings, target: Target, draft: Draft) -> Submitte
         },
         payload,
     )
+    if target.project_id:
+        _add_to_github_project(settings, target.project_id, data["node_id"])
     return SubmittedItem(url=data["html_url"], external_id=str(data["number"]))
 
 

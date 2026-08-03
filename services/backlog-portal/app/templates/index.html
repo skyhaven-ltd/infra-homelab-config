@@ -3,8 +3,8 @@
 <section class="compose">
   <h1>Capture a backlog item</h1>
   <form method="post" action="{{ url_for('create_draft') }}">
-    <label>Destination<select name="target_id" id="target" required>
-      {% for target in targets %}<option value="{{ target.id }}" data-types="{{ target.item_types | join(',') }}">{{ target.label }}</option>{% endfor %}
+    <label>Project board<select name="target_id" id="target" required>
+      {% for target in targets %}<option value="{{ target.id }}" data-types="{{ target.item_types | join(',') }}">{{ target.label }} · {{ "GitHub" if target.provider == "github" else "Azure DevOps" }}</option>{% endfor %}
     </select></label>
     <label>Type<select name="item_type" id="item-type" required></select></label>
     <label class="wide">Idea<textarea name="raw_idea" rows="7" minlength="10" maxlength="20000" placeholder="Describe the problem, desired outcome, and any constraints." required></textarea></label>

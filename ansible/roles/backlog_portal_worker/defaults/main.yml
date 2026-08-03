@@ -1,0 +1,13 @@
+backlog_portal_worker_user: backlog-portal-worker
+backlog_portal_worker_group: backlog-portal-worker
+backlog_portal_worker_root: /opt/backlog-portal-worker
+backlog_portal_worker_state_dir: /var/lib/backlog-portal-worker
+backlog_portal_worker_base_url: https://backlog.lab.skyhaven.ltd
+backlog_portal_worker_hostname: backlog.lab.skyhaven.ltd
+backlog_portal_worker_ingress_ip: "{{ node_ip }}"
+backlog_portal_worker_interval: "*:0/1"
+backlog_portal_worker_job_limit: 10
+backlog_portal_worker_timeout_seconds: 600
+backlog_portal_worker_codex_version: 0.144.1
+backlog_portal_worker_token: "{{ lookup('env', 'BACKLOG_PORTAL_WORKER_TOKEN') }}"
+backlog_portal_worker_codex_auth_file: "{{ lookup('env', 'CODEX_AUTH_FILE') }}"

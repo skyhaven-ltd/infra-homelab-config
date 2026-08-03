@@ -1,0 +1,11 @@
+[Unit]
+Description=Poll for Backlog Portal refinement jobs
+
+[Timer]
+OnCalendar={{ backlog_portal_worker_interval }}
+Persistent=true
+RandomizedDelaySec=5
+Unit=backlog-portal-worker.service
+
+[Install]
+WantedBy=timers.target

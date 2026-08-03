@@ -15,6 +15,9 @@
     - role: bookbuddy_worker
       tags: [bookbuddy_worker]
       when: "'bookbuddy_worker' in ansible_run_tags"
+    - role: backlog_portal_worker
+      tags: [backlog_portal_worker]
+      when: "'backlog_portal_worker' in ansible_run_tags"
 
 - hosts: gha_runner
   become: true

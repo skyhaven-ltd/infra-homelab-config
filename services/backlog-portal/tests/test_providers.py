@@ -1,0 +1,110 @@
+import json
+from unittest.mock import patch
+
+from app.config import Settings, Target
+from app.models import Draft
+from app.providers import submit
+
+
+class Response:
+    def __init__(self, value):
+        self.value = value
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_):
+        return None
+
+    def read(self):
+        return json.dumps(self.value).encode()
+
+
+def settings():
+    return Settings(
+        database_url="sqlite://",
+        username="user",
+        password="password",
+        worker_token="worker",
+        github_token="github-token",
+        azure_devops_token="ado-token",
+        targets=(),
+    )
+
+
+def draft():
+    return Draft(
+        target_id="target",
+        item_type="Feature",
+        raw_idea="idea",
+        title="A useful feature",
+        description="Description",
+        acceptance_criteria="- [ ] It works",
+        priority="2",
+        area="",
+        iteration="",
+        labels="portal, ready",
+        assignee="",
+    )
+
+
+def test_github_issue_is_added_to_selected_project():
+    target = Target(
+        id="github",
+        provider="github",
+        label="Board",
+        organisation="skyhaven-ltd",
+        container="infra-homelab-config",
+        item_types=("Feature",),
+        project_id="PVT_board",
+        template="template",
+    )
+    responses = [
+        Response(
+            {
+                "html_url": "https://github.test/issues/12",
+                "number": 12,
+                "node_id": "I_issue",
+            }
+        ),
+        Response({"data": {"addProjectV2ItemById": {"item": {"id": "PVTI_1"}}}}),
+    ]
+    with patch("urllib.request.urlopen", side_effect=responses) as urlopen:
+        result = submit(settings(), target, draft())
+
+    assert result.url == "https://github.test/issues/12"
+    issue_request = urlopen.call_args_list[0].args[0]
+    project_request = urlopen.call_args_list[1].args[0]
+    assert issue_request.full_url.endswith("/skyhaven-ltd/infra-homelab-config/issues")
+    project_payload = json.loads(project_request.data)
+    assert project_payload["variables"] == {
+        "project": "PVT_board",
+        "item": "I_issue",
+    }
+
+
+def test_azure_devops_uses_configured_org_project_and_fields():
+    target = Target(
+        id="ado",
+        provider="azure_devops",
+        label="Platform",
+        organisation="skyhaven",
+        container="Platform Project",
+        item_types=("Feature",),
+        project_id="",
+        template="template",
+    )
+    response = Response(
+        {"id": 42, "_links": {"html": {"href": "https://ado.test/items/42"}}}
+    )
+    with patch("urllib.request.urlopen", return_value=response) as urlopen:
+        result = submit(settings(), target, draft())
+
+    assert result.external_id == "42"
+    request = urlopen.call_args.args[0]
+    assert "/skyhaven/Platform%20Project/" in request.full_url
+    operations = json.loads(request.data)
+    assert any(
+        operation["path"] == "/fields/Microsoft.VSTS.Common.AcceptanceCriteria"
+        for operation in operations
+    )

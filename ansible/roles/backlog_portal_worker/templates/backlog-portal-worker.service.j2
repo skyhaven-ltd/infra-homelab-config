@@ -1,0 +1,21 @@
+[Unit]
+Description=Process pending Backlog Portal refinement jobs
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User={{ backlog_portal_worker_user }}
+Group={{ backlog_portal_worker_group }}
+WorkingDirectory={{ backlog_portal_worker_root }}
+Environment=HOME={{ backlog_portal_worker_state_dir }}
+EnvironmentFile=/etc/backlog-portal-worker.env
+ExecStart=/usr/bin/python3 {{ backlog_portal_worker_root }}/scripts/process_jobs.py --limit {{ backlog_portal_worker_job_limit }} --timeout {{ backlog_portal_worker_timeout_seconds }}
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths={{ backlog_portal_worker_state_dir }}
+
+[Install]
+WantedBy=multi-user.target

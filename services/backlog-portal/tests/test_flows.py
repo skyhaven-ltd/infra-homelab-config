@@ -32,6 +32,7 @@ def test_draft_is_refined_by_worker_then_submitted(client, auth):
     claimed = client.post("/worker/jobs/claim", headers=worker_headers).json()["job"]
     assert claimed["draft_id"] == 1
     assert "rough backlog idea" in claimed["prompt"]
+    assert "Use the infrastructure template" in claimed["prompt"]
 
     output = json.dumps(
         {
