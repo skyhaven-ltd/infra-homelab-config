@@ -1,0 +1,23 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: backlog-portal
+  namespace: backlog-portal
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts: [backlog.lab.skyhaven.ltd]
+      secretName: backlog-portal-tls
+  rules:
+    - host: backlog.lab.skyhaven.ltd
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: backlog-portal
+                port:
+                  number: 8080

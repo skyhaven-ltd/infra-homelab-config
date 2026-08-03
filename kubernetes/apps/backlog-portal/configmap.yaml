@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backlog-portal-config
+  namespace: backlog-portal
+data:
+  PORTAL_TARGETS: >-
+    [{"id":"github-homelab","provider":"github","label":"Sky Haven Project Board / Homelab","organisation":"skyhaven-ltd","container":"infra-homelab-config","project_id":"PVT_kwDOEbaq0c4BcELw","item_types":["Bug","Feature","Task"],"template":"Explain the desired homelab outcome, operational constraints, security considerations, and testable completion criteria. Keep infrastructure changes explicit and idempotent."}]
