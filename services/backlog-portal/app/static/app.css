@@ -4,12 +4,15 @@
   color: #17202a;
   background: #f4f6f8;
 }
+
 * {
   box-sizing: border-box;
 }
+
 body {
   margin: 0;
 }
+
 header {
   height: 3.5rem;
   padding: 0 1rem;
@@ -19,38 +22,46 @@ header {
   background: #fff;
   border-bottom: 1px solid #dce1e5;
 }
+
 header a {
   color: #17202a;
   font-size: 1rem;
   font-weight: 750;
   text-decoration: none;
 }
+
 header span {
   color: #66727d;
   font-size: 0.8rem;
 }
+
 main {
   width: min(100% - 2rem, 52rem);
   margin: 0 auto;
   padding: 1.5rem 0 4rem;
 }
+
 h1 {
   margin: 0 0 0.35rem;
   font-size: 1.55rem;
   letter-spacing: 0;
 }
+
 h2 {
   margin: 2rem 0 0.75rem;
   font-size: 1rem;
   letter-spacing: 0;
 }
+
 p {
   line-height: 1.5;
 }
+
 form {
   display: grid;
   gap: 1rem;
 }
+
 label {
   display: grid;
   gap: 0.4rem;
@@ -58,6 +69,7 @@ label {
   font-size: 0.82rem;
   font-weight: 650;
 }
+
 input,
 select,
 textarea {
@@ -70,16 +82,19 @@ textarea {
   font: inherit;
   font-size: 1rem;
 }
+
 textarea {
   resize: vertical;
   line-height: 1.45;
 }
+
 input:focus,
 select:focus,
 textarea:focus {
   outline: 3px solid #c7e6dc;
   border-color: #16745b;
 }
+
 button,
 .button {
   border: 0;
@@ -91,20 +106,25 @@ button,
   text-align: center;
   text-decoration: none;
 }
+
 .primary {
   background: #176b52;
   color: #fff;
 }
+
 .compose {
   padding: 0;
 }
+
 .compose form {
   grid-template-columns: 1fr;
   margin-top: 1.25rem;
 }
+
 .items {
   border-top: 1px solid #d7dde2;
 }
+
 .item {
   min-height: 4.5rem;
   padding: 0.9rem 0;
@@ -116,32 +136,40 @@ button,
   text-decoration: none;
   border-bottom: 1px solid #d7dde2;
 }
+
 .item span {
   min-width: 0;
   display: grid;
   gap: 0.25rem;
 }
+
 .item strong {
   overflow-wrap: anywhere;
 }
+
 .item small {
   color: #68747f;
 }
+
 .state {
   flex: 0 0 auto;
   color: #4f5a64;
   font-size: 0.72rem;
   text-transform: uppercase;
 }
+
 .state.review {
   color: #9a5a00;
 }
+
 .state.submitted {
   color: #08734f;
 }
+
 .state.failed {
   color: #a83232;
 }
+
 .review-head {
   display: flex;
   align-items: center;
@@ -149,34 +177,41 @@ button,
   gap: 1rem;
   margin-bottom: 1.5rem;
 }
+
 .review-head p {
   color: #66727d;
   margin: 0;
   font-size: 0.85rem;
 }
+
 .back {
   display: inline-block;
   color: #176b52;
   margin-bottom: 1.25rem;
   text-decoration: none;
 }
+
 .fields {
   display: grid;
   gap: 1rem;
 }
+
 details {
   border-top: 1px solid #d7dde2;
   padding-top: 1rem;
 }
+
 summary {
   cursor: pointer;
   font-weight: 650;
 }
+
 .waiting,
 .success {
   margin-top: 4rem;
   text-align: center;
 }
+
 .waiting span {
   display: block;
   width: 2rem;
@@ -187,47 +222,61 @@ summary {
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
+
 .waiting h2 {
   margin-top: 1rem;
 }
+
 .waiting p,
 .empty {
   color: #68747f;
 }
+
 .error {
   padding: 0.8rem;
   border-left: 3px solid #a83232;
   background: #fff;
 }
+
 @keyframes spin {
+
   to {
     transform: rotate(360deg);
   }
 }
-@media (min-width: 40rem) {
+
+@media (width >= 40rem) {
+
   main {
     padding-top: 2.5rem;
   }
+
   .compose form {
     grid-template-columns: 2fr 1fr;
   }
+
   .wide,
   .compose button {
     grid-column: 1 / -1;
   }
+
   .compose button {
     width: max-content;
     justify-self: end;
   }
+
   .fields {
     grid-template-columns: 1fr 1fr;
   }
+
   .review-form > button {
     width: max-content;
     justify-self: end;
   }
 }
+
 @media (prefers-reduced-motion: reduce) {
+
   .waiting span {
     animation: none;
   }
