@@ -40,6 +40,19 @@ def _request(url: str, headers: dict[str, str], payload: object) -> dict:
         raise SubmissionError(f"Provider returned HTTP {exc.code}: {detail}") from exc
 
 
+def _get(url: str, headers: dict[str, str]) -> object:
+    request = urllib.request.Request(
+        url,
+        headers={"Accept": "application/json", **headers},
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:  # nosec B310
+            return json.loads(response.read())
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode(errors="replace")[:500]
+        raise SubmissionError(f"Provider returned HTTP {exc.code}: {detail}") from exc
+
+
 def _add_to_github_project(settings: Settings, project_id: str, item_id: str) -> None:
     mutation = """
     mutation($project: ID!, $item: ID!) {
@@ -67,7 +80,7 @@ def submit(settings: Settings, target: Target, draft: Draft) -> SubmittedItem:
 
 
 def _body(draft: Draft) -> str:
-    parts = [draft.description.strip()]
+    parts = [draft.description.strip(), "## Item type", draft.item_type]
     if draft.acceptance_criteria.strip():
         parts.extend(["## Acceptance criteria", draft.acceptance_criteria.strip()])
     if draft.priority.strip():
@@ -79,9 +92,27 @@ def _submit_github(settings: Settings, target: Target, draft: Draft) -> Submitte
     if not settings.github_token:
         raise SubmissionError("GitHub credentials are not configured")
     payload: dict[str, object] = {"title": draft.title, "body": _body(draft)}
-    labels = [value.strip() for value in draft.labels.split(",") if value.strip()]
-    if draft.item_type not in labels:
-        labels.append(draft.item_type)
+    requested_labels = [
+        value.strip() for value in draft.labels.split(",") if value.strip()
+    ]
+    available = _get(
+        f"https://api.github.com/repos/{target.organisation}/{target.container}/labels"
+        "?per_page=100",
+        {
+            "Authorization": f"Bearer {settings.github_token}",
+            "X-GitHub-Api-Version": "2022-11-28",
+        },
+    )
+    available_names = {
+        str(value["name"]).casefold(): str(value["name"])
+        for value in available
+        if isinstance(value, dict) and value.get("name")
+    }
+    labels = [
+        available_names[value.casefold()]
+        for value in requested_labels
+        if value.casefold() in available_names
+    ]
     if labels:
         payload["labels"] = labels
     if draft.assignee:

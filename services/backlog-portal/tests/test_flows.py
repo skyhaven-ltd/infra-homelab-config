@@ -2,7 +2,7 @@ import json
 from unittest.mock import patch
 
 from app.models import AuditEvent, Draft
-from app.providers import SubmittedItem
+from app.providers import SubmissionError, SubmittedItem
 
 
 def create_draft(client, auth):
@@ -90,3 +90,36 @@ def test_rejects_unknown_target_and_worker_token(client, auth):
     )
     assert response.status_code == 400
     assert client.post("/worker/jobs/claim").status_code == 401
+
+
+def test_provider_error_returns_review_page(client, auth):
+    from app.database import SessionLocal
+
+    with SessionLocal() as db:
+        draft = Draft(
+            target_id="github-infra",
+            item_type="Bug",
+            raw_idea="A sufficiently detailed failing idea",
+            title="Broken workflow",
+            description="The workflow is broken.",
+            state="review",
+        )
+        db.add(draft)
+        db.commit()
+        draft_id = draft.id
+
+    with patch(
+        "app.main.providers.submit",
+        side_effect=SubmissionError("GitHub rejected the request"),
+    ):
+        response = client.post(
+            f"/drafts/{draft_id}/submit",
+            auth=auth,
+            data={"title": "Broken workflow", "description": "It is broken."},
+        )
+
+    assert response.status_code == 502
+    assert "GitHub rejected the request" in response.text
+    with SessionLocal() as db:
+        assert db.get(Draft, draft_id).state == "review"
+        assert db.query(AuditEvent).filter_by(action="provider.failed").count() == 1

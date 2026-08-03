@@ -4,7 +4,7 @@ import secrets
 from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, Form, Header, HTTPException, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -129,6 +129,7 @@ def review_draft(
 
 @app.post("/drafts/{draft_id}/submit")
 def submit_draft(
+    request: Request,
     draft_id: int,
     title: str = Form(...),
     description: str = Form(...),
@@ -140,7 +141,7 @@ def submit_draft(
     assignee: str = Form(""),
     _: str = Depends(require_user),
     db: Session = Depends(get_session),
-) -> RedirectResponse:
+) -> Response:
     draft = get_draft(db, draft_id)
     if draft.state not in {"review", "failed"}:
         raise HTTPException(status_code=409, detail="Draft is not ready for submission")
@@ -156,7 +157,24 @@ def submit_draft(
         raise HTTPException(
             status_code=422, detail="Title and description are required"
         )
-    result = providers.submit(settings, get_target(draft.target_id), draft)
+    target = get_target(draft.target_id)
+    try:
+        result = providers.submit(settings, target, draft)
+    except providers.SubmissionError as exc:
+        db.add(
+            AuditEvent(
+                draft_id=draft.id,
+                action="provider.failed",
+                detail=str(exc)[:512],
+            )
+        )
+        db.commit()
+        return templates.TemplateResponse(
+            request,
+            "review.html",
+            {"draft": draft, "target": target, "error": str(exc)},
+            status_code=502,
+        )
     draft.state = "submitted"
     draft.remote_url = result.url
     db.add(

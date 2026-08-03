@@ -8,6 +8,7 @@
 {% elif draft.state == 'submitted' %}<div class="success"><h2>Item created</h2>
 <a class="primary button" href="{{ draft.remote_url }}">Open item</a></div>
 {% else %}
+{% if error %}<p class="error">{{ error }}</p>{% endif %}
 {% if draft.state == 'failed' %}<p class="error">AI refinement failed. You can complete the item manually.</p>{% endif %}
 <form class="review-form" method="post" action="{{ url_for('submit_draft', draft_id=draft.id) }}">
   <label>Title<input name="title" value="{{ draft.title }}" maxlength="512" required></label>
