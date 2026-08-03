@@ -40,7 +40,7 @@ os.environ["PORTAL_TARGETS"] = json.dumps(
                 "Feature": ".github/ADO_WORK_ITEM_TEMPLATE/feature.md",
                 "Task": ".github/ADO_WORK_ITEM_TEMPLATE/task.md",
             },
-        }
+        },
     ]
 )
 
