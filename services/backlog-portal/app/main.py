@@ -85,7 +85,15 @@ def index(
     _: str = Depends(require_user),
     db: Session = Depends(get_session),
 ) -> HTMLResponse:
-    drafts = db.execute(select(Draft).order_by(Draft.created_at.desc())).scalars().all()
+    drafts = (
+        db.execute(
+            select(Draft)
+            .where(Draft.state != "deleted")
+            .order_by(Draft.created_at.desc())
+        )
+        .scalars()
+        .all()
+    )
     providers_order = ("github", "azure_devops")
     targets = sorted(
         settings.targets,
@@ -217,6 +225,8 @@ def submit_draft(
         )
     draft.state = "submitted"
     draft.remote_url = result.url
+    draft.remote_external_id = result.external_id
+    draft.remote_project_item_id = result.project_item_id
     db.add(
         AuditEvent(
             draft_id=draft.id,
@@ -226,6 +236,57 @@ def submit_draft(
     )
     db.commit()
     return RedirectResponse(f"/drafts/{draft.id}", status_code=303)
+
+
+@app.post("/drafts/{draft_id}/delete")
+def delete_draft(
+    request: Request,
+    draft_id: int,
+    _: str = Depends(require_user),
+    db: Session = Depends(get_session),
+) -> Response:
+    draft = get_draft(db, draft_id)
+    if draft.state == "deleted":
+        return RedirectResponse("/", status_code=303)
+    target = get_target(draft.target_id)
+    try:
+        providers.close(settings, target, draft)
+    except providers.SubmissionError:
+        draft.state = "sync-failed"
+        db.add(AuditEvent(draft_id=draft.id, action="provider.delete_failed"))
+        db.commit()
+        return templates.TemplateResponse(
+            request,
+            "review.html",
+            {
+                "draft": draft,
+                "target": target,
+                "error": "The remote item could not be updated. Retry the removal.",
+            },
+            status_code=502,
+        )
+    draft.state = "deleted"
+    db.add(AuditEvent(draft_id=draft.id, action="provider.deleted"))
+    db.commit()
+    return RedirectResponse("/", status_code=303)
+
+
+@app.post("/worker/reconcile", dependencies=[Depends(require_worker)])
+def reconcile_drafts(db: Session = Depends(get_session)) -> dict[str, int]:
+    reconciled = 0
+    drafts = db.execute(select(Draft).where(Draft.state == "submitted")).scalars()
+    for draft in drafts:
+        try:
+            closed = providers.is_closed(settings, get_target(draft.target_id), draft)
+        except providers.SubmissionError:
+            db.add(AuditEvent(draft_id=draft.id, action="provider.reconcile_failed"))
+            continue
+        if closed:
+            draft.state = "resolved"
+            db.add(AuditEvent(draft_id=draft.id, action="provider.resolved"))
+            reconciled += 1
+    db.commit()
+    return {"reconciled": reconciled}
 
 
 @app.post("/worker/jobs/claim", dependencies=[Depends(require_worker)])

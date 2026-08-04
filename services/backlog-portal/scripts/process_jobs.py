@@ -74,6 +74,7 @@ def main() -> int:
     token = os.getenv("WORKER_TOKEN", "")
     if not token:
         raise RuntimeError("WORKER_TOKEN is required")
+    request(args.base_url, token, "/worker/reconcile")
     for _ in range(args.limit):
         job = request(args.base_url, token, "/worker/jobs/claim").get("job")
         if not job:

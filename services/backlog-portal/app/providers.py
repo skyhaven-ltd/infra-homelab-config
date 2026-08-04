@@ -20,6 +20,7 @@ class SubmissionError(RuntimeError):
 class SubmittedItem:
     url: str
     external_id: str
+    project_item_id: str = ""
 
 
 @dataclass(frozen=True)
@@ -29,11 +30,13 @@ class IssueTemplate:
     assignees: tuple[str, ...]
 
 
-def _request(url: str, headers: dict[str, str], payload: object) -> dict:
+def _request(
+    url: str, headers: dict[str, str], payload: object, method: str = "POST"
+) -> dict:
     request = urllib.request.Request(
         url,
         data=json.dumps(payload).encode(),
-        method="POST",
+        method=method,
         headers={
             "Content-Type": "application/json",
             "Accept": "application/json",
@@ -61,7 +64,7 @@ def _get(url: str, headers: dict[str, str]) -> object:
         raise SubmissionError(f"Provider returned HTTP {exc.code}: {detail}") from exc
 
 
-def _add_to_github_project(settings: Settings, project_id: str, item_id: str) -> None:
+def _add_to_github_project(settings: Settings, project_id: str, item_id: str) -> str:
     mutation = """
     mutation($project: ID!, $item: ID!) {
       addProjectV2ItemById(input: {projectId: $project, contentId: $item}) {
@@ -69,7 +72,7 @@ def _add_to_github_project(settings: Settings, project_id: str, item_id: str) ->
       }
     }
     """
-    _request(
+    data = _request(
         "https://api.github.com/graphql",
         {
             "Authorization": f"Bearer {settings.github_token}",
@@ -77,6 +80,10 @@ def _add_to_github_project(settings: Settings, project_id: str, item_id: str) ->
         },
         {"query": mutation, "variables": {"project": project_id, "item": item_id}},
     )
+    try:
+        return str(data["data"]["addProjectV2ItemById"]["item"]["id"])
+    except (KeyError, TypeError) as exc:
+        raise SubmissionError("GitHub did not return the project item ID") from exc
 
 
 def _github_headers(settings: Settings) -> dict[str, str]:
@@ -176,6 +183,62 @@ def submit(settings: Settings, target: Target, draft: Draft) -> SubmittedItem:
     raise SubmissionError("Unsupported provider")
 
 
+def close(settings: Settings, target: Target, draft: Draft) -> None:
+    if not draft.remote_external_id:
+        return
+    if target.provider == "github":
+        _request(
+            f"https://api.github.com/repos/{target.organisation}/{target.container}/"
+            f"issues/{draft.remote_external_id}",
+            _github_headers(settings),
+            {"state": "closed", "state_reason": "not_planned"},
+            method="PATCH",
+        )
+        return
+    if target.provider == "azure_devops":
+        auth = base64.b64encode(f":{settings.azure_devops_token}".encode()).decode()
+        project = urllib.parse.quote(target.container, safe="")
+        _request(
+            f"https://dev.azure.com/{target.organisation}/{project}/_apis/wit/"
+            f"workitems/{draft.remote_external_id}?api-version=7.1",
+            {
+                "Authorization": f"Basic {auth}",
+                "Content-Type": "application/json-patch+json",
+            },
+            [{"op": "add", "path": "/fields/System.State", "value": "Closed"}],
+            method="PATCH",
+        )
+        return
+    raise SubmissionError("Unsupported provider")
+
+
+def is_closed(settings: Settings, target: Target, draft: Draft) -> bool:
+    if not draft.remote_external_id:
+        return False
+    if target.provider == "github":
+        data = _get(
+            f"https://api.github.com/repos/{target.organisation}/{target.container}/"
+            f"issues/{draft.remote_external_id}",
+            _github_headers(settings),
+        )
+        return isinstance(data, dict) and data.get("state") == "closed"
+    if target.provider == "azure_devops":
+        auth = base64.b64encode(f":{settings.azure_devops_token}".encode()).decode()
+        project = urllib.parse.quote(target.container, safe="")
+        data = _get(
+            f"https://dev.azure.com/{target.organisation}/{project}/_apis/wit/"
+            f"workitems/{draft.remote_external_id}?api-version=7.1",
+            {"Authorization": f"Basic {auth}"},
+        )
+        state = (
+            data.get("fields", {}).get("System.State", "")
+            if isinstance(data, dict)
+            else ""
+        )
+        return str(state).casefold() in {"closed", "done", "resolved", "removed"}
+    raise SubmissionError("Unsupported provider")
+
+
 def _body(draft: Draft) -> str:
     parts = [draft.description.strip(), "## Item type", draft.item_type]
     if draft.acceptance_criteria.strip():
@@ -222,9 +285,16 @@ def _submit_github(settings: Settings, target: Target, draft: Draft) -> Submitte
         payload,
     )
     _assign_github_issue_type(settings, target, data["node_id"], template.issue_type)
+    project_item_id = ""
     if target.project_id:
-        _add_to_github_project(settings, target.project_id, data["node_id"])
-    return SubmittedItem(url=data["html_url"], external_id=str(data["number"]))
+        project_item_id = _add_to_github_project(
+            settings, target.project_id, data["node_id"]
+        )
+    return SubmittedItem(
+        url=data["html_url"],
+        external_id=str(data["number"]),
+        project_item_id=project_item_id,
+    )
 
 
 def _submit_azure_devops(
