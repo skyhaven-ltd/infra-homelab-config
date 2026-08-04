@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: app
-          image: ghcr.io/skyhaven-ltd/infra-homelab-config/backlog-portal@sha256:8bbd0c07187d904d04a749609e5b77e99ce6c6869a689bc8ecde1338705032b2
+          image: ghcr.io/skyhaven-ltd/infra-homelab-config/backlog-portal@sha256:675959898b830986f1d29b9219b53f4bbf939133a2dec93e1cf30fc498d4136d
           env:
             - name: DATABASE_URL
               value: sqlite:////data/backlog-portal.db
