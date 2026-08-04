@@ -33,6 +33,12 @@ supported item type to its canonical path in the organisation `.github`
 repository. Missing mappings and ambiguous classifications remain local in a
 validation state; the portal does not contact a provider in either case.
 
+Set `project_url` to the existing board URL shown in the destination picker.
+The scheduled worker reconciles submitted items on every run so remotely closed
+or resolved work becomes terminal locally. Removing an item requires browser
+confirmation and closes its remote issue or work item before hiding it locally;
+failed remote updates remain visible for retry.
+
 ## Deployment
 
 Kubernetes manifests live in `kubernetes/apps/backlog-portal`. Before Argo CD

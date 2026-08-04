@@ -29,6 +29,8 @@ class Draft(Base):
     assignee: Mapped[str] = mapped_column(String(256), default="")
     state: Mapped[str] = mapped_column(String(32), default="queued")
     remote_url: Mapped[str] = mapped_column(String(2048), default="")
+    remote_external_id: Mapped[str] = mapped_column(String(256), default="")
+    remote_project_item_id: Mapped[str] = mapped_column(String(256), default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=utcnow, onupdate=utcnow

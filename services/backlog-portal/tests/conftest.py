@@ -19,6 +19,7 @@ os.environ["PORTAL_TARGETS"] = json.dumps(
             "container": "infra-homelab-config",
             "item_types": ["Bug", "Feature", "Task"],
             "project_id": "PVT_test",
+            "project_url": "https://github.com/orgs/skyhaven-ltd/projects/1/views/1",
             "template": "Use the infrastructure template.",
             "template_mappings": {
                 "Bug": ".github/ISSUE_TEMPLATE/bug-report.md",

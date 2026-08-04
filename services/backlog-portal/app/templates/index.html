@@ -10,8 +10,8 @@
       {% endif %}{% endfor %}
     </div></fieldset>
     <label>2. Choose a destination<select name="target_id" id="target" required>
-      {% for target in targets %}<option value="{{ target.id }}" data-provider="{{ target.provider }}">{{ target.label }}</option>{% endfor %}
-    </select></label>
+      {% for target in targets %}<option value="{{ target.id }}" data-provider="{{ target.provider }}" data-url="{{ target.project_url }}">{{ target.label }}</option>{% endfor %}
+    </select><a class="board-link" id="board-link" target="_blank" rel="noreferrer">Open configured board</a></label>
     <label>3. Describe the idea<textarea name="raw_idea" rows="8" minlength="10" maxlength="20000" placeholder="What should change, why does it matter, and what would done look like?" required></textarea><small class="hint">Type is inferred automatically. You will review everything before submission.</small></label>
     <button class="primary" type="submit">Prepare draft <span aria-hidden="true">→</span></button>
   </form>
@@ -19,18 +19,26 @@
 <section>
   <div class="section-heading"><div><p class="eyebrow">Your queue</p><h2>Recent drafts</h2></div><span>{{ drafts | length }} total</span></div>
   <div class="items">
-    {% for draft in drafts %}<a class="item" href="{{ url_for('review_draft', draft_id=draft.id) }}"><span><strong>{{ draft.title or draft.raw_idea | truncate(70) }}</strong><small>{{ draft.target_id }} · {{ draft.item_type }}</small></span><b class="state {{ draft.state }}">{{ draft.state }}</b></a>
+    {% for draft in drafts %}<div class="item"><a href="{{ url_for('review_draft', draft_id=draft.id) }}"><span><strong>{{ draft.title or draft.raw_idea | truncate(70) }}</strong><small>{{ draft.target_id }} · {{ draft.item_type }}</small></span><b class="state {{ draft.state }}">{{ draft.state }}</b></a><form method="post" action="{{ url_for('delete_draft', draft_id=draft.id) }}" onsubmit="return confirm('Remove this item and close its linked remote work item?')"><button class="remove" type="submit" aria-label="Remove draft {{ draft.id }}">Remove</button></form></div>
     {% else %}<p class="empty">No items yet.</p>{% endfor %}
   </div>
 </section>
 <script>
 const target = document.querySelector('#target');
+const boardLink = document.querySelector('#board-link');
 const options = [...target.options];
 function syncTargets(provider) {
   const selected = target.value;
   target.replaceChildren(...options.filter(option => option.dataset.provider === provider));
   if ([...target.options].some(option => option.value === selected)) target.value = selected;
+  syncBoardLink();
 }
+function syncBoardLink() {
+  const url = target.selectedOptions[0]?.dataset.url;
+  boardLink.hidden = !url;
+  boardLink.href = url || '#';
+}
+target.addEventListener('change', syncBoardLink);
 document.querySelectorAll('[name="provider"]').forEach(input => input.addEventListener('change', () => syncTargets(input.value)));
 syncTargets(document.querySelector('[name="provider"]:checked').value);
 </script>

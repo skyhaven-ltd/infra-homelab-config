@@ -16,6 +16,7 @@ class Target:
     item_types: tuple[str, ...]
     project_id: str
     template: str
+    project_url: str = ""
     template_mappings: dict[str, str] = field(default_factory=dict)
 
 
@@ -46,6 +47,7 @@ class Settings:
                     "Produce an implementation-ready backlog item with testable "
                     "acceptance criteria.",
                 ),
+                project_url=value.get("project_url", ""),
                 template_mappings=dict(value.get("template_mappings", {})),
             )
             for value in raw_targets

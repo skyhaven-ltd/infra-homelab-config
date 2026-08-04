@@ -28,6 +28,7 @@ def test_intake_is_provider_first_and_has_no_type_control(client, auth):
     assert html.index("GitHub") < html.index("Azure DevOps")
     assert 'name="provider"' in html
     assert 'name="item_type"' not in html
+    assert "https://github.com/orgs/skyhaven-ltd/projects/1/views/1" in html
 
 
 def test_draft_is_refined_by_worker_then_submitted(client, auth):
@@ -245,3 +246,89 @@ def test_provider_error_returns_review_page(client, auth):
     with SessionLocal() as db:
         assert db.get(Draft, draft_id).state == "review"
         assert db.query(AuditEvent).filter_by(action="provider.failed").count() == 1
+
+
+def test_delete_closes_remote_item_and_is_idempotent(client, auth):
+    from app.database import SessionLocal
+
+    with SessionLocal() as db:
+        draft = Draft(
+            target_id="github-infra",
+            item_type="Bug",
+            raw_idea="Remove the broken queued item",
+            state="submitted",
+            remote_url="https://github.test/issues/12",
+            remote_external_id="12",
+        )
+        db.add(draft)
+        db.commit()
+        draft_id = draft.id
+
+    with patch("app.main.providers.close") as close:
+        response = client.post(
+            f"/drafts/{draft_id}/delete", auth=auth, follow_redirects=False
+        )
+        retry = client.post(
+            f"/drafts/{draft_id}/delete", auth=auth, follow_redirects=False
+        )
+
+    assert response.status_code == retry.status_code == 303
+    close.assert_called_once()
+    with SessionLocal() as db:
+        assert db.get(Draft, draft_id).state == "deleted"
+    assert "Remove the broken queued item" not in client.get("/", auth=auth).text
+
+
+def test_delete_failure_is_recoverable_and_does_not_leak_details(client, auth):
+    from app.database import SessionLocal
+
+    with SessionLocal() as db:
+        draft = Draft(
+            target_id="github-infra",
+            item_type="Bug",
+            raw_idea="Remove the broken queued item",
+            state="submitted",
+            remote_external_id="12",
+        )
+        db.add(draft)
+        db.commit()
+        draft_id = draft.id
+
+    with patch(
+        "app.main.providers.close",
+        side_effect=SubmissionError("Authorization: secret-token"),
+    ):
+        response = client.post(f"/drafts/{draft_id}/delete", auth=auth)
+
+    assert response.status_code == 502
+    assert "secret-token" not in response.text
+    assert "Retry the removal" in response.text
+    with SessionLocal() as db:
+        assert db.get(Draft, draft_id).state == "sync_failed"
+
+
+def test_reconcile_reflects_external_resolution_once(client):
+    from app.database import SessionLocal
+
+    with SessionLocal() as db:
+        draft = Draft(
+            target_id="github-infra",
+            item_type="Feature",
+            raw_idea="A remotely resolved feature",
+            state="submitted",
+            remote_external_id="13",
+        )
+        db.add(draft)
+        db.commit()
+        draft_id = draft.id
+
+    headers = {"Authorization": "Bearer worker-secret"}
+    with patch("app.main.providers.is_closed", return_value=True) as is_closed:
+        first = client.post("/worker/reconcile", headers=headers)
+        second = client.post("/worker/reconcile", headers=headers)
+
+    assert first.json() == {"reconciled": 1}
+    assert second.json() == {"reconciled": 0}
+    is_closed.assert_called_once()
+    with SessionLocal() as db:
+        assert db.get(Draft, draft_id).state == "resolved"

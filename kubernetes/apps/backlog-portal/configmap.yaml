@@ -8,6 +8,7 @@ data:
     [{"id":"github-homelab","provider":"github",
     "label":"Sky Haven Project Board / Homelab","organisation":"skyhaven-ltd",
     "container":"infra-homelab-config","project_id":"PVT_kwDOEbaq0c4BcELw",
+    "project_url":"https://github.com/orgs/skyhaven-ltd/projects/1/views/1",
     "item_types":["Bug","Feature","Task"],
     "template":"Explain the desired homelab outcome, operational constraints, security considerations, and testable completion criteria. Keep infrastructure changes explicit and idempotent.",
     "template_mappings":{"Bug":".github/ISSUE_TEMPLATE/bug-report.md",

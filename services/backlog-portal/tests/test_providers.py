@@ -86,6 +86,7 @@ def test_github_issue_is_added_to_selected_project():
         result = submit(settings(), target, draft())
 
     assert result.url == "https://github.test/issues/12"
+    assert result.project_item_id == "PVTI_1"
     template_request = urlopen.call_args_list[0].args[0]
     labels_request = urlopen.call_args_list[1].args[0]
     issue_request = urlopen.call_args_list[2].args[0]
