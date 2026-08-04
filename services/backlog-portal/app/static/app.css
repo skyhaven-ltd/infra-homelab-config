@@ -19,7 +19,11 @@
 body {
   margin: 0;
   background:
-    radial-gradient(circle at 80% -10%, rgb(191 225 212 / 65%), transparent 32rem),
+    radial-gradient(
+      circle at 80% -10%,
+      rgb(191 225 212 / 65%),
+      transparent 32rem
+    ),
     #f3f0e9;
 }
 
