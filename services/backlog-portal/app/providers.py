@@ -28,6 +28,7 @@ class IssueTemplate:
     prefix: str
     issue_type: str
     assignees: tuple[str, ...]
+    body: str
 
 
 def _request(
@@ -93,10 +94,14 @@ def _github_headers(settings: Settings) -> dict[str, str]:
     }
 
 
-def _parse_issue_template(content: str) -> IssueTemplate:
+def _parse_issue_template(content: str, item_type: str = "") -> IssueTemplate:
+    if not content.startswith("---\n"):
+        if not content.strip():
+            raise SubmissionError("Canonical template is empty")
+        return IssueTemplate("", item_type, (), content.strip())
     if not content.startswith("---\n") or "\n---\n" not in content[4:]:
         raise SubmissionError("Canonical issue template has no front matter")
-    front_matter = content[4:].split("\n---\n", 1)[0]
+    front_matter, body = content[4:].split("\n---\n", 1)
     values: dict[str, str] = {}
     for line in front_matter.splitlines():
         key, separator, value = line.partition(":")
@@ -113,7 +118,10 @@ def _parse_issue_template(content: str) -> IssueTemplate:
         if value.strip()
     )
     return IssueTemplate(
-        prefix=f"{prefix} ", issue_type=issue_type, assignees=assignees
+        prefix=f"{prefix} ",
+        issue_type=issue_type,
+        assignees=assignees,
+        body=body.strip(),
     )
 
 
@@ -125,7 +133,7 @@ def _load_issue_template(
         raise SubmissionError(f"No canonical template is mapped for {item_type}")
     encoded_path = urllib.parse.quote(path, safe="/")
     data = _get(
-        f"https://api.github.com/repos/{target.organisation}/.github/contents/"
+        f"https://api.github.com/repos/{settings.template_repository}/contents/"
         f"{encoded_path}?ref=main",
         _github_headers(settings),
     )
@@ -135,7 +143,61 @@ def _load_issue_template(
         content = base64.b64decode(str(data["content"])).decode()
     except (ValueError, UnicodeDecodeError) as exc:
         raise SubmissionError("Canonical issue template is invalid") from exc
-    return _parse_issue_template(content)
+    return _parse_issue_template(content, item_type)
+
+
+def list_destinations(settings: Settings, provider: str) -> list[dict[str, str]]:
+    if provider == "github":
+        if not settings.github_token:
+            raise SubmissionError("GitHub credentials are not configured")
+        values: list[dict[str, str]] = []
+        for page in range(1, 11):
+            data = _get(
+                f"https://api.github.com/orgs/{settings.github_organisation}/repos"
+                f"?type=all&sort=full_name&per_page=100&page={page}",
+                _github_headers(settings),
+            )
+            if not isinstance(data, list):
+                raise SubmissionError("GitHub repositories could not be read")
+            values.extend(
+                {
+                    "id": f"github:{urllib.parse.quote(str(repo['name']), safe='')}",
+                    "name": str(repo["name"]),
+                    "url": str(repo.get("html_url", "")),
+                }
+                for repo in data
+                if isinstance(repo, dict)
+                and repo.get("name")
+                and repo.get("has_issues", True)
+                and not repo.get("archived", False)
+            )
+            if len(data) < 100:
+                break
+        return values
+    if provider == "azure_devops":
+        if not settings.azure_devops_token:
+            raise SubmissionError("Azure DevOps credentials are not configured")
+        auth = base64.b64encode(f":{settings.azure_devops_token}".encode()).decode()
+        data = _get(
+            f"https://dev.azure.com/{settings.azure_devops_organisation}/_apis/"
+            "projects?stateFilter=wellFormed&$top=1000&api-version=7.1",
+            {"Authorization": f"Basic {auth}"},
+        )
+        projects = data.get("value", []) if isinstance(data, dict) else []
+        return [
+            {
+                "id": "azure_devops:"
+                + urllib.parse.quote(str(project["name"]), safe=""),
+                "name": str(project["name"]),
+                "url": (
+                    f"https://dev.azure.com/{settings.azure_devops_organisation}/"
+                    f"{urllib.parse.quote(str(project['name']), safe='')}"
+                ),
+            }
+            for project in projects
+            if isinstance(project, dict) and project.get("name")
+        ]
+    raise SubmissionError("Unsupported provider")
 
 
 def _normalise_title(title: str, prefix: str) -> str:
@@ -239,13 +301,14 @@ def is_closed(settings: Settings, target: Target, draft: Draft) -> bool:
     raise SubmissionError("Unsupported provider")
 
 
-def _body(draft: Draft) -> str:
+def _body(draft: Draft, template: IssueTemplate) -> str:
     parts = [draft.description.strip(), "## Item type", draft.item_type]
     if draft.acceptance_criteria.strip():
         parts.extend(["## Acceptance criteria", draft.acceptance_criteria.strip()])
     if draft.priority.strip():
         parts.extend(["## Priority", draft.priority.strip()])
-    return "\n\n".join(parts)
+    generated = "\n\n".join(parts)
+    return f"{template.body}\n\n---\n\n{generated}" if template.body else generated
 
 
 def _submit_github(settings: Settings, target: Target, draft: Draft) -> SubmittedItem:
@@ -254,7 +317,7 @@ def _submit_github(settings: Settings, target: Target, draft: Draft) -> Submitte
     template = _load_issue_template(settings, target, draft.item_type)
     payload: dict[str, object] = {
         "title": _normalise_title(draft.title, template.prefix),
-        "body": _body(draft),
+        "body": _body(draft, template),
     }
     requested_labels = [
         value.strip() for value in draft.labels.split(",") if value.strip()
@@ -302,6 +365,7 @@ def _submit_azure_devops(
 ) -> SubmittedItem:
     if not settings.azure_devops_token:
         raise SubmissionError("Azure DevOps credentials are not configured")
+    template = _load_issue_template(settings, target, draft.item_type)
     path_type = urllib.parse.quote(draft.item_type, safe="")
     project = urllib.parse.quote(target.container, safe="")
     url = (
@@ -313,7 +377,7 @@ def _submit_azure_devops(
         {
             "op": "add",
             "path": "/fields/System.Description",
-            "value": draft.description,
+            "value": _body(draft, template),
         },
     ]
     optional = {

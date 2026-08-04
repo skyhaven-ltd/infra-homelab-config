@@ -434,6 +434,11 @@ summary {
   color: #68747f;
 }
 
+.success .button {
+  display: inline-block;
+  margin-top: 1rem;
+}
+
 .error {
   padding: 0.8rem;
   border-left: 3px solid #a83232;

@@ -13,27 +13,28 @@ classification result and whether it was explicit, inferred, or a fallback.
 
 ## Configuration
 
-Copy `.env.example` to `.env` for local development. `PORTAL_TARGETS` is an
-explicit JSON allow-list; browser input cannot select an organisation,
-repository, or project that is not configured there. Provider and worker
-tokens remain server-side.
+Copy `.env.example` to `.env` for local development. The destination picker
+loads repositories dynamically from `GITHUB_ORGANISATION` and projects from
+`AZURE_DEVOPS_ORGANISATION`. The organisations are fixed server-side; browser
+input cannot redirect provider requests to another organisation. Provider and
+worker tokens remain server-side, so selecting a destination never starts an
+interactive provider authentication flow.
 
 The application requires `PORTAL_USERNAME`, `PORTAL_PASSWORD`, and
 `WORKER_TOKEN`. Set `GITHUB_TOKEN` and/or `AZURE_DEVOPS_TOKEN` for the enabled
 destinations. GitHub credentials need issue and Projects write access. Azure
 DevOps credentials need work-item read/write access only.
 
-GitHub Project V2 targets set `project_id` to the board's GraphQL node ID. Each
-target can set a `template` instruction and its own `item_types`; the worker
-includes both in the refinement prompt. Azure DevOps targets use `organisation`
-for the organisation name and `container` for the project name.
+Set `GITHUB_PROJECT_ID` to the Project V2 GraphQL node ID when every created
+GitHub issue should also be added to the organisation board. Set
+`GITHUB_PROJECT_URL` to the link shown next to the repository picker.
 
-Each target must also define an explicit `template_mappings` object from every
-supported item type to its canonical path in the organisation `.github`
-repository. Missing mappings and ambiguous classifications remain local in a
-validation state; the portal does not contact a provider in either case.
+`TEMPLATE_REPOSITORY` defaults to `skyhaven-ltd/.github`. GitHub issues use its
+`.github/ISSUE_TEMPLATE` files and Azure DevOps work items use its
+`.github/ADO_WORK_ITEM_TEMPLATE` files. The portal fetches the matching file at
+submission time and fails closed if it is absent or invalid. There is no local
+template fallback.
 
-Set `project_url` to the existing board URL shown in the destination picker.
 The scheduled worker reconciles submitted items on every run so remotely closed
 or resolved work becomes terminal locally. Removing an item requires browser
 confirmation and closes its remote issue or work item before hiding it locally;

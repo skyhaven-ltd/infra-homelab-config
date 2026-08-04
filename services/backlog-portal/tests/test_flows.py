@@ -28,7 +28,30 @@ def test_intake_is_provider_first_and_has_no_type_control(client, auth):
     assert html.index("GitHub") < html.index("Azure DevOps")
     assert 'name="provider"' in html
     assert 'name="item_type"' not in html
-    assert "https://github.com/orgs/skyhaven-ltd/projects/1/views/1" in html
+    assert "/api/destinations/${provider}" in html
+    assert "Loading repositories" in html
+
+
+def test_dynamic_destinations_require_portal_login(client, auth):
+    assert client.get("/api/destinations/github").status_code == 401
+    with patch(
+        "app.main.providers.list_destinations",
+        return_value=[
+            {
+                "id": "github:infra-homelab-config",
+                "name": "infra-homelab-config",
+                "url": "https://github.test/infra-homelab-config",
+            }
+        ],
+    ):
+        response = client.get("/api/destinations/github", auth=auth)
+    assert response.json()["destinations"][0]["name"] == "infra-homelab-config"
+
+
+def test_submitted_item_link_has_non_overlapping_layout(client, auth):
+    css = client.get("/static/app.css", auth=auth).text
+    assert ".success .button" in css
+    assert "display: inline-block" in css
 
 
 def test_draft_is_refined_by_worker_then_submitted(client, auth):
