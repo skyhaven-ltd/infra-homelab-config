@@ -11,7 +11,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
-from app import classification, jobs, providers
+from app import jobs, providers
 from app.config import Target, get_settings, target_from_id
 from app.database import SessionLocal, get_session, init_db
 from app.models import AuditEvent, Draft, GenerationJob
@@ -26,6 +26,14 @@ async def lifespan(_: FastAPI):
     if not settings.username or not settings.password:
         raise RuntimeError("PORTAL_USERNAME and PORTAL_PASSWORD are required")
     init_db()
+    with SessionLocal() as db:
+        stranded = (
+            db.execute(select(Draft).where(Draft.state == "validation")).scalars().all()
+        )
+        for draft in stranded:
+            target = get_target(draft.target_id)
+            draft.item_type = target.item_types[0]
+            jobs.enqueue(db, draft)
     yield
 
 
@@ -109,7 +117,6 @@ def destinations(provider: str, _: str = Depends(require_user)) -> dict:
 @app.post("/drafts")
 def create_draft(
     target_id: str = Form(...),
-    item_type: str = Form(""),
     raw_idea: str = Form(...),
     _: str = Depends(require_user),
     db: Session = Depends(get_session),
@@ -118,39 +125,14 @@ def create_draft(
     idea = raw_idea.strip()
     if len(idea) < 10 or len(idea) > 20_000:
         raise HTTPException(status_code=422, detail="Idea must be 10-20000 characters")
-    try:
-        result = classification.classify(idea, target.item_types, item_type)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    draft = Draft(target_id=target.id, item_type=result.item_type, raw_idea=idea)
+    draft = Draft(
+        target_id=target.id,
+        item_type=target.item_types[0],
+        raw_idea=idea,
+    )
     db.add(draft)
     db.flush()
-    db.add(
-        AuditEvent(
-            draft_id=draft.id,
-            action="classification.completed",
-            detail=f"type={result.item_type}; source={result.source}",
-        )
-    )
-    template_mapping = target.template_mappings.get(result.item_type, "")
-    if not result.confident or not template_mapping:
-        draft.state = "validation"
-        reason = (
-            "The idea could not be classified confidently. Add a clear action such "
-            "as fix, create, or investigate."
-            if not result.confident
-            else f"No template is mapped for {result.item_type}."
-        )
-        db.add(
-            AuditEvent(
-                draft_id=draft.id,
-                action="classification.rejected",
-                detail=reason,
-            )
-        )
-        db.commit()
-    else:
-        jobs.enqueue(db, draft)
+    jobs.enqueue(db, draft)
     return RedirectResponse(f"/drafts/{draft.id}", status_code=303)
 
 
@@ -174,6 +156,7 @@ def submit_draft(
     request: Request,
     draft_id: int,
     title: str = Form(...),
+    item_type: str = Form(...),
     description: str = Form(...),
     acceptance_criteria: str = Form(""),
     priority: str = Form(""),
@@ -187,6 +170,12 @@ def submit_draft(
     draft = get_draft(db, draft_id)
     if draft.state not in {"review", "failed"}:
         raise HTTPException(status_code=409, detail="Draft is not ready for submission")
+    target = get_target(draft.target_id)
+    supported_types = {value.casefold(): value for value in target.item_types}
+    selected_type = supported_types.get(item_type.strip().casefold())
+    if selected_type is None:
+        raise HTTPException(status_code=422, detail="Unsupported item type")
+    draft.item_type = selected_type
     draft.title = title.strip()[:512]
     draft.description = description.strip()
     draft.acceptance_criteria = acceptance_criteria.strip()
@@ -199,7 +188,6 @@ def submit_draft(
         raise HTTPException(
             status_code=422, detail="Title and description are required"
         )
-    target = get_target(draft.target_id)
     draft.state = "submitting"
     db.commit()
     try:
@@ -288,7 +276,7 @@ def reconcile_drafts(db: Session = Depends(get_session)) -> dict[str, int]:
 
 @app.post("/worker/jobs/claim", dependencies=[Depends(require_worker)])
 def claim_job(db: Session = Depends(get_session)) -> dict:
-    return {"job": jobs.claim_next(db, settings.targets)}
+    return {"job": jobs.claim_next(db, lambda draft: get_target(draft.target_id))}
 
 
 @app.post("/worker/jobs/{job_id}/complete", dependencies=[Depends(require_worker)])
@@ -301,7 +289,12 @@ def complete_job(
     if job is None or job.status != "running":
         raise HTTPException(status_code=409, detail="Job is not running")
     try:
-        jobs.complete(db, job, str(payload.get("raw_output", "")))
+        jobs.complete(
+            db,
+            job,
+            str(payload.get("raw_output", "")),
+            get_target(job.draft.target_id),
+        )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return {"status": "succeeded"}

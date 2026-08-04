@@ -5,11 +5,12 @@ issues and Azure DevOps work items. A user captures a rough idea, a host-side
 Codex worker refines it through the same queue pattern used by BookBuddy, and
 the application presents an editable review before server-side submission.
 
-When no item type is supplied, the portal applies deterministic keyword scoring
-against the destination's supported types. A unique match is inferred; ambiguous
-ideas fall back to `Task` when supported (otherwise the first configured type).
-Explicit supported types always take precedence. The audit log records the
-classification result and whether it was explicit, inferred, or a fallback.
+The refinement worker classifies every idea against the destination's supported
+types while it prepares the draft. Classification does not depend on a keyword
+list. An invalid worker response uses a valid destination type as a safe fallback,
+and the selected type remains editable on the review screen before submission.
+Existing drafts stranded in the former validation state are automatically queued
+for refinement when the application starts.
 
 ## Configuration
 
