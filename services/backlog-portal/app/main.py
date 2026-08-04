@@ -12,7 +12,7 @@ from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from app import classification, jobs, providers
-from app.config import Target, get_settings
+from app.config import Target, get_settings, target_from_id
 from app.database import SessionLocal, get_session, init_db
 from app.models import AuditEvent, Draft, GenerationJob
 
@@ -59,7 +59,7 @@ def require_worker(authorization: str = Header(default="")) -> None:
 
 
 def get_target(target_id: str) -> Target:
-    target = next((value for value in settings.targets if value.id == target_id), None)
+    target = target_from_id(settings, target_id)
     if target is None:
         raise HTTPException(status_code=400, detail="Unknown target")
     return target
@@ -94,19 +94,16 @@ def index(
         .scalars()
         .all()
     )
-    providers_order = ("github", "azure_devops")
-    targets = sorted(
-        settings.targets,
-        key=lambda value: (
-            providers_order.index(value.provider)
-            if value.provider in providers_order
-            else len(providers_order),
-            value.label.casefold(),
-        ),
-    )
-    return templates.TemplateResponse(
-        request, "index.html", {"targets": targets, "drafts": drafts}
-    )
+    return templates.TemplateResponse(request, "index.html", {"drafts": drafts})
+
+
+@app.get("/api/destinations/{provider}")
+def destinations(provider: str, _: str = Depends(require_user)) -> dict:
+    try:
+        values = providers.list_destinations(settings, provider)
+    except providers.SubmissionError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return {"destinations": values}
 
 
 @app.post("/drafts")

@@ -4,7 +4,12 @@ from unittest.mock import patch
 
 from app.config import Settings, Target
 from app.models import Draft
-from app.providers import _normalise_title, _parse_issue_template, submit
+from app.providers import (
+    _normalise_title,
+    _parse_issue_template,
+    list_destinations,
+    submit,
+)
 
 
 class Response:
@@ -126,6 +131,37 @@ def test_template_metadata_and_title_prefix_are_idempotent():
     )
 
 
+def test_github_repositories_are_discovered_dynamically():
+    responses = [
+        Response(
+            [
+                {
+                    "name": "active-repo",
+                    "html_url": "https://github.test/active-repo",
+                    "has_issues": True,
+                    "archived": False,
+                },
+                {
+                    "name": "archived-repo",
+                    "html_url": "https://github.test/archived-repo",
+                    "has_issues": True,
+                    "archived": True,
+                },
+            ]
+        )
+    ]
+    with patch("urllib.request.urlopen", side_effect=responses) as urlopen:
+        values = list_destinations(settings(), "github")
+    assert values == [
+        {
+            "id": "github:active-repo",
+            "name": "active-repo",
+            "url": "https://github.test/active-repo",
+        }
+    ]
+    assert "/orgs/skyhaven-ltd/repos?" in urlopen.call_args.args[0].full_url
+
+
 def test_azure_devops_uses_configured_org_project_and_fields():
     target = Target(
         id="ado",
@@ -136,17 +172,35 @@ def test_azure_devops_uses_configured_org_project_and_fields():
         item_types=("Feature",),
         project_id="",
         template="template",
+        template_mappings={"Feature": ".github/ADO_WORK_ITEM_TEMPLATE/feature.md"},
     )
-    response = Response(
-        {"id": 42, "_links": {"html": {"href": "https://ado.test/items/42"}}}
-    )
-    with patch("urllib.request.urlopen", return_value=response) as urlopen:
+    responses = [
+        Response(
+            {
+                "content": base64.b64encode(
+                    b"# Feature\n\n## Problem\nDescribe the problem."
+                ).decode()
+            }
+        ),
+        Response({"id": 42, "_links": {"html": {"href": "https://ado.test/items/42"}}}),
+    ]
+    with patch("urllib.request.urlopen", side_effect=responses) as urlopen:
         result = submit(settings(), target, draft())
 
     assert result.external_id == "42"
-    request = urlopen.call_args.args[0]
+    template_request = urlopen.call_args_list[0].args[0]
+    request = urlopen.call_args_list[1].args[0]
+    assert template_request.full_url.endswith(
+        "/skyhaven-ltd/.github/contents/.github/ADO_WORK_ITEM_TEMPLATE/feature.md?ref=main"
+    )
     assert "/skyhaven/Platform%20Project/" in request.full_url
     operations = json.loads(request.data)
+    description = next(
+        operation["value"]
+        for operation in operations
+        if operation["path"] == "/fields/System.Description"
+    )
+    assert description.startswith("# Feature\n\n## Problem")
     assert any(
         operation["path"] == "/fields/Microsoft.VSTS.Common.AcceptanceCriteria"
         for operation in operations

@@ -4,13 +4,19 @@ metadata:
   name: backlog-portal-config
   namespace: backlog-portal
 data:
+  # Retained only so drafts created before dynamic discovery remain readable.
   PORTAL_TARGETS: >-
     [{"id":"github-homelab","provider":"github",
-    "label":"Sky Haven Project Board / Homelab","organisation":"skyhaven-ltd",
+    "label":"infra-homelab-config","organisation":"skyhaven-ltd",
     "container":"infra-homelab-config","project_id":"PVT_kwDOEbaq0c4BcELw",
-    "project_url":"https://github.com/orgs/skyhaven-ltd/projects/1/views/1",
+    "project_url":"https://github.com/orgs/skyhaven-ltd/dashboard",
     "item_types":["Bug","Feature","Task"],
-    "template":"Explain the desired homelab outcome, operational constraints, security considerations, and testable completion criteria. Keep infrastructure changes explicit and idempotent.",
+    "template":"Use the canonical GitHub issue template.",
     "template_mappings":{"Bug":".github/ISSUE_TEMPLATE/bug-report.md",
     "Feature":".github/ISSUE_TEMPLATE/feature-request.md",
     "Task":".github/ISSUE_TEMPLATE/task.md"}}]
+  GITHUB_ORGANISATION: skyhaven-ltd
+  AZURE_DEVOPS_ORGANISATION: version1ukdcs
+  TEMPLATE_REPOSITORY: skyhaven-ltd/.github
+  GITHUB_PROJECT_ID: PVT_kwDOEbaq0c4BcELw
+  GITHUB_PROJECT_URL: https://github.com/orgs/skyhaven-ltd/dashboard

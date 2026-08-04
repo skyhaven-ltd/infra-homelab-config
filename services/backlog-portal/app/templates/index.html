@@ -5,13 +5,12 @@
 <section class="compose">
   <form method="post" action="{{ url_for('create_draft') }}">
     <fieldset><legend>1. Choose a provider</legend><div class="provider-grid">
-      {% set providers = namespace(seen=[]) %}{% for target in targets %}{% if target.provider not in providers.seen %}{% set providers.seen = providers.seen + [target.provider] %}
-      <label class="provider-card"><input type="radio" name="provider" value="{{ target.provider }}" {% if loop.first %}checked{% endif %}><span class="provider-mark">{{ "GH" if target.provider == "github" else "ADO" }}</span><strong>{{ "GitHub" if target.provider == "github" else "Azure DevOps" }}</strong><small>{{ "Issues and project boards" if target.provider == "github" else "Agile work items" }}</small></label>
-      {% endif %}{% endfor %}
+      <label class="provider-card"><input type="radio" name="provider" value="github" checked><span class="provider-mark">GH</span><strong>GitHub</strong><small>Sky Haven repositories</small></label>
+      <label class="provider-card"><input type="radio" name="provider" value="azure_devops"><span class="provider-mark">ADO</span><strong>Azure DevOps</strong><small>Version 1 projects</small></label>
     </div></fieldset>
     <label>2. Choose a destination<select name="target_id" id="target" required>
-      {% for target in targets %}<option value="{{ target.id }}" data-provider="{{ target.provider }}" data-url="{{ target.project_url }}">{{ target.label }}</option>{% endfor %}
-    </select><a class="board-link" id="board-link" target="_blank" rel="noreferrer">Open configured board</a></label>
+      <option value="">Loading repositories…</option>
+    </select><small class="hint" id="destination-status" role="status"></small><a class="board-link" id="board-link" target="_blank" rel="noreferrer">Open destination</a></label>
     <label>3. Describe the idea<textarea name="raw_idea" rows="8" minlength="10" maxlength="20000" placeholder="What should change, why does it matter, and what would done look like?" required></textarea><small class="hint">Type is inferred automatically. You will review everything before submission.</small></label>
     <button class="primary" type="submit">Prepare draft <span aria-hidden="true">→</span></button>
   </form>
@@ -26,12 +25,33 @@
 <script>
 const target = document.querySelector('#target');
 const boardLink = document.querySelector('#board-link');
-const options = [...target.options];
-function syncTargets(provider) {
-  const selected = target.value;
-  target.replaceChildren(...options.filter(option => option.dataset.provider === provider));
-  if ([...target.options].some(option => option.value === selected)) target.value = selected;
-  syncBoardLink();
+const status = document.querySelector('#destination-status');
+let requestNumber = 0;
+async function syncTargets(provider) {
+  const currentRequest = ++requestNumber;
+  target.disabled = true;
+  target.replaceChildren(new Option(`Loading ${provider === 'github' ? 'repositories' : 'projects'}…`, ''));
+  status.textContent = '';
+  try {
+    const response = await fetch(`/api/destinations/${provider}`);
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.detail || 'Destinations could not be loaded');
+    if (currentRequest !== requestNumber) return;
+    target.replaceChildren(...data.destinations.map(value => {
+      const option = new Option(value.name, value.id);
+      option.dataset.url = value.url;
+      return option;
+    }));
+    target.disabled = data.destinations.length === 0;
+    status.textContent = data.destinations.length ? '' : 'No available destinations were found.';
+    syncBoardLink();
+  } catch (error) {
+    if (currentRequest !== requestNumber) return;
+    target.replaceChildren(new Option('Unavailable', ''));
+    target.disabled = true;
+    status.textContent = error.message;
+    syncBoardLink();
+  }
 }
 function syncBoardLink() {
   const url = target.selectedOptions[0]?.dataset.url;
