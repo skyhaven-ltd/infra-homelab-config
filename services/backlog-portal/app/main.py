@@ -252,7 +252,7 @@ def delete_draft(
     try:
         providers.close(settings, target, draft)
     except providers.SubmissionError:
-        draft.state = "sync_failed"
+        draft.state = "sync-failed"
         db.add(AuditEvent(draft_id=draft.id, action="provider.delete_failed"))
         db.commit()
         return templates.TemplateResponse(

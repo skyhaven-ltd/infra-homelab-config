@@ -328,7 +328,7 @@ legend {
   color: #08734f;
 }
 
-.state.sync_failed {
+.state.sync-failed {
   color: #a83232;
 }
 
