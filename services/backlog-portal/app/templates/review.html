@@ -5,14 +5,13 @@
 <p class="review-meta">{{ target.label }} · {{ draft.item_type }}</p></div><b class="state {{ draft.state }}">{{ draft.state }}</b></div>
 {% if draft.state in ['queued', 'refining'] %}<div class="waiting"><span aria-hidden="true">&nbsp;</span><h2>Refining your idea</h2>
 <p class="waiting-copy">This page will update when the queue finishes.</p></div><script>setTimeout(() => location.reload(), 4000)</script>
-{% elif draft.state == 'validation' %}<div class="validation"><span aria-hidden="true">!</span><p class="eyebrow">Needs a little more detail</p><h2>We could not classify this idea safely.</h2>
-<p>Add a clear intent such as “fix”, “create”, or “investigate”, then try again. No remote item was created.</p><a class="primary button" href="{{ url_for('index') }}">Return to intake</a></div>
 {% elif draft.state in ['submitted', 'resolved'] %}<div class="success"><h2>{{ 'Item resolved' if draft.state == 'resolved' else 'Item created' }}</h2>
 <a class="primary button" href="{{ draft.remote_url }}">Open item</a></div>
 {% else %}
 {% if error %}<p class="error">{{ error }}</p>{% endif %}
 {% if draft.state == 'failed' %}<p class="error">AI refinement failed. You can complete the item manually.</p>{% endif %}
 <form class="review-form" method="post" action="{{ url_for('submit_draft', draft_id=draft.id) }}">
+  <label>Item type<select name="item_type" required>{% for item_type in target.item_types %}<option value="{{ item_type }}" {% if item_type == draft.item_type %}selected{% endif %}>{{ item_type }}</option>{% endfor %}</select></label>
   <label>Title<input name="title" value="{{ draft.title }}" maxlength="512" required></label>
   <label>Description<textarea name="description" rows="8" required>{{ draft.description }}</textarea></label>
   <label>Acceptance criteria<textarea name="acceptance_criteria" rows="7">{{ draft.acceptance_criteria }}</textarea></label>
