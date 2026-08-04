@@ -18,7 +18,11 @@ def enqueue(db: Session, draft: Draft) -> GenerationJob:
     return job
 
 
-def claim_next(db: Session, resolve_target: Callable[[Draft], Target]) -> dict | None:
+def claim_next(
+    db: Session,
+    resolve_target: Callable[[Draft], Target],
+    load_templates: Callable[[Target], dict[str, str]],
+) -> dict | None:
     job = db.execute(
         select(GenerationJob)
         .where(GenerationJob.status == "pending")
@@ -28,6 +32,11 @@ def claim_next(db: Session, resolve_target: Callable[[Draft], Target]) -> dict |
     if job is None:
         return None
     target = resolve_target(job.draft)
+    try:
+        template_bodies = load_templates(target)
+    except RuntimeError as exc:
+        fail(db, job, f"Canonical template loading failed: {exc}")
+        return None
     job.status = "running"
     job.draft.state = "refining"
     db.add(AuditEvent(draft_id=job.draft.id, action="ai.claimed"))
@@ -40,9 +49,16 @@ Canonical template mappings: {json.dumps(target.template_mappings, sort_keys=Tru
 Rough idea:
 {job.draft.raw_idea}
 
-Do not invent credentials, people, deadlines, or business facts. Return JSON matching
-the supplied schema. Acceptance criteria must be individually testable. Use an empty
-string or empty list when metadata cannot be inferred.
+Return JSON matching the supplied schema. Set item_type first, then set description to
+one completed copy of that type's canonical Markdown template body. Preserve its
+headings, replace every instruction and placeholder with the refined content, and do
+not add duplicate Item type or Acceptance criteria sections. Acceptance criteria must
+also be returned as individually testable items in the acceptance_criteria array.
+Do not invent credentials, people, deadlines, or business facts. Use an empty string
+or empty list when metadata cannot be inferred.
+
+Canonical template bodies by item type:
+{json.dumps(template_bodies, indent=2, sort_keys=True)}
 """
     return {"id": job.id, "draft_id": job.draft.id, "prompt": prompt}
 

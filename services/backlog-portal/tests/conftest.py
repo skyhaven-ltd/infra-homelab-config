@@ -59,6 +59,17 @@ def client():
         yield value
 
 
+@pytest.fixture(autouse=True)
+def canonical_templates(monkeypatch):
+    monkeypatch.setattr(
+        "app.main.providers.load_template_bodies",
+        lambda _settings, target: {
+            item_type: f"# {item_type}\n\n## What needs doing?\nReplace this guidance."
+            for item_type in target.item_types
+        },
+    )
+
+
 @pytest.fixture()
 def auth():
     return ("liam", "secret")
