@@ -296,12 +296,12 @@ def test_delete_failure_is_recoverable_and_does_not_leak_details(client, auth):
 
     with patch(
         "app.main.providers.close",
-        side_effect=SubmissionError("Authorization: secret-token"),
+        side_effect=SubmissionError("Provider response contained sensitive detail"),
     ):
         response = client.post(f"/drafts/{draft_id}/delete", auth=auth)
 
     assert response.status_code == 502
-    assert "secret-token" not in response.text
+    assert "sensitive detail" not in response.text
     assert "Retry the removal" in response.text
     with SessionLocal() as db:
         assert db.get(Draft, draft_id).state == "sync_failed"
