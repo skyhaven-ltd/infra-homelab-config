@@ -64,12 +64,17 @@ def test_draft_is_refined_by_worker_then_submitted(client, auth):
     assert claimed["draft_id"] == 1
     assert "rough backlog idea" in claimed["prompt"]
     assert "Use the infrastructure template" in claimed["prompt"]
+    assert "Canonical template bodies by item type" in claimed["prompt"]
+    assert "replace every instruction and placeholder" in claimed["prompt"]
 
     output = json.dumps(
         {
             "item_type": "Feature",
             "title": "Add backlog intake portal",
-            "description": "Provide a focused interface for capturing ideas.",
+            "description": (
+                "# Feature\n\n## What needs doing?\n\nProvide a focused "
+                "interface for capturing ideas."
+            ),
             "acceptance_criteria": ["A user can review a generated draft"],
             "priority": "2",
             "area": "",
@@ -202,6 +207,35 @@ def test_invalid_worker_type_uses_valid_fallback_and_remains_editable(client, au
         assert "source=fallback" in event.detail
     review = client.get("/drafts/1", auth=auth).text
     assert 'select name="item_type"' in review
+
+
+def test_review_draft_can_be_refined_again(client, auth):
+    from app.database import SessionLocal
+
+    with SessionLocal() as db:
+        draft = Draft(
+            target_id="github-infra",
+            item_type="Task",
+            raw_idea="A sufficiently detailed idea to refine again",
+            title="Malformed draft",
+            description="Template guidance was not replaced.",
+            acceptance_criteria="- [ ] Placeholder",
+            state="review",
+        )
+        db.add(draft)
+        db.commit()
+        draft_id = draft.id
+
+    response = client.post(
+        f"/drafts/{draft_id}/refine", auth=auth, follow_redirects=False
+    )
+    assert response.status_code == 303
+    with SessionLocal() as db:
+        draft = db.get(Draft, draft_id)
+        assert draft.state == "queued"
+        assert draft.title == ""
+        assert draft.description == ""
+        assert draft.acceptance_criteria == ""
 
 
 def test_missing_template_mapping_does_not_block_refinement(client, auth, monkeypatch):

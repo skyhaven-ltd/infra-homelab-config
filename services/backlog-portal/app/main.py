@@ -276,7 +276,30 @@ def reconcile_drafts(db: Session = Depends(get_session)) -> dict[str, int]:
 
 @app.post("/worker/jobs/claim", dependencies=[Depends(require_worker)])
 def claim_job(db: Session = Depends(get_session)) -> dict:
-    return {"job": jobs.claim_next(db, lambda draft: get_target(draft.target_id))}
+    return {
+        "job": jobs.claim_next(
+            db,
+            lambda draft: get_target(draft.target_id),
+            lambda target: providers.load_template_bodies(settings, target),
+        )
+    }
+
+
+@app.post("/drafts/{draft_id}/refine")
+def refine_draft(
+    draft_id: int,
+    _: str = Depends(require_user),
+    db: Session = Depends(get_session),
+) -> RedirectResponse:
+    draft = get_draft(db, draft_id)
+    if draft.state not in {"review", "failed"}:
+        raise HTTPException(status_code=409, detail="Draft cannot be refined again")
+    draft.title = ""
+    draft.description = ""
+    draft.acceptance_criteria = ""
+    draft.state = "queued"
+    jobs.enqueue(db, draft)
+    return RedirectResponse(f"/drafts/{draft.id}", status_code=303)
 
 
 @app.post("/worker/jobs/{job_id}/complete", dependencies=[Depends(require_worker)])

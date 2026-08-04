@@ -107,7 +107,7 @@ def test_github_issue_is_added_to_selected_project():
     assert issue_payload["title"] == "[FEATURE] - A useful feature"
     assert issue_payload["assignees"] == ["liam-goodchild"]
     assert issue_payload["labels"] == ["portal"]
-    assert "## Item type\n\nFeature" in issue_payload["body"]
+    assert issue_payload["body"] == "Description"
     assert type_request.full_url.endswith(
         "/skyhaven-ltd/infra-homelab-config/issue-types"
     )
@@ -200,7 +200,7 @@ def test_azure_devops_uses_configured_org_project_and_fields():
         for operation in operations
         if operation["path"] == "/fields/System.Description"
     )
-    assert description.startswith("# Feature\n\n## Problem")
+    assert description == "Description"
     assert any(
         operation["path"] == "/fields/Microsoft.VSTS.Common.AcceptanceCriteria"
         for operation in operations

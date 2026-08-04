@@ -146,6 +146,13 @@ def _load_issue_template(
     return _parse_issue_template(content, item_type)
 
 
+def load_template_bodies(settings: Settings, target: Target) -> dict[str, str]:
+    return {
+        item_type: _load_issue_template(settings, target, item_type).body
+        for item_type in target.item_types
+    }
+
+
 def list_destinations(settings: Settings, provider: str) -> list[dict[str, str]]:
     if provider == "github":
         if not settings.github_token:
@@ -301,23 +308,13 @@ def is_closed(settings: Settings, target: Target, draft: Draft) -> bool:
     raise SubmissionError("Unsupported provider")
 
 
-def _body(draft: Draft, template: IssueTemplate) -> str:
-    parts = [draft.description.strip(), "## Item type", draft.item_type]
-    if draft.acceptance_criteria.strip():
-        parts.extend(["## Acceptance criteria", draft.acceptance_criteria.strip()])
-    if draft.priority.strip():
-        parts.extend(["## Priority", draft.priority.strip()])
-    generated = "\n\n".join(parts)
-    return f"{template.body}\n\n---\n\n{generated}" if template.body else generated
-
-
 def _submit_github(settings: Settings, target: Target, draft: Draft) -> SubmittedItem:
     if not settings.github_token:
         raise SubmissionError("GitHub credentials are not configured")
     template = _load_issue_template(settings, target, draft.item_type)
     payload: dict[str, object] = {
         "title": _normalise_title(draft.title, template.prefix),
-        "body": _body(draft, template),
+        "body": draft.description.strip(),
     }
     requested_labels = [
         value.strip() for value in draft.labels.split(",") if value.strip()
@@ -365,7 +362,7 @@ def _submit_azure_devops(
 ) -> SubmittedItem:
     if not settings.azure_devops_token:
         raise SubmissionError("Azure DevOps credentials are not configured")
-    template = _load_issue_template(settings, target, draft.item_type)
+    _load_issue_template(settings, target, draft.item_type)
     path_type = urllib.parse.quote(draft.item_type, safe="")
     project = urllib.parse.quote(target.container, safe="")
     url = (
@@ -377,7 +374,7 @@ def _submit_azure_devops(
         {
             "op": "add",
             "path": "/fields/System.Description",
-            "value": _body(draft, template),
+            "value": draft.description.strip(),
         },
     ]
     optional = {

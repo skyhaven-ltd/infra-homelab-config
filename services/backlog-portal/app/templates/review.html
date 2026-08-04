@@ -10,10 +10,11 @@
 {% else %}
 {% if error %}<p class="error">{{ error }}</p>{% endif %}
 {% if draft.state == 'failed' %}<p class="error">AI refinement failed. You can complete the item manually.</p>{% endif %}
+<form method="post" action="{{ url_for('refine_draft', draft_id=draft.id) }}"><button class="remove" type="submit">Refine again</button></form>
 <form class="review-form" method="post" action="{{ url_for('submit_draft', draft_id=draft.id) }}">
   <label>Item type<select name="item_type" required>{% for item_type in target.item_types %}<option value="{{ item_type }}" {% if item_type == draft.item_type %}selected{% endif %}>{{ item_type }}</option>{% endfor %}</select></label>
   <label>Title<input name="title" value="{{ draft.title }}" maxlength="512" required></label>
-  <label>Description<textarea name="description" rows="8" required>{{ draft.description }}</textarea></label>
+  <label>Work item body<textarea name="description" rows="14" required>{{ draft.description }}</textarea></label>
   <label>Acceptance criteria<textarea name="acceptance_criteria" rows="7">{{ draft.acceptance_criteria }}</textarea></label>
   <div class="fields"><label>Priority<input name="priority" value="{{ draft.priority }}"></label><label>Labels<input name="labels" value="{{ draft.labels }}" placeholder="comma, separated"></label><label>Area<input name="area" value="{{ draft.area }}"></label><label>Iteration<input name="iteration" value="{{ draft.iteration }}"></label><label>Assignee<input name="assignee" value="{{ draft.assignee }}"></label></div>
   <details><summary>Original idea</summary><p>{{ draft.raw_idea }}</p></details>
