@@ -59,9 +59,7 @@ def test_github_issue_is_added_to_selected_project():
         item_types=("Feature",),
         project_id="PVT_board",
         template="template",
-        template_mappings={
-            "Feature": ".github/ISSUE_TEMPLATE/feature-request.md"
-        },
+        template_mappings={"Feature": ".github/ISSUE_TEMPLATE/feature-request.md"},
     )
     responses = [
         Response(

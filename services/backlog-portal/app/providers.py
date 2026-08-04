@@ -94,7 +94,7 @@ def _parse_issue_template(content: str) -> IssueTemplate:
     for line in front_matter.splitlines():
         key, separator, value = line.partition(":")
         if separator:
-            values[key.strip()] = value.strip().strip('"\'')
+            values[key.strip()] = value.strip().strip("\"'")
     title = values.get("title", "")
     prefix = title.removesuffix("Placeholder").rstrip()
     issue_type = values.get("type", "")
