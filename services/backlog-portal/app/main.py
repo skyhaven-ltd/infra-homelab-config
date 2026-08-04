@@ -316,7 +316,8 @@ def complete_job(
             db,
             job,
             str(payload.get("raw_output", "")),
-            get_target(job.draft.target_id),
+            (target := get_target(job.draft.target_id)),
+            providers.load_template_bodies(settings, target),
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc

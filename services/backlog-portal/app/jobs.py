@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Callable
 
 from sqlalchemy import select
@@ -63,7 +64,49 @@ Canonical template bodies by item type:
     return {"id": job.id, "draft_id": job.draft.id, "prompt": prompt}
 
 
-def complete(db: Session, job: GenerationJob, raw_output: str, target: Target) -> None:
+def _template_markers(body: str) -> list[str]:
+    return [
+        line.strip()
+        for line in body.splitlines()
+        if re.fullmatch(r"#{1,6}\s+.+|\*\*.+\*\*", line.strip())
+    ]
+
+
+def render_completed_template(template_body: str, generated_body: str) -> str:
+    canonical = _template_markers(template_body)
+    generated = _template_markers(generated_body)
+    if not canonical or generated == canonical:
+        return generated_body.strip()
+
+    title = canonical[0] if canonical[0].startswith("# ") else ""
+    sections = canonical[1:] if title else canonical
+    content: list[str] = []
+    buffer: list[str] = []
+    for line in generated_body.splitlines():
+        if re.fullmatch(r"#{1,6}\s+.+|\*\*.+\*\*", line.strip()):
+            if any(value.strip() for value in buffer):
+                content.append("\n".join(buffer).strip())
+            buffer = []
+        else:
+            buffer.append(line)
+    if any(value.strip() for value in buffer):
+        content.append("\n".join(buffer).strip())
+    if len(content) != len(sections):
+        return generated_body.strip()
+
+    parts = [title] if title else []
+    for marker, value in zip(sections, content, strict=True):
+        parts.extend([marker, value])
+    return "\n\n".join(parts)
+
+
+def complete(
+    db: Session,
+    job: GenerationJob,
+    raw_output: str,
+    target: Target,
+    template_bodies: dict[str, str],
+) -> None:
     try:
         value = json.loads(raw_output)
         title = str(value["title"]).strip()
@@ -80,7 +123,9 @@ def complete(db: Session, job: GenerationJob, raw_output: str, target: Target) -
     requested_type = str(value.get("item_type", "")).strip()
     draft.item_type = supported_types.get(requested_type.casefold(), draft.item_type)
     draft.title = title[:512]
-    draft.description = description
+    draft.description = render_completed_template(
+        template_bodies[draft.item_type], description
+    )
     draft.acceptance_criteria = "\n".join(
         f"- [ ] {str(item).strip()}" for item in criteria if str(item).strip()
     )

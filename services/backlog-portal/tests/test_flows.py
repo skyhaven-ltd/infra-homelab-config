@@ -1,6 +1,7 @@
 import json
 from unittest.mock import patch
 
+from app.jobs import render_completed_template
 from app.models import AuditEvent, Draft
 from app.providers import SubmissionError, SubmittedItem
 
@@ -15,6 +16,45 @@ def create_draft(client, auth):
             "raw_idea": "Create a small portal that captures backlog ideas.",
         },
         follow_redirects=False,
+    )
+
+
+def test_generated_sections_use_canonical_template_headings():
+    template = """# Task
+
+## Work required
+Describe the work.
+
+## Reason
+Explain why.
+
+## Acceptance criteria
+- [ ] ...
+"""
+    generated = """**What needs doing?**
+Configure the credential.
+
+**Why?**
+Allow work item creation.
+
+**Acceptance criteria**
+- [ ] A work item can be created.
+"""
+    assert (
+        render_completed_template(template, generated)
+        == """# Task
+
+## Work required
+
+Configure the credential.
+
+## Reason
+
+Allow work item creation.
+
+## Acceptance criteria
+
+- [ ] A work item can be created."""
     )
 
 
