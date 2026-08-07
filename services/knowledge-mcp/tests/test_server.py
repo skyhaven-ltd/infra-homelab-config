@@ -65,6 +65,11 @@ def test_initialize_and_list_tools_over_streamable_http(tmp_path: Path) -> None:
         "memory_upsert",
         "memory_mark",
     }
+    recall_schema = next(
+        tool for tool in tools.json()["result"]["tools"] if tool["name"] == "memory_recall"
+    )["inputSchema"]
+    assert recall_schema["properties"]["max_results"]["default"] == 5
+    assert recall_schema["properties"]["max_chars"]["default"] == 4_000
 
 
 def test_upsert_and_recall_tools_round_trip_over_streamable_http(tmp_path: Path) -> None:
@@ -87,10 +92,6 @@ def test_upsert_and_recall_tools_round_trip_over_streamable_http(tmp_path: Path)
                     "title": "Argo CD owns Kubernetes resources",
                     "summary": (
                         "Argo CD exclusively applies Kubernetes resources after bootstrap."
-                    ),
-                    "detail": (
-                        "After bootstrap, Kubernetes changes are reconciled "
-                        "from the Git repository."
                     ),
                     "evidence": ["infra-homelab-config:README.md"],
                     "confidence": 1.0,
@@ -123,6 +124,7 @@ def test_upsert_and_recall_tools_round_trip_over_streamable_http(tmp_path: Path)
 
     assert created.status_code == 200
     assert created.json()["result"]["structuredContent"]["outcome"] == "created"
+    assert "message" not in created.json()["result"]["structuredContent"]
     assert recalled.status_code == 200
     assert len(recalled.json()["result"]["structuredContent"]["results"]) == 1
 
