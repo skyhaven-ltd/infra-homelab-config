@@ -320,7 +320,6 @@ class KnowledgeStore:
                     outcome="noop_exact_duplicate",
                     memory_id=exact["id"],
                     version=exact["version"],
-                    message="Identical durable knowledge already exists in this scope.",
                 )
                 self._save_idempotency(connection, idempotency_key, request_hash, response, now)
                 connection.commit()
@@ -339,7 +338,6 @@ class KnowledgeStore:
                     outcome="updated",
                     memory_id=existing["id"],
                     version=version,
-                    message="Updated the canonical memory and retained its previous revision.",
                 )
                 self._event(connection, existing["id"], "updated", {"version": version}, now)
                 self._save_idempotency(connection, idempotency_key, request_hash, response, now)
@@ -352,10 +350,6 @@ class KnowledgeStore:
                     outcome="conflict_requires_review",
                     memory_id=similar["id"],
                     version=similar["version"],
-                    message=(
-                        "A semantically similar memory exists. Update its canonical key "
-                        "or explicitly allow a separate record after reviewing it."
-                    ),
                     similar_memory_id=similar["id"],
                     similarity=similar["similarity"],
                 )
@@ -370,7 +364,6 @@ class KnowledgeStore:
                 outcome="created",
                 memory_id=memory_id,
                 version=1,
-                message="Created a new durable memory.",
             )
             self._event(connection, memory_id, "created", {"version": 1}, now)
             self._save_idempotency(connection, idempotency_key, request_hash, response, now)

@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 MemoryKind = Literal["decision", "lesson", "convention", "environment_fact", "runbook"]
 MemoryStatus = Literal["active", "stale", "superseded"]
@@ -19,12 +19,18 @@ class MemoryInput(BaseModel):
     scope: str = Field(min_length=2, max_length=240)
     title: str = Field(min_length=3, max_length=200)
     summary: str = Field(min_length=10, max_length=1_500)
-    detail: str = Field(min_length=10, max_length=12_000)
+    detail: str | None = Field(default=None, min_length=10, max_length=12_000)
     evidence: list[str] = Field(min_length=1, max_length=20)
     confidence: float = Field(ge=0, le=1)
     observed_at: datetime
     expires_at: datetime | None = None
     supersedes: str | None = None
+
+    @model_validator(mode="after")
+    def use_summary_as_default_detail(self) -> MemoryInput:
+        if self.detail is None:
+            self.detail = self.summary
+        return self
 
     @field_validator("observed_at", "expires_at")
     @classmethod
@@ -97,7 +103,6 @@ class UpsertResponse(BaseModel):
     ]
     memory_id: str
     version: int
-    message: str
     similar_memory_id: str | None = None
     similarity: float | None = None
 
