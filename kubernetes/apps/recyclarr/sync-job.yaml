@@ -19,10 +19,10 @@ spec:
         fsGroup: 1000
       containers:
         - name: recyclarr
-          image: ghcr.io/recyclarr/recyclarr@sha256:2aaa0205a93171b93a159e4665004ccee1a5aacd60359fb8d7683db0ae7e774b
+          image: ghcr.io/recyclarr/recyclarr@sha256:73303ba5ee647b6492fee917d3a781c6e59b6cab08f9dfce9482a950846f564f
           args: ["sync"]
           env:
-            - { name: RECYCLARR_APP_DATA, value: /config }
+            - { name: RECYCLARR_CONFIG_DIR, value: /config }
             - { name: TZ, value: "Etc/UTC" }
           envFrom:
             - secretRef:

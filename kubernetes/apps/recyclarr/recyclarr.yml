@@ -3,12 +3,9 @@ sonarr:
     base_url: http://sonarr.sonarr.svc.cluster.local:8989
     api_key: !env_var SONARR_API_KEY
     delete_old_custom_formats: true
-    replace_existing_custom_formats: true
-    include:
-      - template: sonarr-v4-quality-profile-web-1080p
-      - template: sonarr-v4-custom-formats-web-1080p
     quality_profiles:
-      - name: WEB-1080p
+      - trash_id: 72dae194fc92bf828f32cde7744e51a1 # WEB-1080p
+        name: WEB-1080p
         upgrade:
           allowed: true
           until_quality: WEB 1080p
@@ -32,7 +29,5 @@ radarr:
     base_url: http://radarr.radarr.svc.cluster.local:7878
     api_key: !env_var RADARR_API_KEY
     delete_old_custom_formats: true
-    replace_existing_custom_formats: true
-    include:
-      - template: radarr-quality-profile-hd-bluray-web
-      - template: radarr-custom-formats-hd-bluray-web
+    quality_profiles:
+      - trash_id: d1d67249d3890e49bc12e275d989a7e9 # HD Bluray + WEB
