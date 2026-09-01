@@ -18,9 +18,9 @@ pod="$(kubectl -n terraria get pod -l app=terraria -o jsonpath='{.items[0].metad
 worlds='/mnt/c/Users/LiamG/Documents/My Games/Terraria/Worlds'
 
 kubectl -n terraria exec "$pod" -c world-bootstrap -- mkdir -p /config/Worlds
-kubectl -n terraria cp "$worlds/Aura_Anonymous.wld" "$pod:/config/Worlds/Aura_Anonymous.wld" -c world-bootstrap
 kubectl -n terraria cp "$worlds/Aura_Anonymous.wld.bak" "$pod:/config/Worlds/Aura_Anonymous.wld.bak" -c world-bootstrap
 kubectl -n terraria cp "$worlds/Aura_Anonymous.wld.bak2" "$pod:/config/Worlds/Aura_Anonymous.wld.bak2" -c world-bootstrap
+kubectl -n terraria cp "$worlds/Aura_Anonymous.wld" "$pod:/config/Worlds/Aura_Anonymous.wld" -c world-bootstrap
 ```
 
 Within ten seconds the init container detects the world, fixes ownership, and
