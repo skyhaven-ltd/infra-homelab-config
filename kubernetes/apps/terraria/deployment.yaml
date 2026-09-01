@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: terraria
+  namespace: terraria
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: terraria
+  template:
+    metadata:
+      labels:
+        app: terraria
+    spec:
+      terminationGracePeriodSeconds: 60
+      initContainers:
+        - name: world-bootstrap
+          image: busybox:1.37.0@sha256:9db7b59979c38555a39def84a31fb98b5296952f9e3afd4f6f11f05b07adfab0
+          command:
+            - sh
+            - -c
+            - |
+              mkdir -p /config/Worlds
+              until [ -f /config/Worlds/Aura_Anonymous.wld ]; do
+                echo "Waiting for Aura_Anonymous.wld to be copied into the PVC"
+                sleep 10
+              done
+              chown -R 1000:1000 /config
+          volumeMounts:
+            - { name: data, mountPath: /config }
+      containers:
+        - name: terraria
+          image: passivelemon/terraria-docker:terraria-1.4.5.8@sha256:682d932507262044519dfc2ed25edc4e3d77a524648613f3fafa0db3dbeb3b35
+          env:
+            - { name: PUID, value: "1000" }
+            - { name: PGID, value: "1000" }
+            - { name: WORLDNAME, value: Aura_Anonymous }
+            - { name: MAXPLAYERS, value: "8" }
+            - { name: PORT, value: "7777" }
+            - { name: UPNP, value: "0" }
+          ports:
+            - { name: terraria, containerPort: 7777, protocol: TCP }
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits: { memory: 2Gi }
+          volumeMounts:
+            - { name: data, mountPath: /opt/terraria/config }
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: terraria-data
