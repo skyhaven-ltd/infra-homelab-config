@@ -24,10 +24,6 @@ spec:
             - -c
             - |
               mkdir -p /config/Worlds
-              until [ -f /config/Worlds/Aura_Anonymous.wld ]; do
-                echo "Waiting for Aura_Anonymous.wld to be copied into the PVC"
-                sleep 10
-              done
               chown -R 1000:1000 /config
           volumeMounts:
             - { name: data, mountPath: /config }
@@ -37,7 +33,9 @@ spec:
           env:
             - { name: PUID, value: "1000" }
             - { name: PGID, value: "1000" }
-            - { name: WORLDNAME, value: Aura_Anonymous }
+            - { name: WORLDNAME, value: Aura_Anonymous_Master }
+            - { name: AUTOCREATE, value: "2" }
+            - { name: DIFFICULTY, value: "2" }
             - { name: MAXPLAYERS, value: "8" }
             - { name: PORT, value: "7777" }
             - { name: UPNP, value: "0" }
