@@ -16,7 +16,7 @@ spec:
       labels:
         app: wake-console
     spec:
-      # WoWLAN requires a layer-2 broadcast on the physical home LAN. The K3s
+      # Wake-on-LAN requires a layer-2 broadcast on the physical home LAN. The K3s
       # node is on that LAN; pod networking is not.
       hostNetwork: true
       dnsPolicy: ClusterFirstWithHostNet
@@ -35,14 +35,9 @@ spec:
             - name: WAKE_TARGET_NAME
               value: "WNWSLAB01"
             - name: WAKE_TARGET_MAC
-              value: "F4-3B-D8-7E-B6-0C"
+              value: "E8-9C-25-76-2E-BB"
             - name: WAKE_BROADCAST_ADDRESS
               value: "192.168.1.255"
-            # Unicast copy to the target's own IP survives WPA3 GTK rekeys that
-            # break broadcast WoWLAN after ~1 hour. Requires a DHCP reservation
-            # so this address stays pinned to the AX201 MAC above.
-            - name: WAKE_UNICAST_ADDRESS
-              value: "192.168.1.168"
             - name: WAKE_BROADCAST_PORT
               value: "9"
             - name: WAKE_ALLOWED_HOST

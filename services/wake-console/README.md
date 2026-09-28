@@ -1,7 +1,7 @@
 # Wake Console
 
-Internal web control that sends a Wake-on-WLAN magic packet to the fixed
-`WNWSLAB01` Intel AX201 Wi-Fi adapter. The browser cannot supply or change the
+Internal web control that sends a Wake-on-LAN magic packet to the fixed
+`WNWSLAB01` Intel I219-V Ethernet adapter. The browser cannot supply or change the
 target MAC address or broadcast address.
 
 The Kubernetes deployment uses the K3s node network so the UDP broadcast leaves
