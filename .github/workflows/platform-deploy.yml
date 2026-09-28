@@ -261,7 +261,8 @@ jobs:
           set -euo pipefail
           k8s_host="$(ansible-inventory -i inventory/hosts.yml --host lnsvrk8s01)"
           runner_host="$(ansible-inventory -i inventory/runner.yml --host lnsvrgha01)"
-          if [[ "${k8s_host}" == "{}" || "${runner_host}" == "{}" ]]; then
+          proxmox_host="$(ansible-inventory -i inventory/proxmox.yml --host lnproxlab01)"
+          if [[ "${k8s_host}" == "{}" || "${runner_host}" == "{}" || "${proxmox_host}" == "{}" ]]; then
             echo "::error::A required Ansible inventory host is missing."
             exit 1
           fi
@@ -357,6 +358,23 @@ jobs:
           printf '%s\n' "${output}"
           if grep -Eq 'changed=[1-9][0-9]*' <<< "${output}"; then
             echo "::error::Ansible did not converge cleanly on the Actions runner."
+            exit 1
+          fi
+      - name: Converge Proxmox Disk Health
+        working-directory: ansible
+        env:
+          ANSIBLE_PRIVATE_KEY_FILE: ${{ runner.temp }}/homelab_deploy
+        run: ansible-playbook -i inventory/proxmox.yml site.yml --tags disk_health
+      - name: Verify Proxmox Disk Health Idempotency
+        working-directory: ansible
+        env:
+          ANSIBLE_PRIVATE_KEY_FILE: ${{ runner.temp }}/homelab_deploy
+        run: |
+          set -euo pipefail
+          output="$(ANSIBLE_NOCOLOR=1 ansible-playbook -i inventory/proxmox.yml site.yml --tags disk_health --check)"
+          printf '%s\n' "${output}"
+          if grep -Eq 'changed=[1-9][0-9]*' <<< "${output}"; then
+            echo "::error::Ansible did not converge cleanly on the Proxmox host."
             exit 1
           fi
       - name: Remove Job Secret

@@ -314,6 +314,213 @@ grafana:
             "uid": "homelab-mission-control",
             "version": 1
           }
+      disk-health:
+        json: |
+          {
+            "annotations": {"list": []},
+            "editable": true,
+            "graphTooltip": 1,
+            "panels": [
+              {
+                "gridPos": {"h": 3, "w": 24, "x": 0, "y": 0},
+                "id": 1,
+                "options": {"content": "Physical disks on the Proxmox host **lnproxlab01**. The **Seagate ST1000LM014** HDD (`/dev/sda` on the host) is passed through to the k3s VM as `/dev/sdc` and mounted at `/mnt/media`. The **WD SN740 NVMe** (`nvme0`) holds the VM's root (`/`) and appdata (`/srv/appdata`) disks.", "mode": "markdown"},
+                "title": "Disk Layout",
+                "type": "text"
+              },
+              {
+                "datasource": {"type": "prometheus", "uid": "${datasource}"},
+                "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "mappings": [{"options": {"0": {"text": "Failing"}, "1": {"text": "Passed"}}, "type": "value"}], "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]}}},
+                "gridPos": {"h": 4, "w": 4, "x": 0, "y": 3},
+                "id": 2,
+                "options": {"graphMode": "none", "reduceOptions": {"calcs": ["lastNotNull"]}},
+                "targets": [{"expr": "smartmon_device_smart_healthy{disk=\"/dev/sda\"}", "refId": "A"}],
+                "title": "Media HDD SMART",
+                "type": "stat"
+              },
+              {
+                "datasource": {"type": "prometheus", "uid": "${datasource}"},
+                "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "mappings": [{"options": {"0": {"text": "Failing"}, "1": {"text": "Passed"}}, "type": "value"}], "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]}}},
+                "gridPos": {"h": 4, "w": 4, "x": 4, "y": 3},
+                "id": 3,
+                "options": {"graphMode": "none", "reduceOptions": {"calcs": ["lastNotNull"]}},
+                "targets": [{"expr": "smartmon_device_smart_healthy{disk=\"/dev/nvme0\"}", "refId": "A"}],
+                "title": "NVMe SMART",
+                "type": "stat"
+              },
+              {
+                "datasource": {"type": "prometheus", "uid": "${datasource}"},
+                "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 50}, {"color": "red", "value": 58}]}, "unit": "celsius"}},
+                "gridPos": {"h": 4, "w": 4, "x": 8, "y": 3},
+                "id": 4,
+                "options": {"graphMode": "area", "reduceOptions": {"calcs": ["lastNotNull"]}},
+                "targets": [{"expr": "smartmon_temperature_celsius_raw_value{disk=\"/dev/sda\"}", "refId": "A"}],
+                "title": "Media HDD Temperature",
+                "type": "stat"
+              },
+              {
+                "datasource": {"type": "prometheus", "uid": "${datasource}"},
+                "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 60}, {"color": "red", "value": 70}]}, "unit": "celsius"}},
+                "gridPos": {"h": 4, "w": 4, "x": 12, "y": 3},
+                "id": 5,
+                "options": {"graphMode": "area", "reduceOptions": {"calcs": ["lastNotNull"]}},
+                "targets": [{"expr": "nvme_temperature_celsius", "refId": "A"}],
+                "title": "NVMe Temperature",
+                "type": "stat"
+              },
+              {
+                "datasource": {"type": "prometheus", "uid": "${datasource}"},
+                "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "max": 1, "min": 0, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 0.6}, {"color": "red", "value": 0.8}]}, "unit": "percentunit"}},
+                "gridPos": {"h": 4, "w": 4, "x": 16, "y": 3},
+                "id": 6,
+                "options": {"graphMode": "none", "reduceOptions": {"calcs": ["lastNotNull"]}},
+                "targets": [{"expr": "nvme_percentage_used_ratio", "refId": "A"}],
+                "title": "NVMe Endurance Used",
+                "type": "stat"
+              },
+              {
+                "datasource": {"type": "prometheus", "uid": "${datasource}"},
+                "fieldConfig": {"defaults": {"unit": "h"}},
+                "gridPos": {"h": 4, "w": 4, "x": 20, "y": 3},
+                "id": 7,
+                "options": {"graphMode": "none", "reduceOptions": {"calcs": ["lastNotNull"]}},
+                "targets": [{"expr": "smartmon_power_on_hours_raw_value{disk=\"/dev/sda\"}", "refId": "A"}],
+                "title": "Media HDD Power-On",
+                "type": "stat"
+              },
+              {
+                "datasource": {"type": "prometheus", "uid": "${datasource}"},
+                "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]}}},
+                "gridPos": {"h": 4, "w": 4, "x": 0, "y": 7},
+                "id": 8,
+                "options": {"graphMode": "none", "reduceOptions": {"calcs": ["lastNotNull"]}},
+                "targets": [{"expr": "smartmon_reallocated_sector_ct_raw_value", "refId": "A"}],
+                "title": "Reallocated Sectors",
+                "type": "stat"
+              },
+              {
+                "datasource": {"type": "prometheus", "uid": "${datasource}"},
+                "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]}}},
+                "gridPos": {"h": 4, "w": 4, "x": 4, "y": 7},
+                "id": 9,
+                "options": {"graphMode": "none", "reduceOptions": {"calcs": ["lastNotNull"]}},
+                "targets": [{"expr": "smartmon_current_pending_sector_raw_value", "refId": "A"}],
+                "title": "Pending Sectors",
+                "type": "stat"
+              },
+              {
+                "datasource": {"type": "prometheus", "uid": "${datasource}"},
+                "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]}}},
+                "gridPos": {"h": 4, "w": 4, "x": 8, "y": 7},
+                "id": 10,
+                "options": {"graphMode": "none", "reduceOptions": {"calcs": ["lastNotNull"]}},
+                "targets": [{"expr": "smartmon_offline_uncorrectable_raw_value", "refId": "A"}],
+                "title": "Offline Uncorrectable",
+                "type": "stat"
+              },
+              {
+                "datasource": {"type": "prometheus", "uid": "${datasource}"},
+                "description": "Lifetime count. The alert fires on growth, not on this historical total.",
+                "fieldConfig": {"defaults": {"color": {"mode": "fixed", "fixedColor": "orange"}}},
+                "gridPos": {"h": 4, "w": 4, "x": 12, "y": 7},
+                "id": 11,
+                "options": {"graphMode": "area", "reduceOptions": {"calcs": ["lastNotNull"]}},
+                "targets": [{"expr": "smartmon_reported_uncorrect_raw_value", "refId": "A"}],
+                "title": "Reported Uncorrectable",
+                "type": "stat"
+              },
+              {
+                "datasource": {"type": "prometheus", "uid": "${datasource}"},
+                "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]}}},
+                "gridPos": {"h": 4, "w": 4, "x": 16, "y": 7},
+                "id": 12,
+                "options": {"graphMode": "none", "reduceOptions": {"calcs": ["lastNotNull"]}},
+                "targets": [{"expr": "nvme_media_errors_total", "refId": "A"}],
+                "title": "NVMe Media Errors",
+                "type": "stat"
+              },
+              {
+                "datasource": {"type": "prometheus", "uid": "${datasource}"},
+                "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "max": 1, "min": 0, "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "orange", "value": 0.6}, {"color": "green", "value": 0.8}]}, "unit": "percentunit"}},
+                "gridPos": {"h": 4, "w": 4, "x": 20, "y": 7},
+                "id": 13,
+                "options": {"graphMode": "none", "reduceOptions": {"calcs": ["lastNotNull"]}},
+                "targets": [{"expr": "nvme_available_spare_ratio", "refId": "A"}],
+                "title": "NVMe Spare Remaining",
+                "type": "stat"
+              },
+              {
+                "datasource": {"type": "prometheus", "uid": "${datasource}"},
+                "gridPos": {"h": 6, "w": 24, "x": 0, "y": 11},
+                "id": 14,
+                "options": {"showHeader": true},
+                "targets": [{"expr": "smartmon_device_info", "format": "table", "instant": true, "refId": "A"}],
+                "transformations": [{"id": "organize", "options": {"excludeByName": {"Time": true, "Value": true, "__name__": true, "job": true, "vendor": true, "product": true, "revision": true, "lun_id": true}}}],
+                "title": "Devices",
+                "type": "table"
+              },
+              {
+                "datasource": {"type": "prometheus", "uid": "${datasource}"},
+                "fieldConfig": {"defaults": {"unit": "celsius"}},
+                "gridPos": {"h": 8, "w": 12, "x": 0, "y": 17},
+                "id": 15,
+                "targets": [
+                  {"expr": "smartmon_temperature_celsius_raw_value", "legendFormat": "{{disk}}", "refId": "A"},
+                  {"expr": "nvme_temperature_celsius", "legendFormat": "{{device}}", "refId": "B"}
+                ],
+                "title": "Disk Temperatures",
+                "type": "timeseries"
+              },
+              {
+                "datasource": {"type": "prometheus", "uid": "${datasource}"},
+                "gridPos": {"h": 8, "w": 12, "x": 12, "y": 17},
+                "id": 16,
+                "targets": [
+                  {"expr": "smartmon_reallocated_sector_ct_raw_value", "legendFormat": "Reallocated", "refId": "A"},
+                  {"expr": "smartmon_current_pending_sector_raw_value", "legendFormat": "Pending", "refId": "B"},
+                  {"expr": "smartmon_offline_uncorrectable_raw_value", "legendFormat": "Offline uncorrectable", "refId": "C"},
+                  {"expr": "smartmon_reported_uncorrect_raw_value", "legendFormat": "Reported uncorrectable", "refId": "D"},
+                  {"expr": "smartmon_udma_crc_error_count_raw_value", "legendFormat": "UDMA CRC errors", "refId": "E"}
+                ],
+                "title": "Media HDD Error Counters",
+                "type": "timeseries"
+              },
+              {
+                "datasource": {"type": "prometheus", "uid": "${datasource}"},
+                "fieldConfig": {"defaults": {"max": 100, "min": 0, "unit": "percent"}},
+                "gridPos": {"h": 8, "w": 12, "x": 0, "y": 25},
+                "id": 17,
+                "targets": [{"expr": "100 * (1 - node_filesystem_avail_bytes{job=\"node-exporter\",mountpoint=~\"/|/srv/appdata|/mnt/media\"} / node_filesystem_size_bytes{job=\"node-exporter\",mountpoint=~\"/|/srv/appdata|/mnt/media\"})", "legendFormat": "{{mountpoint}}", "refId": "A"}],
+                "title": "k3s VM Filesystem Usage",
+                "type": "timeseries"
+              },
+              {
+                "datasource": {"type": "prometheus", "uid": "${datasource}"},
+                "fieldConfig": {"defaults": {"max": 1, "min": 0, "unit": "percentunit"}},
+                "gridPos": {"h": 8, "w": 12, "x": 12, "y": 25},
+                "id": 18,
+                "targets": [
+                  {"expr": "nvme_percentage_used_ratio", "legendFormat": "Endurance used", "refId": "A"},
+                  {"expr": "nvme_available_spare_ratio", "legendFormat": "Spare remaining", "refId": "B"}
+                ],
+                "title": "NVMe Wear",
+                "type": "timeseries"
+              }
+            ],
+            "refresh": "1m",
+            "schemaVersion": 41,
+            "tags": ["homelab", "disks", "smart"],
+            "templating": {
+              "list": [
+                {"current": {}, "hide": 0, "label": "Data source", "name": "datasource", "query": "prometheus", "type": "datasource"}
+              ]
+            },
+            "time": {"from": "now-7d", "to": "now"},
+            "timezone": "browser",
+            "title": "Disk Health",
+            "uid": "homelab-disk-health",
+            "version": 1
+          }
 
 prometheus:
   prometheusSpec:
@@ -334,6 +541,14 @@ prometheus:
           resources:
             requests:
               storage: 10Gi
+    additionalScrapeConfigs:
+      - job_name: proxmox-disk-health
+        scrape_interval: 60s
+        static_configs:
+          - targets:
+              - 192.168.1.2:9100
+            labels:
+              instance: lnproxlab01
 
 alertmanager:
   config:
@@ -526,3 +741,108 @@ additionalPrometheusRulesMap:
               description: >-
                 Series on the default profile get no custom-format scoring and
                 no upgrade cutoff, which is how oversized releases get grabbed.
+
+      - name: homelab-disks
+        rules:
+          - alert: DiskHealthExporterDown
+            expr: up{job="proxmox-disk-health"} == 0
+            for: 15m
+            labels:
+              severity: warning
+            annotations:
+              summary: Proxmox disk health exporter is unreachable
+              description: >-
+                SMART data for the Proxmox host disks is not being collected,
+                so every other disk alert is blind.
+          - alert: DiskHealthDataStale
+            expr: time() - node_textfile_mtime_seconds{job="proxmox-disk-health",file=~".*(smartmon|nvme).prom"} > 3600
+            for: 15m
+            labels:
+              severity: warning
+            annotations:
+              summary: Disk health data on {{ $labels.file }} is over an hour old
+              description: >-
+                The smartmon or nvme collector timer on the Proxmox host has
+                stopped writing, so disk alerts are evaluating stale values.
+          - alert: DiskSmartUnhealthy
+            expr: smartmon_device_smart_healthy == 0
+            for: 5m
+            labels:
+              severity: critical
+            annotations:
+              summary: SMART overall health failed on {{ $labels.disk }}
+              description: >-
+                The drive reports that it is failing. Copy anything that is not
+                backed up off it and plan a replacement.
+          - alert: DiskPendingOrUncorrectableSectors
+            expr: smartmon_current_pending_sector_raw_value > 0 or smartmon_offline_uncorrectable_raw_value > 0
+            for: 1h
+            labels:
+              severity: warning
+            annotations:
+              summary: "{{ $labels.disk }} has unreadable sectors"
+              description: >-
+                Pending or offline-uncorrectable sectors are a strong early
+                sign of drive failure.
+          - alert: DiskReallocatedSectorsIncreasing
+            expr: delta(smartmon_reallocated_sector_ct_raw_value[24h]) > 0
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "{{ $labels.disk }} reallocated sectors in the last day"
+          - alert: DiskUncorrectableErrorsIncreasing
+            expr: delta(smartmon_reported_uncorrect_raw_value[24h]) > 0
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "{{ $labels.disk }} reported new uncorrectable errors in the last day"
+              description: >-
+                The media HDD already carries a historical count, so this
+                fires on growth rather than on the absolute value.
+          - alert: DiskTemperatureHigh
+            expr: smartmon_temperature_celsius_raw_value > 58
+            for: 30m
+            labels:
+              severity: warning
+            annotations:
+              summary: "{{ $labels.disk }} is at {{ $value }}C"
+              description: >-
+                The media HDD is rated to 60C. Check airflow around the
+                Proxmox host.
+          - alert: NvmeCriticalWarning
+            expr: nvme_critical_warning_total > 0
+            for: 5m
+            labels:
+              severity: critical
+            annotations:
+              summary: "{{ $labels.device }} raised an NVMe critical warning"
+          - alert: NvmeMediaErrors
+            expr: nvme_media_errors_total > 0
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "{{ $labels.device }} has recorded media errors"
+          - alert: NvmeSpareLow
+            expr: nvme_available_spare_ratio <= nvme_available_spare_threshold_ratio
+            for: 5m
+            labels:
+              severity: critical
+            annotations:
+              summary: "{{ $labels.device }} has used its spare blocks down to the threshold"
+          - alert: NvmeWearHigh
+            expr: nvme_percentage_used_ratio > 0.8
+            for: 1h
+            labels:
+              severity: warning
+            annotations:
+              summary: "{{ $labels.device }} is over 80% of its rated endurance"
+          - alert: NvmeTemperatureHigh
+            expr: nvme_temperature_celsius > 70
+            for: 15m
+            labels:
+              severity: warning
+            annotations:
+              summary: "{{ $labels.device }} is at {{ $value }}C"

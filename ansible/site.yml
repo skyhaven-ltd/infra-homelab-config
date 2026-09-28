@@ -23,3 +23,8 @@
   become: true
   roles:
     - { role: gha_runner, tags: [gha_runner] }
+
+- hosts: proxmox
+  become: true
+  roles:
+    - { role: disk_health, tags: [disk_health] }
