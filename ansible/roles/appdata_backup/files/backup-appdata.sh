@@ -73,7 +73,8 @@ find "${STAGE}" -maxdepth 1 -type f -name 'appdata_*.tar.gz' -printf '%T@ %p\n' 
   sort -rn | tail -n "+$((KEEP + 1))" | cut -d' ' -f2- |
   while IFS= read -r stale; do
     echo "pruning local ${stale}"
-    rm -f "${stale}" "${stale/appdata_/manifest_}"
+    stale_manifest="${stale/appdata_/manifest_}"
+    rm -f "${stale}" "${stale_manifest%.tar.gz}.json"
   done
 
 exit 0
