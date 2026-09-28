@@ -45,7 +45,7 @@ rclone copy "${STAGE}" "${REMOTE}" \
 # --max-delete guard - is reported and tolerated rather than failing the unit
 # and masking a successful backup.
 echo "pruning remote objects older than ${RETAIN_DAYS} days (max ${MAX_DELETE})"
-if rclone delete "${REMOTE}" \
+if timeout 15m rclone delete "${REMOTE}" \
   --min-age "${RETAIN_DAYS}d" \
   --include 'appdata_*.tar.gz' \
   --include 'manifest_*.json' \
