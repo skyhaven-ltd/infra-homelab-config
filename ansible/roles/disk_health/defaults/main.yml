@@ -1,0 +1,4 @@
+disk_health_listen_address: "192.168.1.2:9100"
+disk_health_textfile_dir: /var/lib/prometheus/node-exporter
+disk_health_allowed_scrapers:
+  - 192.168.1.3
