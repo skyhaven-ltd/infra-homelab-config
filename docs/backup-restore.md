@@ -26,7 +26,7 @@ appdata-backup.service
   ExecStartPost  sync-backups-to-onedrive.sh      # upload (only if archive succeeded)
 ```
 
-Retention is 3 archives locally and 30 days on OneDrive.
+Retention is 1 archive locally and 30 days on OneDrive.
 
 Archives worth keeping regardless of age live in the sibling folder
 `07 - Digital/Container Backups Archive`, which pruning never touches. That is
