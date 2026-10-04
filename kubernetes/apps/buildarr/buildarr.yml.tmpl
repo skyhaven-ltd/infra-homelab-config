@@ -27,6 +27,7 @@ sonarr:
   api_key: "${SONARR_API_KEY}"
   settings:
     media_management:
+      rename_episodes: true
       minimum_free_space: 20000
       use_hardlinks: true
       root_folders:
@@ -56,6 +57,7 @@ radarr:
   api_key: "${RADARR_API_KEY}"
   settings:
     media_management:
+      rename_movies: true
       minimum_free_space: 20000
       use_hardlinks: true
       delete_empty_folders: true

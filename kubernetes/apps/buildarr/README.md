@@ -5,7 +5,8 @@ Declarative source of truth for **Prowlarr**: indexers, app sync connections
 reconciles Prowlarr against `buildarr.yml.tmpl` on start and daily at 04:30.
 
 It also owns **Sonarr and Radarr quality definition sizes** (the
-megabytes-per-minute caps), their root folders, and their minimum free space.
+megabytes-per-minute caps), their root folders, their minimum free space, and
+file renaming on import (so Plex matches files by title rather than release name).
 Everything else about Sonarr and Radarr quality — profiles and custom formats —
 is owned by [`recyclarr`](../recyclarr/README.md); the two do not overlap.
 
