@@ -1,0 +1,86 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: opengym
+  namespace: opengym
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: opengym
+  template:
+    metadata:
+      labels:
+        app: opengym
+    spec:
+      initContainers:
+        - name: media-download
+          image: alpine/git@sha256:4a0e72d49596a1f5d3701aeedafdadc5c0da4062be4657c7bdc4017387f591cc
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              mkdir -p /out/img /out/gif
+              if [ -z "$(ls -A /out/img 2>/dev/null)" ]; then
+                git clone --depth 1 https://github.com/hasaneyldrm/exercises-dataset /tmp/ds
+                cp /tmp/ds/images/*.jpg /out/img/ && cp /tmp/ds/videos/*.gif /out/gif/
+              fi
+          volumeMounts:
+            - { name: media, mountPath: /out }
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits: { memory: 256Mi }
+      containers:
+        - name: api
+          image: ghcr.io/duartesantos8/opengym-api@sha256:e0232eb55bc193f9d3c6938105e6202114eb02d1dd2a9c2476c7e486435e9aab
+          env:
+            - { name: PORT, value: "3000" }
+            - { name: DATA_DIR, value: /data }
+            - { name: RP_ID, value: opengym.lab.skyhaven.ltd }
+            - { name: ORIGIN, value: https://opengym.lab.skyhaven.ltd }
+            - { name: RP_NAME, value: openGym }
+          ports:
+            - { name: api, containerPort: 3000 }
+          volumeMounts:
+            - { name: data, mountPath: /data }
+          readinessProbe:
+            httpGet: { path: /api/health, port: api }
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /api/health, port: api }
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          resources:
+            requests: { cpu: 25m, memory: 128Mi }
+            limits: { memory: 512Mi }
+        - name: web
+          image: ghcr.io/duartesantos8/opengym-web@sha256:9d19807f28a59a449b26a009f96764fc93fc6ea78b139891ee2010146d7ea792
+          env:
+            - { name: NGINX_PORT, value: "80" }
+            - { name: BACKEND, value: 127.0.0.1 }
+            - { name: PORT, value: "3000" }
+          ports:
+            - { name: http, containerPort: 80 }
+          volumeMounts:
+            - { name: media, mountPath: /usr/share/nginx/html/img, subPath: img }
+            - { name: media, mountPath: /usr/share/nginx/html/gif, subPath: gif }
+          readinessProbe:
+            httpGet: { path: /, port: http }
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /, port: http }
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          resources:
+            requests: { cpu: 10m, memory: 32Mi }
+            limits: { memory: 128Mi }
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: opengym-data
+        - name: media
+          persistentVolumeClaim:
+            claimName: opengym-media
