@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: shelfmark
+  namespace: shelfmark
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: shelfmark
+  template:
+    metadata:
+      labels:
+        app: shelfmark
+    spec:
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        runAsNonRoot: true
+        fsGroup: 1000
+      containers:
+        - name: shelfmark
+          image: ghcr.io/calibrain/shelfmark:v1.4.0@sha256:4ef757349c3c7a7d90ba95b1e2a46ce4dd460a4776efbcf2aa1b1c476e7d5de5
+          env:
+            - { name: TZ, value: "Europe/London" }
+            - { name: AUTH_METHOD, value: "builtin" }
+            - { name: SESSION_COOKIE_SECURE, value: "true" }
+            - { name: DEFAULT_CONTENT_TYPE, value: "audiobook" }
+            - { name: SHOW_COMBINED_SELECTOR, value: "false" }
+            - { name: PROWLARR_ENABLED, value: "true" }
+            - { name: PROWLARR_URL, value: "http://prowlarr.prowlarr.svc.cluster.local:9696" }
+            - name: PROWLARR_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: shelfmark-secrets
+                  key: PROWLARR_API_KEY
+            - { name: PROWLARR_TORRENT_CLIENT, value: "qbittorrent" }
+            - { name: DEFAULT_RELEASE_SOURCE_AUDIOBOOK, value: "prowlarr" }
+            - { name: QBITTORRENT_URL, value: "http://qbittorrent.qbittorrent.svc.cluster.local:8080" }
+            - { name: QBITTORRENT_CATEGORY_AUDIOBOOK, value: "audiobooks" }
+            - { name: QBITTORRENT_DOWNLOAD_DIR, value: "/data/downloads/complete/audiobooks" }
+            - { name: INGEST_DIR, value: "/data/downloads/complete" }
+            - { name: DESTINATION_AUDIOBOOK, value: "/data/library/audiobooks" }
+            - { name: FILE_ORGANIZATION_AUDIOBOOK, value: "organize" }
+            - { name: TEMPLATE_AUDIOBOOK_ORGANIZE, value: "{Author}/{Title}/{Title}" }
+            - { name: HARDLINK_TORRENTS_AUDIOBOOK, value: "false" }
+            - { name: AUDIOBOOK_LIBRARY_URL, value: "https://audiobookshelf.lab.skyhaven.ltd" }
+          ports:
+            - { name: http, containerPort: 8084 }
+          volumeMounts:
+            - { name: config, mountPath: /config }
+            - { name: media, mountPath: /data }
+          readinessProbe:
+            tcpSocket: { port: 8084 }
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests: { cpu: 100m, memory: 512Mi }
+            limits: { memory: 2Gi }
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: shelfmark-config
+        - name: media
+          hostPath: { path: /mnt/media, type: Directory }

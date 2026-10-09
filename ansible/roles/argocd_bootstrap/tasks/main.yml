@@ -239,6 +239,20 @@
       stringData:
         RADARR_API_KEY: {{ radarr_api_key | to_json }}
         SONARR_API_KEY: {{ sonarr_api_key | to_json }}
+      ---
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: shelfmark
+      ---
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: shelfmark-secrets
+        namespace: shelfmark
+      type: Opaque
+      stringData:
+        PROWLARR_API_KEY: {{ prowlarr_api_key | to_json }}
   environment: { KUBECONFIG: "{{ argocd_kubeconfig }}" }
   register: media_secrets_apply
   changed_when: >-
