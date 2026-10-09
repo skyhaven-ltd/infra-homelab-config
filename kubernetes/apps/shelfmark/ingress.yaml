@@ -1,0 +1,23 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: shelfmark
+  namespace: shelfmark
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts: [shelfmark.lab.skyhaven.ltd]
+      secretName: shelfmark-tls
+  rules:
+    - host: shelfmark.lab.skyhaven.ltd
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: shelfmark
+                port:
+                  number: 8084

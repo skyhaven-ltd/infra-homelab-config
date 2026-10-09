@@ -64,8 +64,10 @@
     # rather than depending on whichever container happens to start first.
     - "{{ media_mount }}/library/tv"
     - "{{ media_mount }}/library/movies"
+    - "{{ media_mount }}/library/audiobooks"
     - "{{ media_mount }}/downloads"
     - "{{ media_mount }}/downloads/complete"
+    - "{{ media_mount }}/downloads/complete/audiobooks"
 - name: Kernel params for k8s
   ansible.posix.sysctl:
     { name: "{{ item.k }}", value: "{{ item.v }}", state: present }

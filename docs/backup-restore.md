@@ -156,8 +156,12 @@ map directly onto the current claims:
 | `./qbittorrent` | `qbittorrent_qbittorrent-config` |
 | `./pihole` | `pihole_pihole-etc` |
 
-`./homeassistant`, `./syncthing` and `./audiobookshelf` have no equivalent in
-the current cluster.
+`./homeassistant` and `./syncthing` have no equivalent in the current cluster.
+The legacy `./audiobookshelf` archive needs inspection before restoring: the
+current deployment uses separate `audiobookshelf-config` and
+`audiobookshelf-metadata` claims for `/config` and `/metadata`. Restore each
+subtree to its corresponding claim; do not copy the entire legacy directory
+into either claim.
 
 Extract the wanted subtree and copy it into the live claim directory with the
 workload scaled to zero. Note that Buildarr owns Prowlarr configuration and
