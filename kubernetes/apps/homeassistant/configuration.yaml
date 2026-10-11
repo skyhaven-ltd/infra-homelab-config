@@ -8,3 +8,14 @@ homeassistant:
 automation: !include automations.yaml
 script: !include scripts.yaml
 scene: !include scenes.yaml
+switch:
+  - platform: wake_on_lan
+    name: WNWSLAB01
+    mac: "E8:9C:25:76:2E:BB"
+    broadcast_address: 192.168.1.255
+    broadcast_port: 9
+    host: 192.168.1.172
+    turn_off:
+      - action: button.press
+        target:
+          entity_id: button.wnwslab01_wnwslab01_sleep
