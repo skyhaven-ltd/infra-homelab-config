@@ -5,6 +5,7 @@ resources:
   - pvc.yaml
   - deployment.yaml
   - service.yaml
+  - service-lan.yaml
   - credentials.yaml
 configMapGenerator:
   - name: mosquitto-config

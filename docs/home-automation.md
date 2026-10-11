@@ -47,6 +47,32 @@ Home Assistant Container has no Supervisor or add-on store. Configure MQTT as
 an integration; do not install a second broker or configure ZHA against the
 same coordinator. Zigbee2MQTT publishes Home Assistant discovery messages.
 
+## Windows PC sleep control
+
+HASS.Agent can expose a Windows sleep command through the existing MQTT
+integration. The `mosquitto-lan` Service makes the authenticated broker
+available to LAN clients at `192.168.1.3:31883`. This endpoint uses plain MQTT;
+keep it on the trusted LAN or Tailscale network and do not forward it through
+the router. The original cluster-internal endpoint remains unchanged.
+
+For WNWSLAB01, configure HASS.Agent with only a button command of type
+`WinformsSleepCommand`, named `Sleep PC`, with entity name `wnwslab01_sleep`.
+This uses Windows suspend, with hibernation and forced suspension disabled.
+Configure HASS.Agent to start at Windows sign-in; its client must be running
+to receive the command. Command discovery uses the existing MQTT integration
+and does not require the HASS.Agent custom integration, HACS, or a subscription.
+Keep MQTT credentials in the local application settings, never in Git.
+
+The existing `switch.wnwslab01` sends Wake-on-LAN to the Ethernet adapter.
+The custom Overview at `/home-dashboard/home` displays this entity as a switch
+and is the system and owner-account default dashboard. ON sends Wake-on-LAN;
+OFF presses `button.wnwslab01_wnwslab01_sleep` through the switch's `turn_off`
+action. The live persistent configuration and repository seed contain this
+mapping. HASS.Agent's MQTT device belongs to Office. The dashboard also
+contains the existing scenes, weather, room lighting, and TV remote.
+Verify an actual sleep/wake cycle only when the PC user is ready to interrupt
+active work.
+
 ## Coordinator address and radio
 
 Reserve DHCP address `192.168.1.121` for Ethernet MAC `9E:13:9E:34:88:F8` in
