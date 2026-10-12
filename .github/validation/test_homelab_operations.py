@@ -208,6 +208,7 @@ class BazarrTests(unittest.TestCase):
         self.assertEqual(profiles[0], other)
         self.assertEqual(profiles[1]["items"][0]["language"], "en")
         self.assertEqual(profiles[1]["items"][0]["audio_exclude"], "False")
+        self.assertEqual(profiles[1]["items"][0]["audio_only_include"], "False")
         defaults = calls[0][1]
         self.assertEqual(defaults["languages-enabled"], ["en", "fr"])
         self.assertEqual(
