@@ -8,6 +8,7 @@ RequiresMountsFor=/srv/appdata
 
 [Service]
 Type=oneshot
+StateDirectory=appdata-backup
 User=root
 Group=root
 Environment=KUBECONFIG=/etc/rancher/k3s/k3s.yaml

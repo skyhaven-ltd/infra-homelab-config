@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - ".github/workflows/platform-validate.yml"
+      - ".github/validation/**"
       - "ansible/**"
       - "kubernetes/**"
       - "services/bookbuddy-web/scripts/**"
@@ -130,6 +131,19 @@ jobs:
           "${RUNNER_TEMP}/venv/bin/pip" install --quiet --disable-pip-version-check \
             "ansible-lint==${ANSIBLE_LINT_VERSION}"
           echo "${RUNNER_TEMP}/venv/bin" >> "${GITHUB_PATH}"
+
+      - name: Install Promtool
+        run: |
+          set -euo pipefail
+          workdir="$(mktemp -d)"
+          cd "$workdir"
+          curl -fsSLO https://github.com/prometheus/prometheus/releases/download/v3.7.3/prometheus-3.7.3.linux-amd64.tar.gz
+          echo "fc9e5da126817438cf2820d9a7206c75e3122802ba8d20add3a6219a59ca6913  prometheus-3.7.3.linux-amd64.tar.gz" | sha256sum -c -
+          tar -xzf prometheus-3.7.3.linux-amd64.tar.gz --strip-components=1 prometheus-3.7.3.linux-amd64/promtool
+          sudo install -m 0755 promtool /usr/local/bin/
+
+      - name: Test Backup Monitoring and Bazarr Configuration
+        run: python -m unittest discover -s .github/validation -p 'test_*.py' -v
 
       - name: Install Collections
         working-directory: ansible

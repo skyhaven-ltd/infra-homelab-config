@@ -88,6 +88,50 @@ journalctl -u appdata-backup.service -n 50
 ls -lh /var/backups/appdata
 ```
 
+## Failure notifications
+
+The existing Prometheus and Alertmanager deployment sends backup alerts to the
+existing ntfy `monitoring` topic. No separate ntfy server or topic is needed.
+Failures of archive creation, upload, remote verification, or the one-hour
+systemd timeout raise `AppdataBackupFailed` after two minutes. An inactive or
+disabled timer raises a warning after five minutes.
+
+After `rclone copy`, `rclone check --one-way` verifies the staged files against
+OneDrive. Only then is the persistent timestamp in
+`/var/lib/appdata-backup/last-upload-success` replaced atomically. This survives
+reboots and advances before retention cleanup. A verified upload older than
+26 hours (or no recorded upload) raises `AppdataBackupUploadStale` after a
+15-minute grace period. On initial deployment or after rebuilding the node,
+this alert remains pending/firing until the first verified backup completes;
+do not seed it from local archive timestamps.
+
+Retention success is stored separately in `last-prune-ok`. A failed or timed-out
+prune raises `AppdataBackupPruneFailed`, without claiming that the verified
+upload failed. Remote listing is informational and cannot fail a verified
+backup. Preserve the deletion caps and inspect archive ages before any cleanup.
+
+`homelab-metrics.timer` exports these signals every minute. Missing backup
+metrics and the existing stale-exporter alert cover monitoring failures.
+Alertmanager sends recovery messages through the same receiver. Subscribers
+must be able to reach ntfy over the LAN or current VPN; a total cluster, host,
+or network outage can also prevent notifications.
+
+The phone subscription remains `http://192.168.1.3:8090/monitoring`. During rollout,
+run a normal backup and verify the success timestamp and remote archive. Use
+isolated test fixtures to exercise failures; do not deliberately break production
+OneDrive credentials, mounts, or retention. Confirm a controlled test notification
+and its resolution on a subscribed device before relying on delivery.
+
+Repository regression checks (Linux/WSL, PyYAML and Promtool 3.7.3 installed):
+
+```sh
+python3 -m unittest discover -s .github/validation -p 'test_*.py' -v
+```
+
+These checks simulate upload/check/prune failures, timeouts, missing state,
+alert firing and recovery, and the existing ntfy receiver configuration. They
+do not send notifications or modify real backups.
+
 ## Credentials not covered by this mechanism
 
 The Grafana admin password lives in **Bitwarden**, not Key Vault, and the

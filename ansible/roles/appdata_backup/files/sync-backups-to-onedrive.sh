@@ -10,6 +10,15 @@ STAGE="${BACKUP_STAGE:-/var/backups/appdata}"
 REMOTE="${BACKUP_REMOTE:?BACKUP_REMOTE must be set}"
 RETAIN_DAYS="${BACKUP_REMOTE_RETAIN_DAYS:-30}"
 MAX_DELETE="${BACKUP_REMOTE_MAX_DELETE:-5}"
+STATE_DIR="${BACKUP_STATE_DIR:-/var/lib/appdata-backup}"
+
+write_state() {
+  local temporary
+  temporary="$(mktemp "${STATE_DIR}/$1.XXXXXX")"
+  printf '%s\n' "$2" >"${temporary}"
+  chmod 0644 "${temporary}"
+  mv "${temporary}" "${STATE_DIR}/$1"
+}
 
 export RCLONE_CONFIG="${RCLONE_CONFIG:-/root/.config/rclone/rclone.conf}"
 
@@ -26,12 +35,15 @@ if [[ ! -d "${STAGE}" ]] || [[ -z "$(ls -A "${STAGE}" 2>/dev/null)" ]]; then
   exit 1
 fi
 
+mkdir -p "${STATE_DIR}"
 echo "uploading ${STAGE} -> ${REMOTE}"
 rclone copy "${STAGE}" "${REMOTE}" \
   --transfers 4 \
   --checkers 8 \
   --retries 3 \
   --log-level INFO
+rclone check "${STAGE}" "${REMOTE}" --one-way --log-level INFO
+write_state last-upload-success "$(date +%s)"
 
 # Retention on the remote is an explicit, age-bounded delete with a hard cap on
 # how many objects a single run may remove.
@@ -52,13 +64,17 @@ if timeout 15m rclone delete "${REMOTE}" \
   --max-depth 1 \
   --max-delete "${MAX_DELETE}" \
   --log-level INFO; then
+  write_state last-prune-ok 1
   echo "prune completed"
 else
   echo "WARNING: prune exited $? - backup upload already succeeded." >&2
   echo "WARNING: if the --max-delete cap was hit, check what is accumulating." >&2
+  write_state last-prune-ok 0
 fi
 
 echo "remote now holds:"
-rclone lsf "${REMOTE}" --include 'appdata_*.tar.gz' --max-depth 1 | sort | tail -5
+if ! rclone lsf "${REMOTE}" --include 'appdata_*.tar.gz' --max-depth 1 | sort | tail -5; then
+  echo "WARNING: remote listing failed - backup upload already verified." >&2
+fi
 
 exit 0

@@ -90,6 +90,11 @@ address, so MagicDNS and the lab domain now coexist.
 
 | Alert | Meaning |
 | ----- | ------- |
+| `AppdataBackupFailed` | Archive, OneDrive upload/check, or service timeout failed; pending for two minutes |
+| `AppdataBackupUploadStale` | No verified OneDrive upload for 26 hours, plus a 15-minute grace period |
+| `AppdataBackupTimerInactive` | Nightly timer inactive or disabled for five minutes |
+| `AppdataBackupPruneFailed` | Retention cleanup failed; the upload was already verified |
+| `AppdataBackupMetricsMissing` | Backup metrics absent for five minutes |
 | `TailscaleBackendDown` | Node is off the tailnet; nothing is reachable remotely |
 | `TailscaleSubnetRouteNotApproved` | Route advertised but unapproved; re-run the tailscale Terraform stack |
 | `ApiServerCertMissingTailnetName` | Remote `kubectl` will fail TLS; re-run the `k3s` role |

@@ -58,8 +58,14 @@ the router. The original cluster-internal endpoint remains unchanged.
 For WNWSLAB01, configure HASS.Agent with only a button command of type
 `WinformsSleepCommand`, named `Sleep PC`, with entity name `wnwslab01_sleep`.
 This uses Windows suspend, with hibernation and forced suspension disabled.
-Configure HASS.Agent to start at Windows sign-in; its client must be running
-to receive the command. Command discovery uses the existing MQTT integration
+On WNWSLAB01, the Windows scheduled task `HASS.Agent receiver` starts the
+client at sign-in and retries every minute if it exits. It runs interactively
+as the signed-in user, ignores overlapping starts, has no execution time limit,
+and does not wake the PC. It replaces the application's HKCU Run entry.
+The client must be running and MQTT-connected to receive the command; this
+recovery handles process exits, not a running client with a stuck connection.
+To deliberately keep the receiver stopped, disable this task first.
+Command discovery uses the existing MQTT integration
 and does not require the HASS.Agent custom integration, HACS, or a subscription.
 Keep MQTT credentials in the local application settings, never in Git.
 
