@@ -79,6 +79,23 @@ emit '# HELP homelab_bookbuddy_worker_last_run_ok Last BookBuddy worker run fini
 emit '# TYPE homelab_bookbuddy_worker_last_run_ok gauge'
 emit "homelab_bookbuddy_worker_last_run_ok ${worker_ok}"
 
+backup_timer_active=0
+if systemctl is-active --quiet appdata-backup.timer && systemctl is-enabled --quiet appdata-backup.timer; then
+  backup_timer_active=1
+fi
+backup_result="$(systemctl show -p Result --value appdata-backup.service 2>/dev/null || echo unknown)"
+backup_ok=0
+if [[ "${backup_result}" == "success" ]]; then backup_ok=1; fi
+backup_state_dir="${BACKUP_STATE_DIR:-/var/lib/appdata-backup}"
+backup_last_upload="$(cat "${backup_state_dir}/last-upload-success" 2>/dev/null || true)"
+if [[ ! "${backup_last_upload}" =~ ^[0-9]+$ ]]; then backup_last_upload=0; fi
+backup_prune_ok="$(cat "${backup_state_dir}/last-prune-ok" 2>/dev/null || true)"
+if [[ ! "${backup_prune_ok}" =~ ^[01]$ ]]; then backup_prune_ok=-1; fi
+emit "homelab_backup_timer_active ${backup_timer_active}"
+emit "homelab_backup_last_run_ok ${backup_ok}"
+emit "homelab_backup_last_upload_timestamp_seconds ${backup_last_upload}"
+emit "homelab_backup_prune_ok ${backup_prune_ok}"
+
 # --- Sonarr quality guardrails -----------------------------------------------
 # Both of these silently reverted to permissive defaults on the rebuild and are
 # what let a single season reach 50GB.

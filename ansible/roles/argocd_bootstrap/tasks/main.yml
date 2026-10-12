@@ -243,6 +243,21 @@
       apiVersion: v1
       kind: Namespace
       metadata:
+        name: bazarr
+      ---
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: bazarr-secrets
+        namespace: bazarr
+      type: Opaque
+      stringData:
+        RADARR_API_KEY: {{ radarr_api_key | to_json }}
+        SONARR_API_KEY: {{ sonarr_api_key | to_json }}
+      ---
+      apiVersion: v1
+      kind: Namespace
+      metadata:
         name: shelfmark
       ---
       apiVersion: v1

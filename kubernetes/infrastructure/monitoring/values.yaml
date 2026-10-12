@@ -625,6 +625,63 @@ prometheus-node-exporter:
 additionalPrometheusRulesMap:
   homelab:
     groups:
+      - name: homelab-backups
+        rules:
+          - alert: AppdataBackupFailed
+            expr: homelab_backup_last_run_ok == 0
+            for: 2m
+            labels:
+              severity: critical
+            annotations:
+              summary: Container appdata backup failed
+              description: >-
+                The archive, OneDrive upload, verification, or one-hour service
+                timeout failed. Check journalctl -u appdata-backup.service.
+          - alert: AppdataBackupUploadStale
+            expr: time() - homelab_backup_last_upload_timestamp_seconds > 93600
+            for: 15m
+            labels:
+              severity: critical
+            annotations:
+              summary: No verified OneDrive backup in over 26 hours
+              description: >-
+                No successful upload has been recorded, or the latest verified
+                upload is over 26 hours old. Check appdata-backup.timer and
+                journalctl -u appdata-backup.service.
+          - alert: AppdataBackupTimerInactive
+            expr: homelab_backup_timer_active == 0
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: Nightly appdata backup timer is inactive or disabled
+              description: >-
+                Enable and start appdata-backup.timer on the k3s node.
+          - alert: AppdataBackupPruneFailed
+            expr: homelab_backup_prune_ok == 0
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: OneDrive backup retention cleanup failed
+              description: >-
+                The upload was verified, but retention cleanup failed or timed
+                out. Inspect the journal and remote archive ages before changing
+                deletion limits. Do not delete the permanent archive folder.
+          - alert: AppdataBackupMetricsMissing
+            expr: >-
+              absent(homelab_backup_last_run_ok) or
+              absent(homelab_backup_last_upload_timestamp_seconds) or
+              absent(homelab_backup_timer_active) or
+              absent(homelab_backup_prune_ok)
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: Appdata backup monitoring metrics are missing
+              description: >-
+                Check homelab-metrics.timer and its exporter. Backup alerts
+                cannot evaluate missing metrics.
       - name: homelab-remote-access
         rules:
           - alert: TailscaleBackendDown
