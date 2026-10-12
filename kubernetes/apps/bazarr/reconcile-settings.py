@@ -38,6 +38,7 @@ def reconcile(api_key):
                 "hi": "False",
                 "forced": "False",
                 "audio_exclude": "False",
+                "audio_only_include": "False",
             }
         ],
         mustContain=[],
