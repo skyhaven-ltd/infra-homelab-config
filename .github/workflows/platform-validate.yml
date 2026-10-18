@@ -9,7 +9,6 @@ on:
       - ".github/validation/**"
       - "ansible/**"
       - "kubernetes/**"
-      - "services/bookbuddy-web/scripts/**"
       - "terraform/**"
 
 permissions:

@@ -2,7 +2,7 @@
 
 Declarative source of truth for **Prowlarr**: indexers, app sync connections
 (Sonarr/Radarr), sync profiles, and the FlareSolverr proxy. Runs as a daemon that
-reconciles Prowlarr against `buildarr.yml.tmpl` on start and daily at 04:30.
+reconciles Prowlarr against `files/buildarr.yml.tmpl` on start and daily at 04:30.
 
 It also owns **Sonarr and Radarr quality definition sizes** (the
 megabytes-per-minute caps), their root folders, their minimum free space, and

@@ -10,8 +10,8 @@ Assessed on 2026-10-04.
 ## Decision
 
 Run Orca as an Ansible-managed **systemd service on the k3s host**, not as a
-Kubernetes workload. It follows the opt-in host-worker pattern already used by
-`bookbuddy_worker` and `backlog_portal_worker`.
+Kubernetes workload. It follows the opt-in host-worker pattern previously used
+by the retired `bookbuddy_worker` and `backlog_portal_worker` roles.
 
 | | |
 | --- | --- |
@@ -141,7 +141,7 @@ plain `make configure` never touches it:
       when: "'orca_server' in ansible_run_tags"
 ```
 
-Add a Makefile target next to `bookbuddy-configure`:
+Add a Makefile target next to `configure`:
 
 ```make
 orca-configure:
@@ -162,7 +162,7 @@ orca_server_memory_high: 3G
 orca_server_memory_max: 4G
 orca_server_cpu_quota: 400%        # 4 of 8 cores
 orca_server_claude_code_version: ""
-orca_server_codex_version: "{{ backlog_portal_worker_codex_version }}"
+orca_server_codex_version: 0.144.1
 ```
 
 ### Tasks
@@ -185,8 +185,8 @@ orca_server_codex_version: "{{ backlog_portal_worker_codex_version }}"
    in-place AppImage overwrite can corrupt a running mount. The previous
    version directory doubles as a binary rollback.
 4. **Agent CLIs.** Install `@anthropic-ai/claude-code` and `@openai/codex`
-   globally with npm at pinned versions, the same way
-   `backlog_portal_worker` pins codex.
+   globally with npm at pinned versions, the same way the retired
+   `backlog_portal_worker` role pinned codex.
 5. **Unit.** Template `orca-serve.service`, enable it, and restart it from a
    handler.
 
@@ -299,8 +299,7 @@ clients reconnect after an upgrade without re-pairing.
 - **No Docker for agents.** The node runs containerd for k3s only, so agent
   tasks that need Docker belong on a dedicated VM.
 - **Memory figures are a snapshot.** They cover only 15 days, so rare peaks
-  such as heavy Terraria sessions or several Plex transcodes at once may be
-  missing.
+  such as several Plex transcodes at once may be missing.
 
 ## References
 

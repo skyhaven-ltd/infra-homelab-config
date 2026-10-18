@@ -9,4 +9,4 @@ resources:
 configMapGenerator:
   - name: zigbee2mqtt-config
     files:
-      - configuration.yaml
+      - files/configuration.yaml

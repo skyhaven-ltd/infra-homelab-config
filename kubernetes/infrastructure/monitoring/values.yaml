@@ -226,40 +226,9 @@ grafana:
               },
               {
                 "datasource": {"type": "prometheus", "uid": "${datasource}"},
-                "description": "BookBuddy generation worker timer. Absent means queued jobs are never claimed.",
-                "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "mappings": [{"options": {"0": {"text": "Missing"}, "1": {"text": "Active"}}, "type": "value"}], "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]}}},
-                "gridPos": {"h": 4, "w": 3, "x": 9, "y": 22},
-                "id": 24,
-                "options": {"graphMode": "none", "reduceOptions": {"calcs": ["lastNotNull"]}},
-                "targets": [{"expr": "max(homelab_bookbuddy_worker_timer_active)", "refId": "A"}],
-                "title": "BookBuddy Worker",
-                "type": "stat"
-              },
-              {
-                "datasource": {"type": "prometheus", "uid": "${datasource}"},
-                "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 1}]}}},
-                "gridPos": {"h": 4, "w": 3, "x": 12, "y": 22},
-                "id": 25,
-                "options": {"graphMode": "none", "reduceOptions": {"calcs": ["lastNotNull"]}},
-                "targets": [{"expr": "sum(bookbuddy_generation_jobs{status=\"pending\"})", "refId": "A"}],
-                "title": "Gen Jobs Pending",
-                "type": "stat"
-              },
-              {
-                "datasource": {"type": "prometheus", "uid": "${datasource}"},
-                "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]}}},
-                "gridPos": {"h": 4, "w": 3, "x": 15, "y": 22},
-                "id": 26,
-                "options": {"graphMode": "none", "reduceOptions": {"calcs": ["lastNotNull"]}},
-                "targets": [{"expr": "sum(bookbuddy_generation_jobs{status=\"failed\"})", "refId": "A"}],
-                "title": "Gen Jobs Failed",
-                "type": "stat"
-              },
-              {
-                "datasource": {"type": "prometheus", "uid": "${datasource}"},
                 "description": "HD-or-better Sonarr qualities with no maximum size. Non-zero lets a season balloon.",
                 "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]}}},
-                "gridPos": {"h": 4, "w": 3, "x": 18, "y": 22},
+                "gridPos": {"h": 4, "w": 3, "x": 9, "y": 22},
                 "id": 27,
                 "options": {"graphMode": "none", "reduceOptions": {"calcs": ["lastNotNull"]}},
                 "targets": [{"expr": "max(homelab_sonarr_quality_definitions_uncapped)", "refId": "A"}],
@@ -270,33 +239,12 @@ grafana:
                 "datasource": {"type": "prometheus", "uid": "${datasource}"},
                 "description": "Series not on the managed quality profile, which is how they end up unscored.",
                 "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]}}},
-                "gridPos": {"h": 4, "w": 3, "x": 21, "y": 22},
+                "gridPos": {"h": 4, "w": 3, "x": 12, "y": 22},
                 "id": 28,
                 "options": {"graphMode": "none", "reduceOptions": {"calcs": ["lastNotNull"]}},
                 "targets": [{"expr": "max(homelab_sonarr_series_off_managed_profile)", "refId": "A"}],
                 "title": "Series Off Profile",
                 "type": "stat"
-              },
-              {
-                "datasource": {"type": "prometheus", "uid": "${datasource}"},
-                "gridPos": {"h": 7, "w": 12, "x": 0, "y": 26},
-                "id": 29,
-                "targets": [{"expr": "sum by (status) (bookbuddy_generation_jobs)", "legendFormat": "{{status}}", "refId": "A"}],
-                "title": "BookBuddy Generation Queue",
-                "type": "timeseries"
-              },
-              {
-                "datasource": {"type": "prometheus", "uid": "${datasource}"},
-                "description": "A pending age that keeps climbing means nothing is draining the queue.",
-                "fieldConfig": {"defaults": {"unit": "s"}},
-                "gridPos": {"h": 7, "w": 12, "x": 12, "y": 26},
-                "id": 30,
-                "targets": [
-                  {"expr": "max(bookbuddy_generation_job_oldest_pending_age_seconds)", "legendFormat": "Oldest pending", "refId": "A"},
-                  {"expr": "max(bookbuddy_generation_job_oldest_running_age_seconds)", "legendFormat": "Oldest running", "refId": "B"}
-                ],
-                "title": "Generation Job Age",
-                "type": "timeseries"
               }
             ],
             "refresh": "30s",
@@ -620,8 +568,8 @@ prometheus-node-exporter:
       memory: 64Mi
 
 # Alerts for the failure modes that survived the cluster rebuild silently:
-# remote access to the API server, the BookBuddy generation queue, and the
-# Sonarr guardrails that stop a single season reaching 50GB.
+# remote access to the API server and the Sonarr guardrails that stop a
+# single season reaching 50GB.
 additionalPrometheusRulesMap:
   homelab:
     groups:
@@ -725,55 +673,6 @@ additionalPrometheusRulesMap:
               description: >-
                 Every homelab_* alert below is blind until the exporter timer
                 runs again.
-
-      - name: homelab-bookbuddy
-        rules:
-          - alert: BookBuddyWorkerTimerMissing
-            expr: max(homelab_bookbuddy_worker_timer_active) == 0
-            for: 15m
-            labels:
-              severity: warning
-            annotations:
-              summary: BookBuddy generation worker is not installed
-              description: >-
-                Queued generation jobs will never be claimed. Re-run the
-                bookbuddy_worker Ansible role with CODEX_AUTH_FILE set.
-          - alert: BookBuddyWorkerRunFailing
-            expr: max(homelab_bookbuddy_worker_last_run_ok) == 0
-            for: 30m
-            labels:
-              severity: warning
-            annotations:
-              summary: BookBuddy generation worker runs are failing
-          - alert: BookBuddyGenerationJobStalled
-            expr: max(bookbuddy_generation_job_oldest_pending_age_seconds) > 1800
-            for: 10m
-            labels:
-              severity: warning
-            annotations:
-              summary: A BookBuddy generation job has sat pending for over 30 minutes
-              description: >-
-                Nothing is draining the queue. This is the state that went
-                unnoticed for a day after the rebuild.
-          - alert: BookBuddyGenerationJobStuckRunning
-            expr: max(bookbuddy_generation_job_oldest_running_age_seconds) > 3600
-            for: 10m
-            labels:
-              severity: warning
-            annotations:
-              summary: A BookBuddy generation job has been running for over an hour
-              description: >-
-                A worker most likely died mid-job; nothing resets the claim.
-          - alert: BookBuddyGenerationJobsFailing
-            expr: delta(bookbuddy_generation_jobs{status="failed"}[1h]) > 0
-            for: 5m
-            labels:
-              severity: warning
-            annotations:
-              summary: A BookBuddy generation job failed in the last hour
-              description: >-
-                The alert resolves after the investigation window instead of
-                treating retained historical failures as an active incident.
 
       - name: homelab-media
         rules:

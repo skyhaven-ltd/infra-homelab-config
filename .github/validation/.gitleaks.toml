@@ -5,5 +5,4 @@ useDefault = true
 description = "SealedSecret manifests hold encrypted ciphertext, safe to commit"
 paths = [
   '''kubernetes/.*sealedsecret\.yaml$''',
-  '''services/knowledge-mcp/tests/test_store\.py$''',
 ]

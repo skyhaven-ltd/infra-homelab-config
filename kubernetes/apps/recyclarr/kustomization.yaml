@@ -7,4 +7,4 @@ resources:
 configMapGenerator:
   - name: recyclarr-config
     files:
-      - recyclarr.yml
+      - files/recyclarr.yml

@@ -9,5 +9,5 @@ resources:
 configMapGenerator:
   - name: homeassistant-config
     files:
-      - configuration.yaml
-      - http.json
+      - files/configuration.yaml
+      - files/http.json

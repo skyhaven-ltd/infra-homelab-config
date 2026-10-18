@@ -10,4 +10,4 @@ resources:
 configMapGenerator:
   - name: jellyseerr-scripts
     files:
-      - reconcile-services.py
+      - files/reconcile-services.py

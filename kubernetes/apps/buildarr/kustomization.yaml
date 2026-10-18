@@ -8,8 +8,8 @@ resources:
 configMapGenerator:
   - name: buildarr-config
     files:
-      - entrypoint.sh
-      - buildarr.yml.tmpl
-      - wait-for-dependencies.py
-      - queue-maintenance.py
-      - availability-search.py
+      - files/entrypoint.sh
+      - files/buildarr.yml.tmpl
+      - files/wait-for-dependencies.py
+      - files/queue-maintenance.py
+      - files/availability-search.py

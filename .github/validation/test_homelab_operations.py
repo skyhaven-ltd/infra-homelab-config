@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[2]
 BACKUP = ROOT / "ansible/roles/appdata_backup/files"
 EXPORTER = ROOT / "ansible/roles/homelab_metrics/files/write-homelab-metrics.sh"
 SPEC = importlib.util.spec_from_file_location(
-    "bazarr_reconcile", ROOT / "kubernetes/apps/bazarr/reconcile-settings.py"
+    "bazarr_reconcile", ROOT / "kubernetes/apps/bazarr/files/reconcile-settings.py"
 )
 BAZARR = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(BAZARR)
