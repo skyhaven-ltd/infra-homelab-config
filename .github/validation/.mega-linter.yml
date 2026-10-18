@@ -27,6 +27,8 @@ YAML_YAMLLINT_ARGUMENTS: "--no-warnings"
 YAML_YAMLLINT_FILTER_REGEX_EXCLUDE: "sealedsecret.*\\.yaml"
 
 SPELL_LYCHEE_FILTER_REGEX_EXCLUDE: "(\\.github/|ansible/|kubernetes/|terraform/|services/|docs/rollout-runbook\\.md)"
+SPELL_LYCHEE_RULES_PATH: ".github/workflows/linters"
+SPELL_LYCHEE_CONFIG_FILE: "lychee.toml"
 
 HTML_DJLINT_ARGUMENTS: "--profile=jinja --ignore=H031"
 

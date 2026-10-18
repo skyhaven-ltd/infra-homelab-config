@@ -1,8 +1,8 @@
 #!/bin/bash
 # Publishes homelab-specific health signals for node_exporter's textfile
 # collector. Everything here is a state that broke silently after the cluster
-# rebuild: the tailnet path to the API server, the BookBuddy generation worker,
-# and Sonarr's size caps and quality profile assignment.
+# rebuild: the tailnet path to the API server and Sonarr's size caps and
+# quality profile assignment.
 set -euo pipefail
 
 : "${TEXTFILE_DIR:?TEXTFILE_DIR is required}"
@@ -65,19 +65,6 @@ fi
 emit '# HELP homelab_apiserver_cert_covers_tailnet API server certificate covers the current tailnet address.'
 emit '# TYPE homelab_apiserver_cert_covers_tailnet gauge'
 emit "homelab_apiserver_cert_covers_tailnet ${cert_ok}"
-
-# --- BookBuddy generation worker ---------------------------------------------
-timer_active=0
-if systemctl is-active --quiet bookbuddy-worker.timer; then timer_active=1; fi
-worker_result="$(systemctl show -p Result --value bookbuddy-worker.service 2>/dev/null || echo unknown)"
-worker_ok=0
-if [[ "${worker_result}" == "success" ]]; then worker_ok=1; fi
-emit '# HELP homelab_bookbuddy_worker_timer_active BookBuddy generation worker timer is installed and active.'
-emit '# TYPE homelab_bookbuddy_worker_timer_active gauge'
-emit "homelab_bookbuddy_worker_timer_active ${timer_active}"
-emit '# HELP homelab_bookbuddy_worker_last_run_ok Last BookBuddy worker run finished successfully.'
-emit '# TYPE homelab_bookbuddy_worker_last_run_ok gauge'
-emit "homelab_bookbuddy_worker_last_run_ok ${worker_ok}"
 
 backup_timer_active=0
 if systemctl is-active --quiet appdata-backup.timer && systemctl is-enabled --quiet appdata-backup.timer; then

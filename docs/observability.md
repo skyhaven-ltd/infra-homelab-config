@@ -13,8 +13,7 @@ BookBuddy generation queue, and Sonarr's size guardrails.
 | Signal | Source |
 | ------ | ------ |
 | Host, pod, and cluster health | kube-prometheus-stack (node-exporter, kube-state-metrics) |
-| Tailnet, API certificate, generation worker, Sonarr guardrails | `homelab-metrics.timer` on the k3s node |
-| BookBuddy generation queue depth and job age | BookBuddy `/metrics`, scraped via ServiceMonitor |
+| Tailnet, API certificate, Sonarr guardrails | `homelab-metrics.timer` on the k3s node |
 | Physical disk SMART and NVMe health | `disk_health` role on the Proxmox host, scraped as `proxmox-disk-health` |
 
 The `homelab_metrics` Ansible role installs a script that writes
@@ -99,11 +98,6 @@ address, so MagicDNS and the lab domain now coexist.
 | `TailscaleSubnetRouteNotApproved` | Route advertised but unapproved; re-run the tailscale Terraform stack |
 | `ApiServerCertMissingTailnetName` | Remote `kubectl` will fail TLS; re-run the `k3s` role |
 | `HomelabMetricsStale` | The exporter stopped; other homelab alerts are blind |
-| `BookBuddyWorkerTimerMissing` | Worker not installed; queued jobs are never claimed |
-| `BookBuddyWorkerRunFailing` | Worker runs, but every run errors |
-| `BookBuddyGenerationJobStalled` | A job sat pending over 30 minutes |
-| `BookBuddyGenerationJobStuckRunning` | A worker died mid-job; nothing resets the claim |
-| `BookBuddyGenerationJobsFailing` | Jobs are completing as failed |
 | `SonarrQualityDefinitionsUncapped` | HD qualities have no maximum size |
 | `SonarrSeriesOffManagedProfile` | Series are on Sonarr's unscored default profile |
 | `DiskHealthExporterDown` | Proxmox disk exporter unreachable; disk alerts are blind |
@@ -118,21 +112,3 @@ address, so MagicDNS and the lab domain now coexist.
 | `NvmeSpareLow` | NVMe spare blocks are at the drive's threshold |
 | `NvmeWearHigh` | NVMe has used over 80% of its rated endurance |
 | `NvmeTemperatureHigh` | The NVMe is above 70C for 15 minutes |
-
-## The BookBuddy generation worker
-
-The worker runs on the node, not in the cluster, because it spends a Codex
-subscription seat rather than per-token API credit. Its `CODEX_AUTH_FILE` is an
-interactive login artefact that is not in Key Vault, so the role is gated behind
-an explicit tag and **the platform deploy workflow does not install it**. After a
-rebuild it must be reinstalled by hand:
-
-```sh
-cd ansible
-export BOOKBUDDY_WORKER_TOKEN="$(kubectl get secret bookbuddy-env -n bookbuddy \
-  -o jsonpath='{.data.WORKER_TOKEN}' | base64 -d)"
-export CODEX_AUTH_FILE="$HOME/.codex/auth.json"
-ansible-playbook -i inventory/hosts.yml site.yml --tags bookbuddy_worker
-```
-
-`BookBuddyWorkerTimerMissing` is what tells you this was forgotten.

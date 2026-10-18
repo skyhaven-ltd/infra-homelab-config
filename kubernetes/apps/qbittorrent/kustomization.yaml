@@ -9,4 +9,4 @@ resources:
 configMapGenerator:
   - name: qbittorrent-config
     files:
-      - share-limits.py
+      - files/share-limits.py

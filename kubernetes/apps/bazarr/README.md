@@ -43,7 +43,7 @@ the application being healthy does not prove every title has subtitles.
 Language suffixes remain enabled, and subtitles are written alongside media.
 Matching paths mean no Sonarr/Radarr path mapping is needed. Scheduled missing
 subtitle searches handle the backlog without forcing a full-library search at
-every deployment. Change managed defaults in `reconcile-settings.py`.
+every deployment. Change managed defaults in `files/reconcile-settings.py`.
 
 ## First run and verification
 

@@ -10,4 +10,4 @@ resources:
 configMapGenerator:
   - name: bazarr-scripts
     files:
-      - reconcile-settings.py
+      - files/reconcile-settings.py

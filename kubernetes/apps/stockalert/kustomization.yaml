@@ -9,4 +9,4 @@ resources:
 configMapGenerator:
   - name: stockalert-config
     files:
-      - config.yaml
+      - files/config.yaml

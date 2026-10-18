@@ -2,7 +2,7 @@
 
 Syncs TRaSH-Guides quality profiles and custom formats into Sonarr and Radarr.
 This is the source of truth for **which releases score well** — edit
-`recyclarr.yml`, not the Sonarr/Radarr UI.
+`files/recyclarr.yml`, not the Sonarr/Radarr UI.
 
 *Quality definition sizes* are the one exception: they belong to
 [`buildarr`](../buildarr/README.md). Both the TRaSH
@@ -44,7 +44,7 @@ Reconcile Platform workflow.
 
 ## Changing quality
 
-Edit the `include:` templates in `recyclarr.yml`. Template names come from the
+Edit the `include:` templates in `files/recyclarr.yml`. Template names come from the
 [recyclarr config templates](https://recyclarr.dev/wiki/) repo. Changes apply on
 the next scheduled run, or trigger one:
 

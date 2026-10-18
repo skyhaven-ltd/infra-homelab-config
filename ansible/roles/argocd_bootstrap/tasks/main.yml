@@ -20,8 +20,6 @@
   ansible.builtin.assert:
     that:
       - cloudflare_api_token | length > 0
-      - knowledge_mcp_bearer_token | length > 0
-      - bookbuddy_worker_token | length > 0
       - prowlarr_api_key | length > 0
       - prowlarr_admin_password | length > 0
       - radarr_api_key | length > 0
@@ -46,34 +44,6 @@
       type: Opaque
       stringData:
         api-token: {{ cloudflare_api_token | to_json }}
-      ---
-      apiVersion: v1
-      kind: Namespace
-      metadata:
-        name: knowledge-mcp
-      ---
-      apiVersion: v1
-      kind: Secret
-      metadata:
-        name: knowledge-mcp-env
-        namespace: knowledge-mcp
-      type: Opaque
-      stringData:
-        KNOWLEDGE_MCP_BEARER_TOKEN: {{ knowledge_mcp_bearer_token | to_json }}
-      ---
-      apiVersion: v1
-      kind: Namespace
-      metadata:
-        name: bookbuddy
-      ---
-      apiVersion: v1
-      kind: Secret
-      metadata:
-        name: bookbuddy-env
-        namespace: bookbuddy
-      type: Opaque
-      stringData:
-        WORKER_TOKEN: {{ bookbuddy_worker_token | to_json }}
   environment: { KUBECONFIG: "{{ argocd_kubeconfig }}" }
   register: platform_secrets_apply
   changed_when: >-
