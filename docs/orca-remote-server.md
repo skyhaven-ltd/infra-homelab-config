@@ -303,7 +303,7 @@ clients reconnect after an upgrade without re-pairing.
 
 ## References
 
-- [Headless Linux server reference](https://github.com/stablyai/orca/blob/main/docs/reference/headless-linux-server.md)
+- [Headless Linux server reference](https://github.com/stablyai/orca/blob/d518d4a5466ed5355b1ea3dcce81044f013fd0e3/docs/reference/headless-linux-server.md)
 - [Remote Orca Servers](https://www.onorca.dev/docs/remote-servers)
 - [Ways to run Orca](https://www.onorca.dev/docs/ways-to-run)
 - [Scheduled automations](https://www.onorca.dev/docs/cli/automations)
